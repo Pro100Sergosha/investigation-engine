@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+.env
+data/raw/
+*.parquet
+.ruff_cache/
+.pytest_cache/
