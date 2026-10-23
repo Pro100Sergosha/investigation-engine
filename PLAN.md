@@ -1,6 +1,6 @@
 # AI Investigation Engine — MVP plan
 
-Source: Upgaming Talent Growth Program, "Applied AI – AI Investigation Engine Task" (PDF, Georgian).
+Source: Upgaming Talent Growth Program, "Applied AI – AI Investigation Engine Task" ([docs/task.pdf](docs/task.pdf), Georgian).
 Goal: multi-source investigation over 50k+ documents with cited, evidence-based answers that
 abstain on missing data and flag contradictions. Not "chat with PDF".
 
@@ -55,6 +55,8 @@ Bonus (only after core): LLM/embedding comparison, agentic RAG, reranker, prompt
 caching, streaming, observability, load test.
 
 ## 2. Key decisions
+
+Free service options per role (not final): [docs/SERVICES.md](docs/SERVICES.md).
 
 | Area | Choice | Why / trade-off |
 |---|---|---|
