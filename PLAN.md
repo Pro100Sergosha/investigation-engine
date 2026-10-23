@@ -117,9 +117,27 @@ Configurations compared:
 
 Output: `eval/results/<config>.json` + generated `EVALUATION.md` table and a failure analysis section.
 
-## 5. Phases
+## 5. Schedule
 
-Deadline unknown — estimates in focused working days.
+**Deadline: 2026-10-29 18:00 (Tbilisi).** Full scope below is ~12 days; 5 are available, so the
+schedule is compressed and scope is cut (see "Cuts"). Code freeze 2026-10-29 15:00.
+
+| Day | Date | Work | Done when |
+|---|---|---|---|
+| 1 | 10-24/25 | Phases 0, 1, 3: repo, Neon, HotpotQA subset, parsers, 2 chunkers, dedup, bulk embed + load, hybrid search with RRF + MMR | `search("...")` returns fused results over >= 50k records |
+| 2 | 10-26 | Phase 4 + start 2: LLM client (retry/backoff/fallback/cache), agent loop, JSON answer, citation validator; kick off Acme generation | CLI answers a HotpotQA multi-hop question with valid citations |
+| 3 | 10-27 | Phases 2, 5, 7: Acme corpus finished, API + HTML UI, **deploy early** to HF Space, persistence check | public URL answers a question end to end |
+| 4 | 10-28 | Phase 6: 40-45 questions, runner, metrics, config sweep (cached LLM calls) | `eval/results/*.json` for all configs |
+| 5 | 10-29 | Phase 8: EVALUATION.md with failure analysis, README, AI_USAGE.md, buffer, defense rehearsal | submitted before 18:00 |
+
+Cuts (in order of what goes first if behind):
+- danluu/post-mortems corpus — dropped.
+- Acme corpus: ~60-100 docs instead of 150-300.
+- Question set: 40-45 instead of 60.
+- Config comparison: chunking A vs B and dense vs hybrid are mandatory; single-shot vs agent only if time allows.
+- Bonuses: only streaming (cheap with SSE). Everything else is listed as "future work" in the README.
+
+Reference phases (original estimates):
 
 0. **Setup + data check (0.5 d)** — repo, uv project, Neon project, Groq key. Download HotpotQA, count unique paragraphs, decide subset size. Commit subset script with fixed seed.
 1. **Ingestion (2 d)** — parsers for 4 formats, metadata, hashing/dedup, two chunkers, CRUD on documents. Tests on small fixtures.
