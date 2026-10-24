@@ -55,7 +55,7 @@ old one, and the old one gets `status: superseded` and `superseded_by: 00XX`. Te
 | [0007](adr/0007-serverless-lambda-no-vpc-public-rds.md) | Serverless on AWS, Lambdas outside a VPC, publicly reachable RDS. **Superseded by 0015** |
 | [0008](adr/0008-function-url-not-api-gateway.md) | Lambda Function URL instead of API Gateway, UI served by the same Lambda |
 | [0009](adr/0009-one-container-image-for-all-lambdas.md) | One container image for all Lambdas, x86_64. **Superseded by 0016** |
-| [0010](adr/0010-cdk-single-production-environment.md) | CDK in Python, production as the only environment |
+| [0010](adr/0010-cdk-single-production-environment.md) | CDK in Python, production as the only environment (stack layout replaced by 0020) |
 | [0011](adr/0011-free-plan-aws-project.md) | A Free-plan AWS project in eu-north-1, accessed with `aws login` |
 | [0012](adr/0012-codebuild-cicd-via-codeconnections.md) | CD runs in CodeBuild, triggered by GitHub through CodeConnections |
 | [0013](adr/0013-branch-pr-workflow-and-ci.md) | Branches and pull requests, CI on PRs, deploy on main |
@@ -65,3 +65,4 @@ old one, and the old one gets `status: superseded` and `superseded_by: 00XX`. Te
 | [0017](adr/0017-bedrock-claude-haiku-llm.md) | All LLM calls on Amazon Bedrock, Claude Haiku as the main model |
 | [0018](adr/0018-cloud-only-ingestion-and-jobs.md) | Nothing runs on the author's computer: S3-triggered ingestion and CodeBuild jobs |
 | [0019](adr/0019-isolated-vpc-schema-custom-resource.md) | Aurora in its own isolated VPC, schema applied by a custom resource on deploy (replaces the default-VPC part of 0015) |
+| [0020](adr/0020-data-stack-split-by-lifecycle.md) | Stacks split by lifecycle: VPC, Aurora, secret and schema in a separate data stack (replaces the stack layout of 0010) |

@@ -1,6 +1,7 @@
-"""CDK app: two stacks in account 988277499209, eu-north-1.
+"""CDK app: three stacks in account 988277499209, eu-north-1, split by lifecycle (ADR 0020).
 
 Investigation-Cicd-prod  CodeBuild PR diff + deploy on main. Deployed by hand: make deploy-cicd.
+Investigation-Data-prod  VPC, Aurora, its secret, the schema. Deployed by CodeBuild, rarely changes.
 Investigation-prod       The application. Deployed by CodeBuild on every push to main.
 """
 
@@ -166,11 +167,13 @@ class CicdStack(cdk.Stack):
         return project
 
 
-class AppStack(cdk.Stack):
-    """The application: Aurora, the documents bucket, the api and ingest Lambdas, the jobs project.
+class DataStack(cdk.Stack):
+    """Stateful resources that hold data and rarely change: the VPC, Aurora, its secret, the schema.
 
-    Lambdas and CodeBuild run outside any VPC and reach Aurora only through the Data API
-    (ADR 0015); the VPC exists only because an Aurora cluster must live in one (ADR 0019).
+    A stack of its own so that a code deploy of Investigation-prod can never replace the
+    database (ADR 0020). The VPC exists only because an Aurora cluster must live in one (ADR 0019).
+    Investigation-prod imports the cluster and secret ARNs as CloudFormation exports: never remove
+    an export it still uses in the same deploy.
     """
 
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
@@ -192,7 +195,7 @@ class AppStack(cdk.Stack):
             ],
         )
         # 17.9: Data API needs 17.4+, pgvector 0.8 (halfvec) and 0-ACU auto-pause are in it.
-        cluster = rds.DatabaseCluster(
+        self.cluster = rds.DatabaseCluster(
             self,
             "Db",
             engine=rds.DatabaseClusterEngine.aurora_postgres(
@@ -213,6 +216,52 @@ class AppStack(cdk.Stack):
             deletion_protection=True,
             removal_policy=cdk.RemovalPolicy.SNAPSHOT,
         )
+        self._schema(self.cluster)
+
+    def _schema(self, cluster: rds.DatabaseCluster) -> None:
+        """Apply sql/schema.sql on every deploy where it changed (ADR 0019).
+
+        A custom resource whose properties carry the SQL text: CloudFormation sends Update
+        whenever the text changes, and the handler re-runs every (idempotent) statement.
+        """
+        code = (ROOT / "scripts" / "schema.py").read_text()
+        handler = lambda_.Function(
+            self,
+            "SchemaFn",
+            runtime=lambda_.Runtime.PYTHON_3_12,
+            handler="index.handler",
+            code=lambda_.Code.from_inline(code),
+            timeout=cdk.Duration.minutes(5),
+        )
+        cluster.grant_data_api_access(handler)
+        provider = cr.Provider(self, "SchemaProvider", on_event_handler=handler)
+        schema = cdk.CustomResource(
+            self,
+            "Schema",
+            service_token=provider.service_token,
+            properties={
+                "ClusterArn": cluster.cluster_arn,
+                "SecretArn": cluster.secret.secret_arn,
+                "Database": DB_NAME,
+                "Sql": (ROOT / "sql" / "schema.sql").read_text(),
+            },
+        )
+        # The whole cluster construct: the writer instance must exist before any statement.
+        schema.node.add_dependency(cluster)
+
+
+class AppStack(cdk.Stack):
+    """The application: the documents bucket, the api and ingest Lambdas, the jobs project.
+
+    Lambdas and CodeBuild run outside any VPC and reach Aurora only through the Data API
+    (ADR 0015). The bucket stays here with its notifications: they point at `ingest`, and a
+    bucket in another stack would make the two stacks depend on each other.
+    """
+
+    def __init__(
+        self, scope: Construct, construct_id: str, cluster: rds.DatabaseCluster, **kwargs
+    ) -> None:
+        super().__init__(scope, construct_id, **kwargs)
 
         bucket = s3.Bucket(
             self,
@@ -304,8 +353,6 @@ class AppStack(cdk.Stack):
         self._allow_bedrock(api, llm=True)
         self._allow_bedrock(jobs, llm=True)
 
-        self._schema(cluster)
-
     def _allow_bedrock(self, grantee: iam.IGrantable, llm: bool) -> None:
         # Converse and ConverseStream are authorized by these two actions; there is no
         # separate bedrock:Converse action.
@@ -322,12 +369,12 @@ class AppStack(cdk.Stack):
         )
         if not llm:
             return
-        # Claude Haiku exists here only through the eu.* cross-Region profile. A call needs the
+        # Claude Haiku 4.5 exists here only through the eu.* cross-Region profile. A call needs the
         # profile and the model in every EU Region the profile may route to; the condition allows
         # the model only when the call comes through that profile.
         haiku = (
             f"arn:aws:bedrock:{self.region}:{self.account}"
-            ":inference-profile/eu.anthropic.claude-haiku-*"
+            ":inference-profile/eu.anthropic.claude-haiku-4-5-*"
         )
         grantee.grant_principal.add_to_principal_policy(
             iam.PolicyStatement(actions=invoke, resources=[haiku])
@@ -335,7 +382,7 @@ class AppStack(cdk.Stack):
         grantee.grant_principal.add_to_principal_policy(
             iam.PolicyStatement(
                 actions=invoke,
-                resources=["arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-*"],
+                resources=["arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-*"],
                 conditions={"StringLike": {"bedrock:InferenceProfileArn": haiku}},
             )
         )
@@ -385,40 +432,10 @@ class AppStack(cdk.Stack):
             ),
         )
 
-    def _schema(self, cluster: rds.DatabaseCluster) -> None:
-        """Apply sql/schema.sql on every deploy where it changed (ADR 0019).
-
-        A custom resource whose properties carry the SQL text: CloudFormation sends Update
-        whenever the text changes, and the handler re-runs every (idempotent) statement.
-        """
-        code = (ROOT / "scripts" / "schema.py").read_text()
-        handler = lambda_.Function(
-            self,
-            "SchemaFn",
-            runtime=lambda_.Runtime.PYTHON_3_12,
-            handler="index.handler",
-            code=lambda_.Code.from_inline(code),
-            timeout=cdk.Duration.minutes(5),
-        )
-        cluster.grant_data_api_access(handler)
-        provider = cr.Provider(self, "SchemaProvider", on_event_handler=handler)
-        schema = cdk.CustomResource(
-            self,
-            "Schema",
-            service_token=provider.service_token,
-            properties={
-                "ClusterArn": cluster.cluster_arn,
-                "SecretArn": cluster.secret.secret_arn,
-                "Database": DB_NAME,
-                "Sql": (ROOT / "sql" / "schema.sql").read_text(),
-            },
-        )
-        # The whole cluster construct: the writer instance must exist before any statement.
-        schema.node.add_dependency(cluster)
-
 
 app = cdk.App()
 cdk.Tags.of(app).add("Project", "investigation-engine")
 CicdStack(app, "Investigation-Cicd-prod", env=ENV)
-AppStack(app, "Investigation-prod", env=ENV)
+data = DataStack(app, "Investigation-Data-prod", env=ENV)
+AppStack(app, "Investigation-prod", cluster=data.cluster, env=ENV)
 app.synth()

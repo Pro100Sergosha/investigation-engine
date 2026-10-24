@@ -10,7 +10,7 @@ superseded_by: none
 
 ## Context
 
-Stream A adds the data path to `Investigation-prod`: Aurora Serverless v2 (ADR 0015), the documents
+Stream A adds the data path (stack layout: ADR 0020): Aurora Serverless v2 (ADR 0015), the documents
 bucket, the `ingest` Lambda and the `investigation-jobs` project (ADR 0018). Three questions had no
 answer yet:
 
@@ -31,7 +31,7 @@ answer yet:
 internet gateway, no route out, no NAT. It costs nothing. The cluster's security group has no
 ingress rules; the Data API does not need any.
 
-**Schema: a CloudFormation custom resource in the same stack.** `sql/schema.sql` holds the whole
+**Schema: a CloudFormation custom resource in the cluster's stack.** `sql/schema.sql` holds the whole
 schema, every statement idempotent (`IF NOT EXISTS`). `scripts/schema.py` splits it on `;` and
 runs the statements one by one through `rds-data:ExecuteStatement`, retrying every error for up to
 ~3 minutes (resume, a cluster that just became available). The CDK app inlines that file as the code
@@ -56,8 +56,8 @@ already needs the bucket name) or a second deploy, for no security gain.
   and a broken statement fails the deploy (CloudFormation rolls the stack back; the statements
   that already ran stay, which is safe because all are idempotent). The deploy role
   needs no new permission and `Investigation-Cicd-prod` does not change.
-- The cost: three more Lambdas in the stack (`SchemaFn`, the Provider framework, CDK's bucket
-  notifications handler) and their log groups. Only *additive* changes work through this path:
+- The cost: three more Lambdas (`SchemaFn` and the Provider framework in the data stack, CDK's bucket
+  notifications handler in the app stack) and their log groups. Only *additive* changes work through this path:
   `CREATE TABLE IF NOT EXISTS` never alters an existing table, so a column change needs an explicit
   `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, and any new index over a loaded table may exceed the
   45 s statement limit (the HNSW index is created while the table is empty for that reason). A real

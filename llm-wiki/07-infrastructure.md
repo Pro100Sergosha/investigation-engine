@@ -31,7 +31,8 @@ Check the plan any time:
 |---|---|---|---|
 | `CDKToolkit` | CDK bootstrap (S3 assets bucket, ECR repo, `cdk-hnb659fds-*` roles), qualifier `hnb659fds` | `make bootstrap`, once | **deployed** 2026-10-24 |
 | `Investigation-Cicd-prod` | CodeBuild projects `investigation-pr-diff` and `investigation-deploy`, their roles and log groups (1 month) | `make deploy-cicd`, by hand only | **deployed** 2026-10-24 |
-| `Investigation-prod` | the application, see [below](#application-stack) | CodeBuild on push to `main` | **deployed** (`api` only); the data path below deploys with its PR |
+| `Investigation-Data-prod` | VPC, Aurora, its secret, the schema: stateful, rarely changes, see [below](#data-stack) | CodeBuild on push to `main`, before `Investigation-prod` | deploys with PR #8 |
+| `Investigation-prod` | the application, see [below](#application-stack) | CodeBuild on push to `main` | **deployed** (`api` only); the data path below deploys with PR #8 |
 
 Outside CloudFormation, created once with the CLI:
 - CodeConnections connection `investigation-github`
@@ -49,22 +50,36 @@ Outside CloudFormation, created once with the CLI:
 
 Every resource is tagged `Project=investigation-engine` at the app level.
 
-## Application stack
+Stacks are split by lifecycle ([ADR 0020](adr/0020-data-stack-split-by-lifecycle.md)): a code
+deploy of `Investigation-prod` cannot replace the database. `Investigation-prod` imports two
+exports of `Investigation-Data-prod` (cluster ARN, secret ARN), strong references (`cdk.json`):
+never remove an export that is still imported in the same deploy; a removal takes two deploys.
 
-`Investigation-prod` (`AppStack` in `cdk/app.py`). Decisions: [ADR 0015](adr/0015-aurora-serverless-data-api.md),
-[ADR 0018](adr/0018-cloud-only-ingestion-and-jobs.md), [ADR 0019](adr/0019-isolated-vpc-schema-custom-resource.md).
+## Data stack
+
+`Investigation-Data-prod` (`DataStack` in `cdk/app.py`). Decisions: [ADR 0015](adr/0015-aurora-serverless-data-api.md),
+[ADR 0019](adr/0019-isolated-vpc-schema-custom-resource.md), [ADR 0020](adr/0020-data-stack-split-by-lifecycle.md).
 
 | Resource | Configuration |
 |---|---|
 | VPC `Vpc` | two `PRIVATE_ISOLATED` subnets (eu-north-1a/b), no internet gateway, `nat_gateways=0`. Exists only because Aurora must live in a VPC |
 | Aurora cluster `Db` | PostgreSQL 17.9, one Serverless v2 writer, **0-4 ACU** (pauses after 5 idle minutes), **Data API on**, database `investigation`, not publicly accessible, security group without ingress, backups 1 day, deletion protection on, `removal_policy=SNAPSHOT` |
 | Secret `Db/Secret` | generated credentials of user `postgres` (Secrets Manager, $0.40/month), read by the Data API callers |
+| Custom resource `Schema` | Lambda `SchemaFn` + `cr.Provider`, see [Database schema](#database-schema) |
+
+## Application stack
+
+`Investigation-prod` (`AppStack` in `cdk/app.py`). Decisions: [ADR 0018](adr/0018-cloud-only-ingestion-and-jobs.md),
+[ADR 0019](adr/0019-isolated-vpc-schema-custom-resource.md) (bucket CORS). The bucket stays here with its notifications:
+they call `ingest`, and a bucket in the data stack would make the stacks depend on each other.
+
+| Resource | Configuration |
+|---|---|
 | Bucket `Documents` | all public access blocked, SSL enforced, `RETAIN`, CORS `PUT` from `*` (presigned browser uploads, [ADR 0019](adr/0019-isolated-vpc-schema-custom-resource.md)). Prefixes: `uploads/` (UI), `bulk/` (JSONL shards), `jobs/` (job outputs, inert) |
 | S3 events | `ObjectCreated` on `uploads/` and `bulk/` -> `ingest` (asynchronous invoke) |
 | Lambda `api` | image, `engine.handlers.api`, x86_64, 1024 MB, 90 s, Function URL (output `ApiUrl`) |
 | Lambda `ingest` | image, `engine.handlers.ingest`, x86_64, 1024 MB, 15 min, **reserved concurrency 5**: throttled S3 events wait in Lambda's async queue (up to 6 h) instead of overloading Bedrock and the database |
 | CodeBuild `investigation-jobs` | see [Jobs](#jobs) |
-| Custom resource `Schema` | Lambda `SchemaFn` + `cr.Provider`, see [Database schema](#database-schema) |
 
 Environment of `api`, `ingest` and the jobs project (names and ARNs, no secrets): `CLUSTER_ARN`,
 `SECRET_ARN`, `DB_NAME`, `BUCKET`. `src/engine/config.py` reads them (empty defaults for tests).
@@ -73,22 +88,23 @@ Permissions (least privilege, no `*` actions):
 
 | Principal | Data API + secret | Bedrock | S3 |
 |---|---|---|---|
-| `api` | yes | Titan V2, gpt-oss-120b, Qwen3-235B, Claude Haiku (`eu.*`) | `PutObject` on `uploads/*` (to presign uploads) |
+| `api` | yes | Titan V2, gpt-oss-120b, Qwen3-235B, Claude Haiku 4.5 (`eu.*`) | `PutObject` on `uploads/*` (to presign uploads) |
 | `ingest` | yes | Titan V2 only (it embeds, it never calls an LLM) | `GetObject` on `uploads/*`, `bulk/*` |
 | `investigation-jobs` | yes | same as `api` | `GetObject`, `PutObject` on the bucket, `ListBucket` |
-| `SchemaFn` | yes | - | - |
+| `SchemaFn` (data stack) | yes | - | - |
 
 - Data API access is `cluster.grant_data_api_access`: `rds-data:ExecuteStatement`,
   `BatchExecuteStatement`, `Begin/Commit/RollbackTransaction` on the cluster, plus `GetSecretValue`
   and `DescribeSecret` on the secret.
 - Bedrock: `InvokeModel` and `InvokeModelWithResponseStream`, which also authorize `Converse` and
   `ConverseStream` (there is no separate Converse action). In-Region models by foundation-model ARN.
-  Claude Haiku needs two statements: the `eu.anthropic.claude-haiku-*` inference profile in
-  eu-north-1, and `arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-*` (every EU Region
+  Claude Haiku 4.5 needs two statements: the `eu.anthropic.claude-haiku-4-5-*` inference profile in
+  eu-north-1, and `arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-*` (every EU Region
   the profile routes to) with the condition `bedrock:InferenceProfileArn` = that profile, so the
   model can be called only through the profile.
-- IAM is not quota: on 2026-10-24 the account's Bedrock quotas were 0 (Haiku cross-Region RPM/TPM
-  adjustable; gpt-oss-120b and Qwen3 not adjustable) and Titan calls were throttled.
+- IAM is not quota: verified on 2026-10-24, all four models answer and cross-Region inference works,
+  but Claude Haiku 4.5 is limited to 10 requests/min per profile until the account-level increase
+  is approved (14 Known gaps). Haiku 5.5 is not available to the account.
 
 ### Database schema
 
@@ -136,7 +152,7 @@ aws codebuild start-build --project-name investigation-jobs --profile investigat
 |---|---|---|
 | PR to `main` | GitHub Actions `ci.yml` | `make check` (ruff lint + format check, pytest, `cdk synth`) |
 | PR to `main` (owner only) | CodeBuild `investigation-pr-diff`, `.codebuild/pr-diff.yml` | `make diff-pr` (template diff, lookup role only), posted as one PR comment (edited on each push) by `scripts/comment_pr.py`; status check on the PR |
-| Push to `main` (owner only) | CodeBuild `investigation-deploy`, `.codebuild/deploy.yml` | `make test`, `make deploy`, `make verify` (`cdk diff --fail`), `make smoke` (`/health`); status on the commit |
+| Push to `main` (owner only) | CodeBuild `investigation-deploy`, `.codebuild/deploy.yml` | `make test`, `make deploy` (data stack, then app stack), `make verify` (`cdk diff --fail` on both), `make smoke` (`/health`); status on the commit |
 
 - **Why CodeBuild and not GitHub OIDC:** the Free-plan SCP denies `iam:*Provider*`; creating the
   OIDC provider failed with an explicit deny (2026-10-24).
@@ -155,9 +171,9 @@ aws codebuild start-build --project-name investigation-jobs --profile investigat
 ## Deploying
 
 ```bash
-make diff      # read it, every time
-make deploy    # Investigation-prod; normally CodeBuild does this on merge
-make verify    # fails if production differs from the code
+make diff      # both stacks; read it, every time
+make deploy    # Investigation-Data-prod, then Investigation-prod; normally CodeBuild does this on merge
+make verify    # fails if either stack in production differs from the code
 make smoke     # GET /health on the live URL
 ```
 

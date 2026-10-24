@@ -3,7 +3,7 @@ title: CDK in Python, production as the only environment
 status: accepted
 date: 2026-10-24
 supersedes: none
-superseded_by: none
+superseded_by: 0020 (stack layout only)
 ---
 
 # ADR 0010: CDK in Python, production as the only environment
