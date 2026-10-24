@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install lint fmt test check synth diff diff-pr deploy verify smoke dataset dataset-stats schema diff-cicd deploy-cicd bootstrap
+.PHONY: help install lint fmt test check synth diff diff-pr deploy verify smoke dataset dataset-stats diff-cicd deploy-cicd bootstrap
 
 # CLI pinned here, library pinned in uv.lock. npx downloads it once and caches it.
 CDK := npx --yes aws-cdk@2.1146.1
@@ -48,16 +48,13 @@ verify:  ## Fail if a deployed data or application stack differs from the code
 smoke:  ## Smoke-check /health on the deployed Function URL
 	curl --fail --silent --show-error "$$(aws cloudformation describe-stacks 	  --stack-name Investigation-prod 	  --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text)health"
 
-# Jobs: run in CodeBuild investigation-jobs (TARGET=<target>), which sets BUCKET, CLUSTER_ARN,
-# SECRET_ARN and DB_NAME. They read only shell variables, so they also run anywhere those are set.
+# Jobs: run in CodeBuild investigation-jobs (TARGET=<target>), which sets BUCKET, DB_HOST and
+# DB_NAME. They read only shell variables, so they also run anywhere those are set.
 dataset:  ## Job: HotpotQA -> dedup -> JSONL shards in s3://$BUCKET/bulk/ (ingest loads them)
 	uv run python scripts/dataset.py --bucket $$BUCKET
 
 dataset-stats:  ## Job: dataset counts and dedup stats only, writes nothing
 	uv run python scripts/dataset.py --bucket $$BUCKET --dry-run
-
-schema:  ## Job: apply sql/schema.sql (deploys do this already; for repairs)
-	uv run python scripts/schema.py --cluster-arn $$CLUSTER_ARN --secret-arn $$SECRET_ARN --database $$DB_NAME
 
 diff-cicd:  ## Show what deploy-cicd would change
 	cd cdk && $(CDK) diff Investigation-Cicd-prod

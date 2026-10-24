@@ -21,7 +21,7 @@ The author must explain and modify every line live at the interview, without AI.
 ## Stack
 
 Python 3.12, uv, ruff, pytest. Aurora Serverless v2 (PG 17 + pgvector `halfvec(1024)` +
-`tsvector`) through the RDS Data API. Amazon Bedrock: Titan Text Embeddings V2 (1024d), Claude
+`tsvector`), express configuration, IAM-token connections with pg8000. Amazon Bedrock: Titan Text Embeddings V2 (1024d), Claude
 Haiku 4.5 (agent, `eu.*` profile), gpt-oss-120b (fallback), Qwen3-235B (eval judge). AWS Lambda
 container image, S3, CodeBuild, CDK (Python), project `988277499209`, Region `eu-north-1`.
 Nothing runs on the author's computer except git and `aws login` (ADR 0018).
@@ -50,15 +50,17 @@ Nothing runs on the author's computer except git and `aws login` (ADR 0018).
 
 ## Data and SQL
 
-- All database access goes through `db.py` (RDS Data API via boto3): plain SQL, always
-  parameterized (`:name` parameters). Never f-string user input into SQL. Retry
-  `DatabaseResumingException` (Aurora wakes up from 0 ACU in ~15 s).
+- All database access goes through `db.py` (pg8000 over TLS, IAM auth token as the password,
+  user `app`): plain SQL, always parameterized (`:name` parameters). Never f-string user input
+  into SQL. A paused cluster wakes up from 0 ACU in ~15 s; `db.connect` retries (ADR 0021).
 - Schema changes in one SQL file, idempotent (`IF NOT EXISTS`). Update = replace chunks in one
   transaction; delete cascades.
 - Dedup by sha256 of normalized text.
 - Bulk loading goes through the same path as uploads: JSONL shards in S3 -> `ingest` Lambda.
   Long jobs (dataset, acme, eval) run in CodeBuild `investigation-jobs`, never on the laptop.
-- Data API limits: 1 MB per result, 45 s per statement, no `COPY` (use `BatchExecuteStatement`).
+- `app` has data access only (no DDL); schema changes go through `sql/schema.sql`, applied as
+  `postgres` by the deploy. Writes must be idempotent: a statement whose connection died is
+  retried once.
 
 ## LLM
 
@@ -79,8 +81,9 @@ Nothing runs on the author's computer except git and `aws login` (ADR 0018).
 
 ## Secrets and config
 
-- Local: `.env` (gitignored), template in `.env.example`. Prod: DB credentials in Secrets
-  Manager (Data API), other secrets in SSM Parameter Store SecureString. No LLM API keys (IAM).
+- Local: `.env` (gitignored), template in `.env.example`. Prod: no database password
+  exists (IAM auth tokens), other secrets in SSM Parameter Store SecureString. No LLM API keys
+  (IAM).
 - Never put secrets in code, the image, plain Lambda env vars, logs or commits.
 
 ## Tests
@@ -133,10 +136,11 @@ system, or learns that a document is wrong, fixes the docs **in the same PR**, u
 - Before infra changes: `make diff` and read it. Never destroy the database or its data by
   accident (deletion protection and retention/snapshot removal policy on stateful resources).
 - **Where a new AWS resource goes** (stacks split by lifecycle, like binadar):
-  - `Investigation-Data-prod`: stateful resources that hold data and rarely change (VPC, Aurora,
-    its secret, schema). A code deploy must never be able to replace them.
+  - `Investigation-Data-prod`: stateful resources that hold data and rarely change (the Aurora
+    cluster). A code deploy must never be able to replace them.
   - `Investigation-prod`: compute and everything that changes with the code (Lambdas, Function
-    URL, documents bucket and its notifications, jobs project, IAM grants).
+    URL, documents bucket and its notifications, jobs project, schema custom resource, IAM
+    grants).
   - `Investigation-Cicd-prod`: CI/CD only, deployed by hand.
   - A new stack only for a real reason: a different lifecycle, a different Region (e.g. a
     CloudFront certificate in `us-east-1`), or a different deployer. Then add it to the Makefile

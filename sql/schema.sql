@@ -1,9 +1,6 @@
--- The whole database schema (llm-wiki/03-data-model.md). Applied by the Schema custom resource
--- (scripts/schema.py) on the first deploy and on every deploy that changes this file, and by
--- hand with `make schema`, so every statement must be idempotent (IF NOT EXISTS).
--- The Data API runs one statement per call: statements are split on ';', so a ';' may appear
--- only at the end of a statement (no functions, no string literals containing it), and
--- comments go on their own lines.
+-- The whole database schema (llm-wiki/03-data-model.md). Applied as the master user by the
+-- Schema custom resource (engine.handlers.schema) on the first deploy and on every deploy that
+-- changes this file, in one call and one transaction, so every statement must be idempotent.
 -- Changing an existing table needs an ALTER TABLE ... ADD COLUMN IF NOT EXISTS below:
 -- CREATE TABLE IF NOT EXISTS never changes a table that already exists.
 
@@ -43,8 +40,8 @@ CREATE TABLE IF NOT EXISTS chunks (
 
 CREATE INDEX IF NOT EXISTS chunks_tsv_idx ON chunks USING gin (tsv);
 
--- Built while the table is empty, then maintained on every insert: a CREATE INDEX over a
--- loaded table would exceed the Data API's 45 s statement limit.
+-- Built while the table is empty, then maintained on every insert: building it over a loaded
+-- table inside a deploy would hold the custom resource for minutes.
 CREATE INDEX IF NOT EXISTS chunks_embedding_idx ON chunks USING hnsw (embedding halfvec_cosine_ops);
 
 -- No separate index on chunks (document_id): the UNIQUE (document_id, strategy, ord) index
@@ -57,3 +54,16 @@ CREATE TABLE IF NOT EXISTS llm_cache (
     response jsonb NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- The role the Lambdas and jobs log in as, by IAM token (rds_iam), with data access only: it
+-- cannot create, alter or drop tables, so an injected statement cannot destroy the schema.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'app') THEN
+        CREATE ROLE app LOGIN;
+    END IF;
+END
+$$;
+GRANT rds_iam TO app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app;
+GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO app;
