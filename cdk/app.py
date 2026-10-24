@@ -86,6 +86,10 @@ class CicdStack(cdk.Stack):
             ),
             privileged=True,  # docker build of the Lambda image
             assume_roles=["lookup", "deploy", "file-publishing", "image-publishing"],
+            # One deploy at a time, the rest queue in merge order. Parallel deploys raced on
+            # 2026-10-24: two pushed the same image tag (ECR tags are immutable) and one deployed
+            # Investigation-prod while the stack it imports from was still being created.
+            concurrent_build_limit=1,
         )
         deploy.add_to_role_policy(
             iam.PolicyStatement(
@@ -104,6 +108,7 @@ class CicdStack(cdk.Stack):
         filters: codebuild.FilterGroup,
         privileged: bool,
         assume_roles: list[str],
+        concurrent_build_limit: int | None = None,
     ) -> codebuild.Project:
         # CodeBuild checks the role's access to the connection while creating the project and its
         # webhook, so these permissions must exist before the project: inline in the role. The
@@ -152,6 +157,7 @@ class CicdStack(cdk.Stack):
                 privileged=privileged,
             ),
             timeout=cdk.Duration.minutes(30),
+            concurrent_build_limit=concurrent_build_limit,
             logging=codebuild.LoggingOptions(
                 cloud_watch=codebuild.CloudWatchLoggingOptions(
                     log_group=logs.LogGroup(

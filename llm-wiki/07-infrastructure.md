@@ -151,7 +151,7 @@ aws codebuild start-build --project-name investigation-jobs --profile investigat
 |---|---|---|
 | PR to `main` | GitHub Actions `ci.yml` | `make check` (ruff lint + format check, pytest, `cdk synth`) |
 | PR to `main` (owner only) | CodeBuild `investigation-pr-diff`, `.codebuild/pr-diff.yml` | `make diff-pr` (template diff, lookup role only), posted as one PR comment (edited on each push) by `scripts/comment_pr.py`; status check on the PR |
-| Push to `main` (owner only) | CodeBuild `investigation-deploy`, `.codebuild/deploy.yml` (one build at a time once `CicdStack` sets `concurrent_build_limit=1`) | `make test`, `make deploy` (data stack, then app stack), `make verify` (`cdk diff --fail` on both), `make smoke` (`/health`); status on the commit |
+| Push to `main` (owner only) | CodeBuild `investigation-deploy`, `.codebuild/deploy.yml` (one build at a time, `concurrent_build_limit=1`: later pushes queue in order) | `make test`, `make deploy` (data stack, then app stack), `make verify` (`cdk diff --fail` on both), `make smoke` (`/health`); status on the commit |
 
 - **Why CodeBuild and not GitHub OIDC:** the Free-plan SCP denies `iam:*Provider*`; creating the
   OIDC provider failed with an explicit deny (2026-10-24).
