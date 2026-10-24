@@ -34,6 +34,7 @@ and 10 Runbook appear with the streams that build them.
 
 - [02 Architecture](02-architecture.md): components, data flow, and why each choice was made
 - [04 API contract](04-api-contract.md): HTTP routes, JSON shapes, upload/update/delete flow
+- [05 Corpora](05-corpora.md): HotpotQA source, dedup rules, real counts, S3 shard layout
 - [07 Infrastructure](07-infrastructure.md): AWS project, CDK stacks, CI/CD, deploying, cost
 - [14 Known gaps](14-known-gaps.md): what does not work yet, or works on a temporary arrangement
 
