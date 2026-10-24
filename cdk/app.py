@@ -84,10 +84,48 @@ class CicdStack(cdk.Stack):
         privileged: bool,
         assume_roles: list[str],
     ) -> codebuild.Project:
+        # CodeBuild checks the role's access to the connection while creating the project and its
+        # webhook, so these permissions must exist before the project: inline in the role. The
+        # role's DefaultPolicy (added by add_to_role_policy) has no DependsOn from the project and
+        # is created in parallel, which failed the first deploys.
+        role = iam.Role(
+            self,
+            f"{construct_id}Role",
+            assumed_by=iam.ServicePrincipal("codebuild.amazonaws.com"),
+            inline_policies={
+                "ConnectionAndCdk": iam.PolicyDocument(
+                    statements=[
+                        iam.PolicyStatement(
+                            actions=[
+                                "codeconnections:GetConnection",
+                                "codeconnections:GetConnectionToken",
+                                "codeconnections:UseConnection",
+                                "codestar-connections:GetConnection",
+                                "codestar-connections:GetConnectionToken",
+                                "codestar-connections:UseConnection",
+                            ],
+                            resources=[CONNECTION_ARN],
+                        ),
+                        # CDK commands work by assuming the bootstrap roles; only the ones needed.
+                        iam.PolicyStatement(
+                            actions=["sts:AssumeRole"],
+                            resources=[
+                                f"arn:aws:iam::{self.account}:role/"
+                                f"cdk-hnb659fds-{bootstrap}-role-{self.account}-{self.region}"
+                                for bootstrap in assume_roles
+                            ],
+                        ),
+                    ]
+                )
+            },
+        )
+        # GitHub auth comes from the account-level CodeBuild source credential, which points at
+        # CONNECTION_ARN (imported once with the CLI, see llm-wiki/07).
         project = codebuild.Project(
             self,
             construct_id,
             project_name=name,
+            role=role,
             # Only the repo owner's events build, so code from forks never runs here.
             source=codebuild.Source.git_hub(
                 owner=GITHUB_OWNER,
@@ -113,32 +151,6 @@ class CicdStack(cdk.Stack):
                     )
                 )
             ),
-        )
-        # GitHub auth comes from the account-level CodeBuild source credential, which points at
-        # CONNECTION_ARN (imported once with the CLI, see llm-wiki/07). Setting Source.Auth on the
-        # project instead failed: CodeBuild checks the brand-new role before IAM propagates it.
-        project.add_to_role_policy(
-            iam.PolicyStatement(
-                actions=[
-                    "codeconnections:GetConnection",
-                    "codeconnections:GetConnectionToken",
-                    "codeconnections:UseConnection",
-                    "codestar-connections:GetConnection",
-                    "codestar-connections:GetConnectionToken",
-                    "codestar-connections:UseConnection",
-                ],
-                resources=[CONNECTION_ARN],
-            )
-        )
-        # CDK commands work by assuming the bootstrap roles; grant only the ones this build needs.
-        project.add_to_role_policy(
-            iam.PolicyStatement(
-                actions=["sts:AssumeRole"],
-                resources=[
-                    f"arn:aws:iam::{self.account}:role/cdk-hnb659fds-{role}-role-{self.account}-{self.region}"
-                    for role in assume_roles
-                ],
-            )
         )
         return project
 

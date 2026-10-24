@@ -39,9 +39,11 @@ Outside CloudFormation, created once with the CLI:
   console (Developer Tools > Settings > Connections > Update pending connection).
 - CodeBuild account-level source credential for GitHub pointing at that connection
   (`aws codebuild import-source-credentials --server-type GITHUB --auth-type CODECONNECTIONS
-  --token <connection-arn>`). The projects inherit it. Setting `Source.Auth` per project failed on
-  create with "User is not authorized to access connection": CodeBuild checks the project role
-  before IAM has propagated its new policy.
+  --token <connection-arn>`). The projects inherit it.
+- Gotcha: CodeBuild checks the project role's access to the connection while creating the project
+  and its webhook. CDK's role `DefaultPolicy` is created in parallel with the project (no
+  `DependsOn`), so the first deploys failed with "not authorized to access connection". The
+  connection and `sts:AssumeRole` permissions are therefore inline in the role itself.
 - SSM SecureString `/investigation/github-token`: fine-grained GitHub token, this repo only,
   *Pull requests: read and write*. Used only to post the PR diff comment.
 
