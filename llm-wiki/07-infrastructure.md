@@ -31,7 +31,7 @@ Check the plan any time:
 |---|---|---|---|
 | `CDKToolkit` | CDK bootstrap (S3 assets bucket, ECR repo, `cdk-hnb659fds-*` roles), qualifier `hnb659fds` | `make bootstrap`, once | **deployed** 2026-10-24 |
 | `Investigation-Cicd-prod` | CodeBuild projects `investigation-pr-diff` and `investigation-deploy`, their roles and log groups (1 month) | `make deploy-cicd`, by hand only | **deployed** 2026-10-24 |
-| `Investigation-prod` | `api` DockerImageFunction (1024 MB, 90 s) + Function URL, output `ApiUrl` | CodeBuild on push to `main` | not yet deployed |
+| `Investigation-prod` | the application, see [below](#application-stack) | CodeBuild on push to `main` | **deployed** (`api` only); the data path below deploys with its PR |
 
 Outside CloudFormation, created once with the CLI:
 - CodeConnections connection `investigation-github`
@@ -48,6 +48,84 @@ Outside CloudFormation, created once with the CLI:
   *Pull requests: read and write*. Used only to post the PR diff comment.
 
 Every resource is tagged `Project=investigation-engine` at the app level.
+
+## Application stack
+
+`Investigation-prod` (`AppStack` in `cdk/app.py`). Decisions: [ADR 0015](adr/0015-aurora-serverless-data-api.md),
+[ADR 0018](adr/0018-cloud-only-ingestion-and-jobs.md), [ADR 0019](adr/0019-isolated-vpc-schema-custom-resource.md).
+
+| Resource | Configuration |
+|---|---|
+| VPC `Vpc` | two `PRIVATE_ISOLATED` subnets (eu-north-1a/b), no internet gateway, `nat_gateways=0`. Exists only because Aurora must live in a VPC |
+| Aurora cluster `Db` | PostgreSQL 17.9, one Serverless v2 writer, **0-4 ACU** (pauses after 5 idle minutes), **Data API on**, database `investigation`, not publicly accessible, security group without ingress, backups 1 day, deletion protection on, `removal_policy=SNAPSHOT` |
+| Secret `Db/Secret` | generated credentials of user `postgres` (Secrets Manager, $0.40/month), read by the Data API callers |
+| Bucket `Documents` | all public access blocked, SSL enforced, `RETAIN`, CORS `PUT` from `*` (presigned browser uploads, [ADR 0019](adr/0019-isolated-vpc-schema-custom-resource.md)). Prefixes: `uploads/` (UI), `bulk/` (JSONL shards), `jobs/` (job outputs, inert) |
+| S3 events | `ObjectCreated` on `uploads/` and `bulk/` -> `ingest` (asynchronous invoke) |
+| Lambda `api` | image, `engine.handlers.api`, x86_64, 1024 MB, 90 s, Function URL (output `ApiUrl`) |
+| Lambda `ingest` | image, `engine.handlers.ingest`, x86_64, 1024 MB, 15 min, **reserved concurrency 5**: throttled S3 events wait in Lambda's async queue (up to 6 h) instead of overloading Bedrock and the database |
+| CodeBuild `investigation-jobs` | see [Jobs](#jobs) |
+| Custom resource `Schema` | Lambda `SchemaFn` + `cr.Provider`, see [Database schema](#database-schema) |
+
+Environment of `api`, `ingest` and the jobs project (names and ARNs, no secrets): `CLUSTER_ARN`,
+`SECRET_ARN`, `DB_NAME`, `BUCKET`. `src/engine/config.py` reads them (empty defaults for tests).
+
+Permissions (least privilege, no `*` actions):
+
+| Principal | Data API + secret | Bedrock | S3 |
+|---|---|---|---|
+| `api` | yes | Titan V2, gpt-oss-120b, Qwen3-235B, Claude Haiku (`eu.*`) | `PutObject` on `uploads/*` (to presign uploads) |
+| `ingest` | yes | Titan V2 only (it embeds, it never calls an LLM) | `GetObject` on `uploads/*`, `bulk/*` |
+| `investigation-jobs` | yes | same as `api` | `GetObject`, `PutObject` on the bucket, `ListBucket` |
+| `SchemaFn` | yes | - | - |
+
+- Data API access is `cluster.grant_data_api_access`: `rds-data:ExecuteStatement`,
+  `BatchExecuteStatement`, `Begin/Commit/RollbackTransaction` on the cluster, plus `GetSecretValue`
+  and `DescribeSecret` on the secret.
+- Bedrock: `InvokeModel` and `InvokeModelWithResponseStream`, which also authorize `Converse` and
+  `ConverseStream` (there is no separate Converse action). In-Region models by foundation-model ARN.
+  Claude Haiku needs two statements: the `eu.anthropic.claude-haiku-*` inference profile in
+  eu-north-1, and `arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-*` (every EU Region
+  the profile routes to) with the condition `bedrock:InferenceProfileArn` = that profile, so the
+  model can be called only through the profile.
+- IAM is not quota: on 2026-10-24 the account's Bedrock quotas were 0 (Haiku cross-Region RPM/TPM
+  adjustable; gpt-oss-120b and Qwen3 not adjustable) and Titan calls were throttled.
+
+### Database schema
+
+`sql/schema.sql` ([03 Data model](03-data-model.md)) is applied by the `Schema` custom resource:
+its properties carry the SQL text, so CloudFormation sends *Create* on the first deploy and *Update*
+whenever the file changes; *Delete* does nothing. The handler is `scripts/schema.py`, inlined as
+the code of `SchemaFn` (Python 3.12, 5 min): it splits the file on `;` and runs each statement with
+`rds-data:ExecuteStatement` (the Data API rejects several statements in one call), retrying every
+error every 10 s for ~3 minutes, which covers `DatabaseResumingException` of a paused cluster. The
+resource depends on the cluster and its writer instance. Nothing manual is needed after a merge.
+
+By hand, for repairs: `TARGET=schema` in the jobs project (`make schema` reads `CLUSTER_ARN`,
+`SECRET_ARN`, `DB_NAME` from the environment).
+
+### Jobs
+
+CodeBuild `investigation-jobs`: GitHub source through the same connection and account-level source
+credential as the CI/CD projects, **no webhook**, `standard:7.0`, small, not privileged, 2 h
+timeout, one build at a time (two jobs would share the Bedrock quota and the database), logs in its
+own log group (1 month). Its role carries the connection permissions inline, as in the CI/CD
+projects (the gotcha above applies to any project with a GitHub source). Buildspec
+`.codebuild/jobs.yml`: install uv 0.9.21, `uv sync --frozen`, `make $TARGET`.
+
+```bash
+aws codebuild start-build --project-name investigation-jobs --profile investigation \
+  --environment-variables-override name=TARGET,value=dataset
+# another branch: add --source-version feat/my-branch
+# follow it in the CodeBuild console (the build's log tab)
+```
+
+| `TARGET` | What |
+|---|---|
+| `dataset` | HotpotQA -> dedup -> JSONL shards in `bulk/hotpotqa/` (which trigger `ingest`), stats and gold questions in `jobs/dataset/` |
+| `dataset-stats` | the same counts with `--dry-run`, writes nothing |
+| `schema` | re-apply `sql/schema.sql` |
+
+`acme` and `eval CONFIG=...` arrive with their streams. A build without `TARGET` fails on purpose.
 
 ## CI/CD
 
