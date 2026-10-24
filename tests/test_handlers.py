@@ -1,6 +1,6 @@
 import json
 
-from engine.handlers import api
+from engine.handlers import api, ingest
 
 
 def _event(method: str, path: str) -> dict:
@@ -15,3 +15,10 @@ def test_health():
 
 def test_unknown_route():
     assert api(_event("GET", "/nope"), None)["statusCode"] == 404
+
+
+def test_ingest_logs_decoded_keys(capsys):
+    event = {"Records": [{"s3": {"object": {"key": "uploads/my+file.md"}}}]}
+    assert ingest(event, None) == {"keys": ["uploads/my file.md"]}
+    line = json.loads(capsys.readouterr().out)
+    assert line == {"handler": "ingest", "keys": ["uploads/my file.md"]}

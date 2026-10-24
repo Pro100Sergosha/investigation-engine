@@ -1,6 +1,15 @@
-"""Lambda entry points. `api` serves the Function URL; routes are added as streams land."""
+"""Lambda entry points. `api` serves the Function URL; `ingest` receives S3 object events."""
 
 import json
+from urllib.parse import unquote_plus
+
+
+def ingest(event, context):
+    """S3 ObjectCreated on uploads/ or bulk/. Stub: logs the keys; wave 2 indexes the objects."""
+    # S3 event keys are URL-encoded ("my file.md" arrives as "my+file.md").
+    keys = [unquote_plus(record["s3"]["object"]["key"]) for record in event.get("Records", [])]
+    print(json.dumps({"handler": "ingest", "keys": keys}))
+    return {"keys": keys}
 
 
 def api(event, context):
