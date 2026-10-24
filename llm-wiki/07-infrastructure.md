@@ -31,8 +31,8 @@ Check the plan any time:
 |---|---|---|---|
 | `CDKToolkit` | CDK bootstrap (S3 assets bucket, ECR repo, `cdk-hnb659fds-*` roles), qualifier `hnb659fds` | `make bootstrap`, once | **deployed** 2026-10-24 |
 | `Investigation-Cicd-prod` | CodeBuild projects `investigation-pr-diff` and `investigation-deploy`, their roles and log groups (1 month) | `make deploy-cicd`, by hand only | **deployed** 2026-10-24 |
-| `Investigation-Data-prod` | the Aurora cluster: stateful, rarely changes, see [below](#data-stack) | CodeBuild on push to `main`, before `Investigation-prod` | first deploy failed 2026-10-24 (the Free plan requires express configuration); redeploys with ADR 0021 |
-| `Investigation-prod` | the application, see [below](#application-stack) | CodeBuild on push to `main` | **deployed** (`api` only, rolled back to it on 2026-10-24); the data path deploys with the data stack |
+| `Investigation-Data-prod` | the Aurora cluster: stateful, rarely changes, see [below](#data-stack) | CodeBuild on push to `main`, before `Investigation-prod` | **deployed** 2026-10-24 (express configuration, ADR 0021) |
+| `Investigation-prod` | the application, see [below](#application-stack) | CodeBuild on push to `main` | **deployed** 2026-10-24 with the data path; `ingest` is still a stub |
 
 Outside CloudFormation, created once with the CLI:
 - CodeConnections connection `investigation-github`
@@ -62,7 +62,7 @@ never remove an export that is still imported in the same deploy; a removal take
 
 | Resource | Configuration |
 |---|---|
-| Aurora cluster `Db` (`CfnDBCluster`) | identifier `investigation`, **express configuration** (the only kind the Free plan creates): Aurora PostgreSQL at the default version (17.9), one serverless writer created by express, no VPC, **internet access gateway** (PostgreSQL over TLS, port 5432), **IAM authentication only**, master user `postgres`, database `postgres` (express rejects an initial database name), `DeletionPolicy`/`UpdateReplacePolicy: Snapshot`. Deletion protection and ACU range: not set at create, applied by an update (see 14 Known gaps) |
+| Aurora cluster `Db` (`CfnDBCluster`) | identifier `investigation`, **express configuration** (the only kind the Free plan creates): Aurora PostgreSQL at the default version (17.9), one serverless writer created by express, no VPC, **internet access gateway** (PostgreSQL over TLS, port 5432), **IAM authentication only**, master user `postgres`, database `postgres` (express rejects an initial database name), **deletion protection on**, `DeletionPolicy`/`UpdateReplacePolicy: Snapshot`, **0-4 ACU** with auto-pause after 300 s (the express default, pinned in code), backups 1 day. Deletion protection and capacity were applied by an update after the create (express rejects most settings at create) |
 
 `WithExpressConfiguration` is set with `add_property_override` (not in aws-cdk-lib 2.274's schema,
 so `cdk synth` warns; the live CloudFormation registry has it). It is create-only.
