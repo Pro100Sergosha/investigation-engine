@@ -28,7 +28,7 @@ CONNECTION_ARN = (
     "f4261920-5155-419e-a77d-a46964caa408"
 )
 GITHUB_TOKEN_PARAM = "/investigation/github-token"  # SecureString, PR comments only
-DB_NAME = "investigation"
+DB_NAME = "postgres"  # express configuration creates only the default database
 
 
 def _connection_statement() -> iam.PolicyStatement:
@@ -180,15 +180,14 @@ class DataStack(cdk.Stack):
         # The Free plan creates Aurora only with express configuration (ADR 0021): no VPC, an
         # internet access gateway in front of the cluster, IAM auth only, the default engine
         # version (17.9 on 2026-10-24) and a serverless writer it creates by itself, hence the
-        # L1 resource. Only identity, database name and deletion protection are set at create
-        # time; capacity is changed by a later update.
+        # L1 resource. Express rejects an initial database name (the database is `postgres`), so
+        # the create sets only the identity; deletion protection and capacity are applied by a
+        # later update of this resource, once the cluster exists.
         self.cluster = rds.CfnDBCluster(
             self,
             "Db",
             engine="aurora-postgresql",
             db_cluster_identifier="investigation",
-            database_name=DB_NAME,
-            deletion_protection=True,
         )
         # Not in aws-cdk-lib 2.274's schema yet (synth warns), but in the live CloudFormation
         # registry. Create-only: it never changes after the first deploy.

@@ -86,3 +86,13 @@ carries the Data API limits. Two access paths for the same database.
 **RDS for PostgreSQL (not Aurora) or another database service**: not checked against the Free
 plan, and none scales to zero like Aurora Serverless v2. Not worth re-planning the storage layer
 five days before the deadline.
+
+## Update 2026-10-24
+
+The first deploy with this decision failed: "the express configuration feature doesn't support
+creating an initial database. Remove the database-name parameter". The Aurora User Guide's settings
+table says the initial database name and deletion protection can be set "during or after the
+creation"; the database name cannot. The cluster is therefore created with only its identifier and
+`WithExpressConfiguration`, and uses the default database `postgres`. Deletion protection (likely
+affected the same way, not tested at create) and the 0-4 ACU range are applied by a later update of
+the same resource. Until then the cluster is protected only by `DeletionPolicy: Snapshot`.
