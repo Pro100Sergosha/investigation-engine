@@ -180,14 +180,21 @@ class DataStack(cdk.Stack):
         # The Free plan creates Aurora only with express configuration (ADR 0021): no VPC, an
         # internet access gateway in front of the cluster, IAM auth only, the default engine
         # version (17.9 on 2026-10-24) and a serverless writer it creates by itself, hence the
-        # L1 resource. Express rejects an initial database name (the database is `postgres`), so
-        # the create sets only the identity; deletion protection and capacity are applied by a
-        # later update of this resource, once the cluster exists.
+        # L1 resource. Express rejects an initial database name (the database is `postgres`).
+        # Deletion protection and capacity were added after the create, as an update: express
+        # accepts few settings at create time and the Aurora guide's list of them is wrong.
         self.cluster = rds.CfnDBCluster(
             self,
             "Db",
             engine="aurora-postgresql",
             db_cluster_identifier="investigation",
+            deletion_protection=True,
+            # 0 ACU: the writer pauses after 5 idle minutes and costs only storage until the
+            # next connection (~15 s resume). 4 ACU is enough for the bulk load and HNSW upkeep.
+            # Express created exactly this range; it is pinned here so the code says so.
+            serverless_v2_scaling_configuration=rds.CfnDBCluster.ServerlessV2ScalingConfigurationProperty(
+                min_capacity=0, max_capacity=4, seconds_until_auto_pause=300
+            ),
         )
         # Not in aws-cdk-lib 2.274's schema yet (synth warns), but in the live CloudFormation
         # registry. Create-only: it never changes after the first deploy.

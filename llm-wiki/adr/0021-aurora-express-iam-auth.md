@@ -96,3 +96,8 @@ creation"; the database name cannot. The cluster is therefore created with only 
 `WithExpressConfiguration`, and uses the default database `postgres`. Deletion protection (likely
 affected the same way, not tested at create) and the 0-4 ACU range are applied by a later update of
 the same resource. Until then the cluster is protected only by `DeletionPolicy: Snapshot`.
+
+The create with only the identifier succeeded. Express chose 0-4 ACU with auto-pause after 300 s,
+backups for 1 day, IAM auth, `VPCNetworkingEnabled: false`, `InternetAccessGatewayEnabled: true`,
+engine 17.9, writer `investigation-instance-1`, and no deletion protection. Deletion protection and
+the (unchanged) capacity range are now set by an update of the same resource.
