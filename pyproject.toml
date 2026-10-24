@@ -7,6 +7,9 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "boto3>=1.43.118",
+    "pypdf>=6.21.2",
+    "python-docx>=1.2.0",
     "python-dotenv>=1.2.4",
 ]
 
@@ -30,3 +33,5 @@ select = ["E", "F", "I", "B", "UP"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Repo root on sys.path so tests can import `eval` (the eval suite lives outside src/).
+pythonpath = ["."]

@@ -9,9 +9,28 @@ owner: Pro100Sergosha
 
 ## Built so far
 
-Only the skeleton: the `api` Lambda answers `GET /health` (once the first CodeBuild deploy runs), the shared contracts in
-`src/engine/models.py` exist. Everything below marked *(planned)* is decided (see the ADRs) but not
-built. Update this section as streams land.
+Only the skeleton: the `api` Lambda answers `GET /health`, and the contracts the parallel waves code
+against exist (see below). Everything marked *(planned)* is decided (see the ADRs) but not built.
+Update this section as streams land.
+
+## Contracts
+
+The shared types are in `src/engine/models.py`; the HTTP interface is in
+[04 API contract](04-api-contract.md). Pure-logic modules exist as signatures whose docstrings are
+the specification, with `NotImplementedError` bodies until their wave-1 owners implement them:
+
+| Function | Module | Notes |
+|---|---|---|
+| `parse(path, source) -> ParsedDoc` | `parsers.py` | `source` is passed by the caller (`upload:<filename>`): a temp path is not an identity |
+| `read_jsonl(path) -> list[ParsedDoc]` | `parsers.py` | bulk shards, one `ParsedDoc` per line |
+| `fixed_chunks`, `structured_chunks` | `chunking.py` | strategies "fixed" and "structured"; a token is a whitespace word |
+| `rrf`, `mmr` | `rank.py` | MMR relevance is the normalized fused score, diversity is cosine of chunk vectors |
+| `build_answer(raw, retrieved) -> Answer` | `grounding.py` | the citation validator and the status rules |
+| recall@k, reciprocal rank, EM, F1, citation precision, abstention P/R | `eval/metrics.py` | gold labels are document sources, not database ids |
+| `normalize`, `content_hash` | `index.py` | implemented: the dataset job and `ingest` must dedup identically |
+
+`ParsedDoc.text` has one shape for every format: paragraphs separated by a blank line, headings
+on their own line starting with `#`. The structure-aware chunker depends on it.
 
 ## Principles
 
