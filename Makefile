@@ -1,10 +1,10 @@
 .DEFAULT_GOAL := help
-.PHONY: help install lint fmt test check synth diff deploy deploy-github bootstrap
+.PHONY: help install lint fmt test check synth diff deploy verify smoke diff-cicd deploy-cicd bootstrap
 
 # CLI pinned here, library pinned in uv.lock. npx downloads it once and caches it.
 CDK := npx --yes aws-cdk@2.1146.1
 
-# Locally use the `aws login` profile; in CI credentials come from OIDC env vars.
+# Locally use the `aws login` profile; in CodeBuild credentials come from the project role.
 ifndef CI
 export AWS_PROFILE := investigation
 endif
@@ -34,11 +34,20 @@ synth:  ## Synthesize CloudFormation templates (no AWS calls)
 diff:  ## Show what a deploy would change. Read it before deploying.
 	cd cdk && $(CDK) diff Investigation-prod
 
-deploy:  ## Deploy the application stack (CI does this on push to main)
+deploy:  ## Deploy the application stack (CodeBuild does this on push to main)
 	cd cdk && $(CDK) deploy Investigation-prod --require-approval never
 
-deploy-github:  ## One-time: deploy the GitHub OIDC deploy role
-	cd cdk && $(CDK) deploy Investigation-Github-prod
+verify:  ## Fail if the deployed application stack differs from the code
+	cd cdk && $(CDK) diff Investigation-prod --fail
+
+smoke:  ## Smoke-check /health on the deployed Function URL
+	curl --fail --silent --show-error "$$(aws cloudformation describe-stacks 	  --stack-name Investigation-prod 	  --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text)health"
+
+diff-cicd:  ## Show what deploy-cicd would change
+	cd cdk && $(CDK) diff Investigation-Cicd-prod
+
+deploy-cicd:  ## By hand only: deploy the CodeBuild projects (read diff-cicd first)
+	cd cdk && $(CDK) deploy Investigation-Cicd-prod --require-approval never
 
 bootstrap:  ## One-time: CDK bootstrap of the account/region
 	cd cdk && $(CDK) bootstrap aws://988277499209/eu-north-1

@@ -1,8 +1,8 @@
 name: CI
 
-# Pull requests only. A merge to main is checked again by the `check` job in
-# deploy.yml, which is the one standing between a merge and production; running it
-# here on push too would start the same suite twice on the same commit.
+# Pull requests only. A merge to main is tested again by the CodeBuild deploy build
+# (.codebuild/deploy.yml), which stands between a merge and production; running it
+# here on push too would test the same commit twice.
 on:
   pull_request:
 

@@ -5,6 +5,9 @@ contradiction flags. Plan and decisions: [PLAN.md](PLAN.md) (source of truth).
 [docs/SERVICES.md](docs/SERVICES.md) is an early draft (Neon, HF Spaces), superseded by PLAN.md.
 Deadline: 2026-10-29 18:00 Tbilisi, code freeze 15:00.
 
+**Read [llm-wiki/index.md](llm-wiki/index.md) before any non-trivial work.** It describes the system
+as it is and indexes the ADRs (why each decision was made). PLAN.md is the plan and schedule.
+
 ## Prime rule: explainable without AI
 
 The author must explain and modify every line live at the interview, without AI.
@@ -32,6 +35,7 @@ CDK (Python), project `988277499209`, Region `eu-north-1`.
   `agent.py`, `handlers.py`; `eval/`, `scripts/`, `data/`, `static/`. Don't invent other layers.
 - `src/engine/config.py` — the only place that reads env vars.
 - `cdk/app.py` — all infrastructure.
+- `llm-wiki/` — knowledge base (numbered docs + `adr/`). Start at `index.md`.
 
 ## Code style
 
@@ -77,11 +81,25 @@ CDK (Python), project `988277499209`, Region `eu-north-1`.
 - One focused test per non-trivial behavior; no mocks of things that can run for real cheaply.
 - `make check` (lint + test + synth) must pass before any commit.
 
+## Definition of Done
+
+A task is done when all of these are true:
+- [ ] Code implements the described behaviour; tests cover the happy path and obvious failures
+- [ ] `make check` passes and CI on the PR is green
+- [ ] The relevant `llm-wiki/` document is updated in the same PR (it describes the system as it is)
+- [ ] An ADR exists if an architectural decision was made or reversed (`llm-wiki/adr/`, copy
+      `0000-template.md`, next number, add it to the table in `index.md`). Accepted ADRs are not
+      edited; a reversal is a new ADR that supersedes the old one
+- [ ] `llm-wiki/14-known-gaps.md` updated if a gap was opened or closed
+- [ ] Deployed and smoke-checked where the change touches deployed infrastructure
+
 ## Infra and deploy
 
-- Pull request = `ci.yml` runs `make check`. Merge to `main` = `deploy.yml` runs `make check`,
-  `make diff`, deploys `Investigation-prod`, smoke-checks `/health`. So `main` must always be
-  deployable. `Investigation-Github-prod` (CI's own role) is deployed only by hand.
+- Pull request = GitHub Actions `ci.yml` runs `make check`; CodeBuild `investigation-pr-diff`
+  comments the `cdk diff` against production. Merge to `main` = CodeBuild `investigation-deploy`
+  runs `make test deploy verify smoke` (`.codebuild/deploy.yml`). So `main` must always be
+  deployable. `Investigation-Cicd-prod` (the CodeBuild projects) is deployed only by hand.
+- No GitHub OIDC: the Free-plan SCP denies `iam:*Provider*` (ADR 0012).
 - Before infra changes: `make diff` and read it. Never destroy RDS or its data by accident
   (set retention/removal policy on stateful resources).
 - Cost rules: no NAT Gateway, no custom CloudWatch metrics, no provisioned concurrency.
