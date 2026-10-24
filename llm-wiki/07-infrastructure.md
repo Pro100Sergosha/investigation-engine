@@ -37,6 +37,11 @@ Outside CloudFormation, created once with the CLI:
 - CodeConnections connection `investigation-github`
   (`arn:aws:codeconnections:eu-north-1:988277499209:connection/f4261920-...`), confirmed in the
   console (Developer Tools > Settings > Connections > Update pending connection).
+- CodeBuild account-level source credential for GitHub pointing at that connection
+  (`aws codebuild import-source-credentials --server-type GITHUB --auth-type CODECONNECTIONS
+  --token <connection-arn>`). The projects inherit it. Setting `Source.Auth` per project failed on
+  create with "User is not authorized to access connection": CodeBuild checks the project role
+  before IAM has propagated its new policy.
 - SSM SecureString `/investigation/github-token`: fine-grained GitHub token, this repo only,
   *Pull requests: read and write*. Used only to post the PR diff comment.
 

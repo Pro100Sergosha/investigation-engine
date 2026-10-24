@@ -114,10 +114,9 @@ class CicdStack(cdk.Stack):
                 )
             ),
         )
-        # The L2 construct has no CodeConnections option: set the source auth directly.
-        project.node.default_child.add_property_override(
-            "Source.Auth", {"Type": "CODECONNECTIONS", "Resource": CONNECTION_ARN}
-        )
+        # GitHub auth comes from the account-level CodeBuild source credential, which points at
+        # CONNECTION_ARN (imported once with the CLI, see llm-wiki/07). Setting Source.Auth on the
+        # project instead failed: CodeBuild checks the brand-new role before IAM propagates it.
         project.add_to_role_policy(
             iam.PolicyStatement(
                 actions=[
