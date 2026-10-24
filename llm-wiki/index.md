@@ -22,10 +22,10 @@ and 10 Runbook appear with the streams that build them.
 | If you are working on... | Read |
 |---|---|
 | Anything, first time | [02 Architecture](02-architecture.md), [CLAUDE.md](../CLAUDE.md), [PLAN.md](../PLAN.md) |
-| CDK, AWS resources, deploys, CI | [07 Infrastructure](07-infrastructure.md), ADRs 0007-0013 |
-| Search, ranking, embeddings | [02 Architecture](02-architecture.md), [ADR 0002](adr/0002-postgres-pgvector-single-store.md), [ADR 0003](adr/0003-hybrid-search-own-rrf-mmr.md) |
-| LLM calls, the agent, citations | [ADR 0004](adr/0004-groq-llm-with-postgres-cache.md), [ADR 0005](adr/0005-agent-loop-with-citation-validation.md) |
-| Datasets, Acme corpus | [ADR 0006](adr/0006-hotpotqa-plus-synthetic-acme-corpus.md) |
+| CDK, AWS resources, deploys, CI | [07 Infrastructure](07-infrastructure.md), ADRs 0010-0013, 0015, 0018 |
+| Search, ranking, embeddings, the database | [02 Architecture](02-architecture.md), ADRs [0002](adr/0002-postgres-pgvector-single-store.md), [0003](adr/0003-hybrid-search-own-rrf-mmr.md), [0015](adr/0015-aurora-serverless-data-api.md), [0016](adr/0016-titan-embeddings-no-model-in-lambda.md) |
+| LLM calls, the agent, citations | [ADR 0017](adr/0017-bedrock-claude-haiku-llm.md), [ADR 0005](adr/0005-agent-loop-with-citation-validation.md) |
+| Datasets, Acme corpus, ingestion, jobs | [ADR 0006](adr/0006-hotpotqa-plus-synthetic-acme-corpus.md), [ADR 0018](adr/0018-cloud-only-ingestion-and-jobs.md) |
 | Shared types or stream interfaces | [ADR 0014](adr/0014-shared-contracts-parallel-streams.md), `src/engine/models.py` |
 | Something does not work yet or is temporary | [14 Known gaps](14-known-gaps.md) |
 
@@ -44,16 +44,20 @@ old one, and the old one gets `status: superseded` and `superseded_by: 00XX`. Te
 | ADR | Decision |
 |---|---|
 | [0001](adr/0001-own-code-no-rag-frameworks.md) | Own small code, no RAG or web frameworks |
-| [0002](adr/0002-postgres-pgvector-single-store.md) | Postgres with pgvector as the single store |
-| [0003](adr/0003-hybrid-search-own-rrf-mmr.md) | Hybrid search with hand-written RRF and MMR |
-| [0004](adr/0004-groq-llm-with-postgres-cache.md) | Groq as the LLM, Bedrock fallback, one cached client |
+| [0002](adr/0002-postgres-pgvector-single-store.md) | Postgres with pgvector as the single store (hosting part replaced by 0015) |
+| [0003](adr/0003-hybrid-search-own-rrf-mmr.md) | Hybrid search with hand-written RRF and MMR (embedding model replaced by 0016) |
+| [0004](adr/0004-groq-llm-with-postgres-cache.md) | Groq as the LLM, Bedrock fallback, one cached client. **Superseded by 0017** |
 | [0005](adr/0005-agent-loop-with-citation-validation.md) | Own agent loop with tool calling and server-side citation validation |
 | [0006](adr/0006-hotpotqa-plus-synthetic-acme-corpus.md) | HotpotQA for scale and labels, synthetic Acme corpus for investigation |
-| [0007](adr/0007-serverless-lambda-no-vpc-public-rds.md) | Serverless on AWS, Lambdas outside a VPC, publicly reachable RDS |
+| [0007](adr/0007-serverless-lambda-no-vpc-public-rds.md) | Serverless on AWS, Lambdas outside a VPC, publicly reachable RDS. **Superseded by 0015** |
 | [0008](adr/0008-function-url-not-api-gateway.md) | Lambda Function URL instead of API Gateway, UI served by the same Lambda |
-| [0009](adr/0009-one-container-image-for-all-lambdas.md) | One container image for all Lambdas, x86_64 |
+| [0009](adr/0009-one-container-image-for-all-lambdas.md) | One container image for all Lambdas, x86_64. **Superseded by 0016** |
 | [0010](adr/0010-cdk-single-production-environment.md) | CDK in Python, production as the only environment |
 | [0011](adr/0011-free-plan-aws-project.md) | A Free-plan AWS project in eu-north-1, accessed with `aws login` |
 | [0012](adr/0012-codebuild-cicd-via-codeconnections.md) | CD runs in CodeBuild, triggered by GitHub through CodeConnections |
 | [0013](adr/0013-branch-pr-workflow-and-ci.md) | Branches and pull requests, CI on PRs, deploy on main |
 | [0014](adr/0014-shared-contracts-parallel-streams.md) | Shared dataclass contracts and parallel workstreams |
+| [0015](adr/0015-aurora-serverless-data-api.md) | Aurora Serverless v2 with the Data API instead of a public RDS instance |
+| [0016](adr/0016-titan-embeddings-no-model-in-lambda.md) | Bedrock Titan Text Embeddings V2, no model inside the Lambda image |
+| [0017](adr/0017-bedrock-claude-haiku-llm.md) | All LLM calls on Amazon Bedrock, Claude Haiku as the main model |
+| [0018](adr/0018-cloud-only-ingestion-and-jobs.md) | Nothing runs on the author's computer: S3-triggered ingestion and CodeBuild jobs |

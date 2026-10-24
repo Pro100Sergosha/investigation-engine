@@ -96,9 +96,11 @@ uv from `uv.lock` (`--no-dev`), code copied from `src/engine`. `.dockerignore` i
 
 ## Cost
 
-Target: inside the $100 credits until the interview. Lambda, S3, SSM, CloudWatch Logs within the
-free tier; ECR a few cents. RDS (planned) is the only real line, ~$21/month including storage and
-the public IPv4. Rules: no NAT Gateway, no custom CloudWatch metrics, no provisioned concurrency.
+Target: inside the $100 credits until the interview. Full table with eu-north-1 prices in
+[PLAN.md](../PLAN.md) (Deployment): ~$20-30 for the five days, ~$2-4 per month of demo. The main
+spend is Claude Haiku in evaluation sweeps; Aurora costs only while awake ($0.14 per ACU-hour).
+Rules: no NAT Gateway, no custom CloudWatch metrics, no provisioned concurrency, no always-on
+database.
 
 ## Operating notes
 

@@ -3,7 +3,7 @@ title: Hybrid search with hand-written RRF and MMR
 status: accepted
 date: 2026-10-24
 supersedes: none
-superseded_by: none
+superseded_by: 0016 (embedding model only: fastembed replaced by Titan V2 1024d)
 ---
 
 # ADR 0003: Hybrid search with hand-written RRF and MMR

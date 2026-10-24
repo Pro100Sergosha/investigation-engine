@@ -3,7 +3,7 @@ title: Postgres with pgvector as the single store
 status: accepted
 date: 2026-10-24
 supersedes: none
-superseded_by: none
+superseded_by: 0015 (hosting only: RDS and local Docker replaced by Aurora Serverless v2 + Data API)
 ---
 
 # ADR 0002: Postgres with pgvector as the single store

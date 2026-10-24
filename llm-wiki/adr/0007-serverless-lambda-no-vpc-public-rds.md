@@ -1,9 +1,9 @@
 ---
 title: Serverless on AWS, Lambdas outside a VPC, publicly reachable RDS
-status: accepted
+status: superseded
 date: 2026-10-24
 supersedes: none
-superseded_by: none
+superseded_by: 0015
 ---
 
 # ADR 0007: Serverless on AWS, Lambdas outside a VPC, publicly reachable RDS

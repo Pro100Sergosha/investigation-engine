@@ -1,9 +1,9 @@
 ---
 title: Groq as the LLM, Bedrock fallback, all calls through one cached client
-status: accepted
+status: superseded
 date: 2026-10-24
 supersedes: none
-superseded_by: none
+superseded_by: 0017
 ---
 
 # ADR 0004: Groq as the LLM, Bedrock fallback, all calls through one cached client
