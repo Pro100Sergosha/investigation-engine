@@ -7,3 +7,4 @@ data/raw/
 .pytest_cache/
 .idea/
 *.stackdump
+cdk.out/

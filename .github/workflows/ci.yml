@@ -1,0 +1,30 @@
+name: CI
+
+# Pull requests only. A merge to main is tested again by the CodeBuild deploy build
+# (.codebuild/deploy.yml), which stands between a merge and production; running it
+# here on push too would test the same commit twice.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: lint, test, synth
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          enable-cache: true
+      # CDK's Python bindings drive a Node subprocess (jsii), and the CLI comes from npx.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - run: uv sync --frozen
+      - run: make check

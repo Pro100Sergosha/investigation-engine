@@ -1,0 +1,26 @@
+# investigation-pr-diff: on every pull request to main from the repo owner, diff the PR's
+# infrastructure against production and post it as a PR comment. Status is reported to GitHub.
+version: 0.2
+
+env:
+  shell: bash
+  variables:
+    CI: "true"
+    NO_COLOR: "1"
+  parameter-store:
+    GITHUB_TOKEN: /investigation/github-token
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 22
+    commands:
+      - curl -LsSf https://astral.sh/uv/0.9.21/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
+      - uv sync --frozen
+  build:
+    commands:
+      - set -o pipefail; make diff-pr 2>&1 | tee diff.txt
+  post_build:
+    # Runs even when the diff failed, so the PR always gets a comment.
+    commands:
+      - uv run python scripts/comment_pr.py diff.txt

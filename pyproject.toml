@@ -19,6 +19,8 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "aws-cdk-lib>=2.274.0",
+    "constructs>=10.8.1",
     "pytest>=9.1.1",
     "ruff>=0.17.2",
 ]
