@@ -44,8 +44,8 @@ jobs:
       - run: uv sync --frozen
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          role-to-assume: arn:aws:iam::788607671121:role/investigation-deploy
-          aws-region: eu-central-1
+          role-to-assume: arn:aws:iam::988277499209:role/investigation-deploy
+          aws-region: eu-north-1
       - run: make diff
       - run: make deploy
       - name: Smoke check

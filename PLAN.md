@@ -74,12 +74,12 @@ Free service options per role (not final): [docs/SERVICES.md](docs/SERVICES.md).
 | UI | One static HTML page + vanilla JS, served by the same `api` Lambda at `GET /` | Same origin as the API: no CORS, no CloudFront, HTTPS from the Function URL. |
 | Uploads | Browser gets a presigned S3 URL, uploads directly; S3 event triggers the `ingest` Lambda | Lambda payload limit is 6 MB; ingestion runs async with its own timeout. S3 keeps originals for re-ingestion. |
 | IaC | AWS CDK (Python), one stack `Investigation-prod`; `make diff` / `make deploy` | Same tool and workflow as binadar, so it is already known and defensible. Lambdas built as one container image (`DockerImageFunction`, x86_64: ARM builds on Windows run under emulation). Zip + uv cross-platform wheels (binadar's approach) rejected: onnxruntime + model are too close to the 250 MB limit. |
-| AWS access | Separate account on credits, IAM Identity Center (SSO) profile `investigation`; no long-lived keys | Isolation from binadar's shared account (concurrency quota of 10, unrelated prod services, boundary denies RDS). |
+| AWS access | AWS *project* (new AWS experience) on the Free plan: $100 credits, closes on expiry (2027-04-24) instead of billing. CLI via `aws login --profile investigation`; no long-lived keys | Free plan is a hard requirement. IAM Identity Center and Organizations are not available on it (enabling them upgraded the first account to Paid, which was abandoned). Isolated from binadar's account. |
 | CI | GitHub Actions: `make check` (ruff, pytest) on push and PR | Deploy stays manual (`make deploy`); OIDC deploy role only if time allows. |
 | Observability | JSON log line per request (route, latency, tokens, LLM model, cache hit) in CloudWatch Logs; no custom metrics | Free tier; custom metrics cost $0.30 each (binadar's lesson). Logs Insights for analysis. |
 | Tagging | `Project=investigation-engine` on the CDK app, activated as a cost allocation tag | Spend visible in Cost Explorer. |
 | Secrets | SSM Parameter Store `SecureString` (free tier), read once per cold start | Not in code, not in the image, not in plain Lambda env vars. |
-| Region | `eu-central-1` (Frankfurt) | Closest to Tbilisi. |
+| Region | `eu-north-1` (Stockholm) | Fixed by the AWS project: all Regional resources must live there. |
 | Tooling | Python 3.12, uv, ruff, pytest, Docker, AWS CLI, AWS CDK (Node) | |
 
 ## 3. Architecture
@@ -103,7 +103,7 @@ Schema (sketch): `documents(id, source, title, doc_type, created_at, content_has
 `llm_cache(prompt_hash, model, response jsonb, created_at)`.
 Update = new version replaces chunks in one transaction; delete cascades.
 
-### Deployment (AWS, eu-central-1)
+### Deployment (AWS, eu-north-1)
 
 ```
 browser ──HTTPS──> Lambda Function URL ──> api Lambda (container image)
@@ -162,7 +162,7 @@ schedule is compressed and scope is cut (see "Cuts"). Code freeze 2026-10-29 15:
 
 | Day | Date | Work | Done when |
 |---|---|---|---|
-| 1 | 10-24/25 | Phases 0, 1, 3 + infra: repo, local Docker Postgres, AWS account + SSO + budget + CDK skeleton with RDS, HotpotQA subset, parsers, 2 chunkers, dedup, bulk embed + load, hybrid search with RRF + MMR | `search("...")` returns fused results over >= 50k records |
+| 1 | 10-24/25 | Phases 0, 1, 3 + infra: repo, local Docker Postgres, AWS project + `aws login` + budget + CDK skeleton with RDS, HotpotQA subset, parsers, 2 chunkers, dedup, bulk embed + load, hybrid search with RRF + MMR | `search("...")` returns fused results over >= 50k records |
 | 2 | 10-26 | Phase 4 + start 2: LLM client (retry/backoff/fallback/cache), agent loop, JSON answer, citation validator; kick off Acme generation | CLI answers a HotpotQA multi-hop question with valid citations |
 | 3 | 10-27 | Phases 2, 5, 7: Acme corpus finished, Lambda router + HTML UI, deploy real code to AWS (infra already up from day 1), persistence check | public URL answers a question end to end |
 | 4 | 10-28 | Phase 6: 40-45 questions, runner, metrics, config sweep (cached LLM calls) | `eval/results/*.json` for all configs |
@@ -187,7 +187,7 @@ branch/worktree and merges to `main` when its tests pass.
 | A. Data + search | HotpotQA subset, schema, dedup, 2 chunkers, bulk embed, load, dense + keyword, RRF + MMR, CRUD | `data/`, `db.py`, `chunking.py`, `index.py`, `search.py` | local Docker Postgres (RDS for the final load) | day 1 |
 | B. LLM + agent | Groq client (retry/backoff/timeout/fallback/cache), tools, agent loop, JSON answer, citation validator | `llm.py`, `agent.py` | stub `search` | day 1 |
 | C. Acme corpus + parsers | generator, planted contradictions/gaps, `GROUND_TRUTH.md`, PDF/DOCX/HTML/MD parsers | `parsers.py`, `scripts/gen_acme.py`, `data/acme/` | Groq key | day 1 |
-| D. Infra + API + UI | AWS account, SSO, budget alert, CDK stack (RDS, S3, 2 Lambdas, Function URL, SSM), CI, Lambda router, HTML page, Dockerfile, persistence check | `handlers.py`, `static/`, `Dockerfile`, `cdk/`, `Makefile`, `.github/workflows/` | stubs `ask`/`search` | day 1 (infra), day 2 (API/UI) |
+| D. Infra + API + UI | AWS project, `aws login`, budget alert, CDK stack (RDS, S3, 2 Lambdas, Function URL, SSM), CI, Lambda router, HTML page, Dockerfile, persistence check | `handlers.py`, `static/`, `Dockerfile`, `cdk/`, `Makefile`, `.github/workflows/` | stubs `ask`/`search` | day 1 (infra), day 2 (API/UI) |
 | E. Evaluation | questions, Recall@K/MRR/citation metrics (pure functions), runner, config sweep, EVALUATION.md | `eval/` | real `ask` for runs only | day 2 |
 
 Merge points: A+B on day 2 (real search inside the agent); C into A on day 3 (Acme indexed);

@@ -4,7 +4,7 @@
 # CLI pinned here, library pinned in uv.lock. npx downloads it once and caches it.
 CDK := npx --yes aws-cdk@2.1146.1
 
-# Locally use the SSO profile; in CI credentials come from OIDC env vars.
+# Locally use the `aws login` profile; in CI credentials come from OIDC env vars.
 ifndef CI
 export AWS_PROFILE := investigation
 endif
@@ -41,4 +41,4 @@ deploy-github:  ## One-time: deploy the GitHub OIDC deploy role
 	cd cdk && $(CDK) deploy Investigation-Github-prod
 
 bootstrap:  ## One-time: CDK bootstrap of the account/region
-	cd cdk && $(CDK) bootstrap aws://788607671121/eu-central-1
+	cd cdk && $(CDK) bootstrap aws://988277499209/eu-north-1

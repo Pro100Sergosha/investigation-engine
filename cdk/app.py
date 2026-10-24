@@ -1,4 +1,4 @@
-"""CDK app: two stacks in account 788607671121, eu-central-1.
+"""CDK app: two stacks in account 988277499209, eu-north-1.
 
 Investigation-Github-prod  OIDC trust for GitHub Actions. Deployed once by hand: make deploy-github.
 Investigation-prod         The application. Deployed by CI on every push to main: make deploy.
@@ -12,7 +12,7 @@ from aws_cdk import aws_lambda as lambda_
 from constructs import Construct
 
 ROOT = Path(__file__).resolve().parent.parent
-ENV = cdk.Environment(account="788607671121", region="eu-central-1")
+ENV = cdk.Environment(account="988277499209", region="eu-north-1")
 GITHUB_OWNER, GITHUB_REPO = "Pro100Sergosha", "investigation-engine"
 
 
