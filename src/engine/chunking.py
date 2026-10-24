@@ -24,7 +24,8 @@ def structured_chunks(text: str, max_words: int = 300) -> list[str]:
     into the next chunk; trailing headings with no paragraph at all are dropped. Heading words
     count toward `max_words`. A paragraph longer than `max_words` is split with
     `fixed_chunks(p, max_words, 0)`; each piece is its own chunk and only the first one carries
-    the headings (so it may exceed `max_words` by the heading words). Paragraphs inside a chunk stay separated by a blank line. Empty text -> [].
+    the headings (so it may exceed `max_words` by the heading words). Paragraphs inside a chunk
+    stay separated by a blank line. Empty text -> [].
     Raises ValueError unless max_words > 0.
     """
     raise NotImplementedError
