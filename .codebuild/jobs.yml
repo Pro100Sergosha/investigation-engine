@@ -1,0 +1,24 @@
+# investigation-jobs: long one-off jobs (ADR 0018), started by hand, never by a webhook:
+#   aws codebuild start-build --project-name investigation-jobs \
+#     --environment-variables-override name=TARGET,value=dataset
+# TARGET is a Makefile target with optional arguments ("eval CONFIG=hybrid"). BUCKET,
+# CLUSTER_ARN, SECRET_ARN and DB_NAME are set on the project by the CDK stack.
+version: 0.2
+
+env:
+  shell: bash
+  variables:
+    CI: "true"
+    NO_COLOR: "1"
+
+phases:
+  install:
+    commands:
+      - curl -LsSf https://astral.sh/uv/0.9.21/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
+      - uv sync --frozen
+  build:
+    commands:
+      # Without TARGET, `make` would print the help and the build would pass doing nothing.
+      - test -n "$TARGET" || { echo "set TARGET, e.g. TARGET=dataset"; exit 1; }
+      # Unquoted on purpose: "eval CONFIG=x" must split into a target and a variable.
+      - make $TARGET
