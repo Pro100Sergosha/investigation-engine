@@ -54,3 +54,29 @@ another family.
 **Nova Lite as main**: cheapest, weaker at multi-step reasoning.
 
 **Groq free tier (ADR 0004)**: $0, but an external key and an 8k tokens/min cap.
+
+## Update 2026-10-24
+
+Outcomes of the open risks, checked with real calls:
+- **Claude Haiku 4.5 only.** Haiku 5.5 answers "not available for this account" (AWS Sales only).
+  The agent uses `eu.anthropic.claude-haiku-4-5-20251001-v1:0`.
+- **Cross-Region inference works on the Free plan.** The SCP does not deny the `eu.*` profile.
+- **Anthropic use-case form** (once per account) was required before the first Claude call; it
+  has been submitted.
+- **Quotas.** A new account starts with every model at 0; they opened a few hours after
+  verification. Applied quotas now:
+
+| Model | Tokens/min | Requests/min |
+|---|---|---|
+| Claude Haiku 4.5, `eu.*` (and a separate `global.*` pool) | 5,000,000 | **10** each |
+| gpt-oss-120b / 20b, in Region | 100,000,000 | 100 |
+| Qwen3-235B, in Region | 100,000,000 | 100 |
+
+  Haiku's 10 requests/min is the bottleneck: an evaluation sweep (~1,100 requests) takes about
+  two hours. An account-level increase to 10,000 requests/min is filed (support case opened);
+  until then `llm.py` may spread calls over the `eu.*` and `global.*` pools. Default quota values
+  are higher than what new accounts get, and Service Quotas only accepts requests above the
+  default, so account-level increases go through "Request increase at account level" in the
+  console.
+- While the quotas were at 0, Nova 2 Lite and external providers (Mistral, Gemini) were evaluated
+  as replacements. Once the quotas opened, the decision above stands unchanged.

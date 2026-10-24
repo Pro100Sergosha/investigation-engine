@@ -47,3 +47,13 @@ quota blocks the bulk load.
 
 **Zip packaging (binadar)**: possible again now that no ML runtime is needed; not worth changing a
 working pipeline during the five days.
+
+## Update 2026-10-24
+
+The open risks above are closed. A new account starts with every Bedrock model quota at 0 and
+calls fail with `ThrottlingException` ("Too many tokens per day"); a few hours after the account
+was verified the quotas opened by themselves. Titan Text Embeddings V2 now answers in `eu-north-1`
+with 1024-dimension vectors. Its quota does not appear in Service Quotas, so the bulk load must
+still back off on throttling. While the quotas were at 0, Cohere Embed V4 (`eu.*`/`global.*`,
+96 texts per request) was evaluated as a replacement; Titan stays, Cohere is the fallback if the
+bulk load turns out to be throttled.
