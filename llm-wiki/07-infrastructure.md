@@ -30,7 +30,7 @@ Check the plan any time:
 | Stack | Contents | Deployed by | State |
 |---|---|---|---|
 | `CDKToolkit` | CDK bootstrap (S3 assets bucket, ECR repo, `cdk-hnb659fds-*` roles), qualifier `hnb659fds` | `make bootstrap`, once | **deployed** 2026-10-24 |
-| `Investigation-Cicd-prod` | CodeBuild projects `investigation-pr-diff` and `investigation-deploy`, their roles and log groups (1 month) | `make deploy-cicd`, by hand only | pending |
+| `Investigation-Cicd-prod` | CodeBuild projects `investigation-pr-diff` and `investigation-deploy`, their roles and log groups (1 month) | `make deploy-cicd`, by hand only | **deployed** 2026-10-24 |
 | `Investigation-prod` | `api` DockerImageFunction (1024 MB, 90 s) + Function URL, output `ApiUrl` | CodeBuild on push to `main` | not yet deployed |
 
 Outside CloudFormation, created once with the CLI:
