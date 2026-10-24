@@ -22,7 +22,7 @@ The author must explain and modify every line live at the interview, without AI.
 
 Python 3.12, uv, ruff, pytest. Aurora Serverless v2 (PG 17 + pgvector `halfvec(1024)` +
 `tsvector`) through the RDS Data API. Amazon Bedrock: Titan Text Embeddings V2 (1024d), Claude
-Haiku (agent, `eu.*` profile), gpt-oss-120b (fallback), Qwen3-235B (eval judge). AWS Lambda
+Haiku 4.5 (agent, `eu.*` profile), gpt-oss-120b (fallback), Qwen3-235B (eval judge). AWS Lambda
 container image, S3, CodeBuild, CDK (Python), project `988277499209`, Region `eu-north-1`.
 Nothing runs on the author's computer except git and `aws login` (ADR 0018).
 
@@ -96,11 +96,32 @@ A task is done when all of these are true:
 - [ ] Code implements the described behaviour; tests cover the happy path and obvious failures
 - [ ] `make check` passes and CI on the PR is green
 - [ ] The relevant `llm-wiki/` document is updated in the same PR (it describes the system as it is)
-- [ ] An ADR exists if an architectural decision was made or reversed (`llm-wiki/adr/`, copy
-      `0000-template.md`, next number, add it to the table in `index.md`). Accepted ADRs are not
-      edited; a reversal is a new ADR that supersedes the old one
+- [ ] ADRs are true for this change (see "Keeping docs true")
 - [ ] `llm-wiki/14-known-gaps.md` updated if a gap was opened or closed
 - [ ] Deployed and smoke-checked where the change touches deployed infrastructure
+
+## Keeping docs true
+
+Docs that lie are worse than no docs: the next chat acts on them. Every chat that changes the
+system, or learns that a document is wrong, fixes the docs **in the same PR**, unasked.
+
+- **New decision** (a new service, model, library, pattern, stack, or a trade-off someone could
+  question at the interview): new ADR. Copy `llm-wiki/adr/0000-template.md`, take the next free
+  number (check open PRs too, two branches must not take the same number), add a row to the table
+  in `llm-wiki/index.md`. Name the costs and the rejected alternatives.
+- **Reversed or replaced decision**: new ADR with `supersedes: NNNN`; in the old ADR change only
+  `status: superseded` and `superseded_by: MMMM` (for a partial change, say which part), and mark
+  it in the index table. Never rewrite the old decision text: it is the history.
+- **New facts about an accepted decision** (an open risk resolved, a measured number, a limit that
+  turned out different) that do not change the decision: append a dated `## Update YYYY-MM-DD`
+  section at the end of that ADR. Do not edit the original sections.
+- **Wiki pages** (`llm-wiki/*.md`) describe the system as it is now: edit them in place.
+  `PLAN.md` holds the plan, schedule, costs and risks: keep its decision table, cost table and risk
+  list in step with the ADRs.
+- Before finishing, grep the docs for the old name of whatever changed (model id, service, stack,
+  file) and fix every stale mention.
+- If a PR cannot update a doc another open PR is editing, say so in the PR description so the
+  owner of that file picks it up.
 
 ## Infra and deploy
 
@@ -109,8 +130,22 @@ A task is done when all of these are true:
   runs `make test deploy verify smoke` (`.codebuild/deploy.yml`). So `main` must always be
   deployable. `Investigation-Cicd-prod` (the CodeBuild projects) is deployed only by hand.
 - No GitHub OIDC: the Free-plan SCP denies `iam:*Provider*` (ADR 0012).
-- Before infra changes: `make diff` and read it. Never destroy RDS or its data by accident
-  (set retention/removal policy on stateful resources).
+- Before infra changes: `make diff` and read it. Never destroy the database or its data by
+  accident (deletion protection and retention/snapshot removal policy on stateful resources).
+- **Where a new AWS resource goes** (stacks split by lifecycle, like binadar):
+  - `Investigation-Data-prod`: stateful resources that hold data and rarely change (VPC, Aurora,
+    its secret, schema). A code deploy must never be able to replace them.
+  - `Investigation-prod`: compute and everything that changes with the code (Lambdas, Function
+    URL, documents bucket and its notifications, jobs project, IAM grants).
+  - `Investigation-Cicd-prod`: CI/CD only, deployed by hand.
+  - A new stack only for a real reason: a different lifecycle, a different Region (e.g. a
+    CloudFront certificate in `us-east-1`), or a different deployer. Then add it to the Makefile
+    targets (`diff`, `deploy`, `verify`) and to the deploy build, and write an ADR.
+  - Cross-stack references become CloudFormation exports: never remove an export another stack
+    still imports in the same deploy (two-step change). An S3 bucket and the Lambda its
+    notifications call stay in the same stack (otherwise CDK creates a dependency cycle).
+- Every new AWS service: check the Free-plan supported list first, add it to the cost table in
+  `PLAN.md` and to `llm-wiki/07-infrastructure.md`.
 - Cost rules: no NAT Gateway, no custom CloudWatch metrics, no provisioned concurrency.
   Logs: one JSON line per request. Everything tagged `Project=investigation-engine`.
 - Third-party GitHub Actions pinned to commit SHA with version comment.

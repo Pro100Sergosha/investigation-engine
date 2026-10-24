@@ -37,3 +37,14 @@ interview asks about.
 
 **FastAPI**: would be the default backend. Lost once the backend became a Lambda (ADR 0007): a
 router over `(method, rawPath)` is ~20 lines and needs no adapter.
+
+## Update 2026-10-24
+
+The task does not forbid frameworks: it explicitly leaves the choice of model, prompting approach
+and frameworks to the candidate. It does require at least one own search or ranking component
+("relying on ready-made libraries for the whole search logic is not allowed"), so `rank.py`
+(RRF + MMR) stays own code in any case. Using LangChain only for the LLM client and the agent loop
+(`langchain-aws`, LangGraph) was reconsidered and rejected again: it saves about half a day, its
+vector stores and caches need a direct database connection that the Data API design does not have
+(ADR 0015), boto3's Converse API already unifies tool calling across models, and the agent loop is
+exactly the code the interview asks to debug without AI.

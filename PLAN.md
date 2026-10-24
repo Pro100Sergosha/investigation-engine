@@ -67,14 +67,14 @@ Each decision has an ADR in [llm-wiki/adr/](llm-wiki/adr/) with context, cost an
 | Embeddings | Amazon Bedrock Titan Text Embeddings V2 (`amazon.titan-embed-text-v2:0`), 1024 dimensions, in `eu-north-1` | ~$0.19 for the whole corpus, no model in the Lambda image, nothing on the laptop. One text per request: the bulk load is bound by the account's RPM quota. Bonus comparison: 512 vs 1024 dimensions. Fallback: fastembed `bge-small` in CodeBuild. ADR 0016. |
 | Keyword search | Postgres `tsvector` + `ts_rank_cd` | Native, indexed. |
 | Own algorithm | Reciprocal Rank Fusion (dense + keyword) + MMR diversification with per-document cap, written by hand | Small, testable, easy to explain on a whiteboard. Optional: own BM25 scorer to compare with `ts_rank_cd`. |
-| LLM | Amazon Bedrock only (Converse API, IAM, no external keys): **Claude Haiku** (`eu.anthropic.claude-haiku-*` cross-Region profile, 4.5 or 5.5) for the agent and Acme generation; `openai.gpt-oss-120b` (in Region) as automatic fallback; `qwen.qwen3-235b-a22b-2507` (in Region) as the evaluation judge | Reliable JSON and tool calling from Haiku ($1.10/$5.50 per 1M in EU), paid from credits. `llm.py`: timeout, backoff on throttling, fallback, prompt caching, Postgres `llm_cache`. Open risk: the Free-plan SCP may deny cross-Region inference, then gpt-oss-120b is the main model. ADR 0017. |
+| LLM | Amazon Bedrock only (Converse API, IAM, no external keys): **Claude Haiku 4.5** (`eu.anthropic.claude-haiku-4-5-20251001-v1:0` cross-Region profile) for the agent and Acme generation; `openai.gpt-oss-120b` (in Region) as automatic fallback; `qwen.qwen3-235b-a22b-2507` (in Region) as the evaluation judge | Reliable JSON and tool calling from Haiku ($1.10/$5.50 per 1M in EU), paid from credits. `llm.py`: timeout, backoff on throttling, fallback, prompt caching, Postgres `llm_cache`. All models verified with real calls on 2026-10-24; Haiku is limited to 10 requests/min per profile until the requested increase is approved. ADR 0017 (+ update). |
 | Orchestration | Own agent loop with tool calling: `search`, `get_document`, `final_answer` (JSON schema) | Satisfies tool calling + multi-step + agentic bonus. Hard step cap (e.g. 6), token budget per question. |
 | Grounding | Structured answer `{claims:[{text, citations:[chunk_id]}], contradictions:[], status: answered/insufficient/conflicting}`; server drops claims citing chunks that were never retrieved | Mechanical anti-hallucination check, not only prompt wording. |
 | Backend | AWS Lambda (Python 3.12 container image) behind a Lambda Function URL; hand-written router over the event, no web framework | Pay per request, always-free tier (1M req, 400k GB-s/month) covers the demo. Function URL instead of API Gateway: API Gateway cuts requests at 30 s, the agent loop can take longer (Function URL allows up to 15 min). Trade-off: no SSE streaming in Python Lambda, the trace comes back with the final answer. |
 | UI | One static HTML page + vanilla JS, served by the same `api` Lambda at `GET /` | Same origin as the API: no CORS, no CloudFront, HTTPS from the Function URL. |
 | Ingestion | Every document (UI upload or bulk JSONL shard) lands in S3; the S3 event triggers the `ingest` Lambda (parse, dedup, chunk, embed, insert), reserved concurrency ~5. Browser uploads through a presigned S3 URL | One path for uploads and the bulk corpus; Lambda payload limit is 6 MB. ADR 0018. |
 | Jobs | CodeBuild project `investigation-jobs`, `TARGET` = Makefile target: `dataset`, `acme`, `eval CONFIG=...`; outputs to S3 | Nothing runs on the author's computer; builds run up to 8 h (Lambda: 15 min). ADR 0018. |
-| IaC | AWS CDK (Python): `Investigation-prod` (app) and `Investigation-Cicd-prod` (CodeBuild); `make diff` / `make deploy` | Same tool and workflow as binadar. Lambdas share one container image (`DockerImageFunction`, x86_64), now without any ML runtime. |
+| IaC | AWS CDK (Python), stacks split by lifecycle like binadar: `Investigation-Data-prod` (VPC, Aurora, secret, schema: stateful, rarely changes), `Investigation-prod` (Lambdas, documents bucket, jobs project: changes on every merge), `Investigation-Cicd-prod` (CodeBuild, deployed by hand); `make diff` / `make deploy` | Same tool and workflow as binadar; a code deploy can never replace the database. Lambdas share one container image (`DockerImageFunction`, x86_64), without any ML runtime. |
 | AWS access | AWS *project* (new AWS experience) on the Free plan: $100 credits, closes on expiry (2027-04-24) instead of billing. CLI via `aws login --profile investigation`; no long-lived keys | Free plan is a hard requirement. IAM Identity Center and Organizations are not available on it (enabling them upgraded the first account to Paid, which was abandoned). Isolated from binadar's account. |
 | CI/CD | GitHub Actions `make check` on PRs; CodeBuild (via CodeConnections) comments `cdk diff` on PRs and deploys `main` | GitHub OIDC is denied by the Free-plan SCP (`iam:*Provider*`); see llm-wiki ADR 0012. |
 | Observability | JSON log line per request (route, latency, tokens, LLM model, cache hit) in CloudWatch Logs; no custom metrics | Free tier; custom metrics cost $0.30 each (binadar's lesson). Logs Insights for analysis. |
@@ -242,7 +242,7 @@ worktree and branch, each ending in a PR that must pass CI. Rules:
 | 4 | EVALUATION.md, README, AI_USAGE.md | docs | results | - |
 
 Wave 1 tasks are pure Python or infra and can all start immediately (Bedrock is not needed);
-wave 2 starts when infra is merged and the account verification lets Bedrock calls through.
+wave 2 starts when infra is merged (Bedrock works since 2026-10-24, see ADR 0017 update).
 
 Cuts (in order of what goes first if behind):
 - Acme corpus: ~60-100 docs instead of 150-300.
@@ -267,14 +267,21 @@ prompt-injection tests (plant malicious text in a doc) and the 512 vs 1024 embed
 
 ## 6. Risks
 
-- **Bedrock blocked while the new account is verified** (every call returned "account is being verified" on 2026-10-24). Mitigation: non-Bedrock work first (stack, schema, chunkers, RRF/MMR, dataset job); recheck before stream A needs embeddings.
-- **Free-plan SCP may deny cross-Region inference** (Claude Haiku via `eu.*`). Mitigation: `llm.py` falls back to gpt-oss-120b in Region; test once Bedrock works and record the outcome.
-- **Bedrock quotas of a new account** (Titan RPM for ~60k embedding calls, Haiku tokens/min for eval). Mitigation: reserved concurrency on `ingest`, retries with backoff, LLM cache; fallbacks: fastembed in CodeBuild, Titan batch inference.
+- **Haiku throughput: 10 requests/min per profile** (Bedrock quota of a new account). An eval sweep
+  takes ~2 h. Mitigation: account-level increase filed (support case opened), spread calls over the
+  `eu.*` and `global.*` pools, LLM cache, gpt-oss-120b (100 requests/min) as fallback.
+- **Titan throttling during the bulk load** (its quota is not visible in Service Quotas).
+  Mitigation: reserved concurrency on `ingest`, backoff on `ThrottlingException`; fallback Cohere
+  Embed V4 (96 texts per request).
 - **Aurora resume after a pause** (~15 s, `DatabaseResumingException`). Mitigation: retry in `db.py`, warm the database before a demo, document first-request latency.
-- **Data API limits** (1 MB result, 45 s statement, no `COPY`). Mitigation: paginate, `BatchExecuteStatement` for bulk inserts, `continueAfterTimeout` for the HNSW build, temporary max ACU 2-4.
+- **Data API limits** (1 MB result, 45 s statement, no `COPY`). Mitigation: paginate, `BatchExecuteStatement` for bulk inserts, HNSW maintained on insert instead of built afterwards, temporary max ACU 4.
 - **HotpotQA chunking comparison is weak** (paragraphs already short). Compare chunkers on Acme, say so in the report.
 - **LLM-as-judge bias**. Judge from a different family (Qwen3 vs Claude), spot-check 10 answers by hand, report agreement.
 - **Defense without AI**. Keep code small and own; no framework magic you cannot rewrite on paper.
 - **Lambda cold start** (container pull, no model any more, ~1-2 s) plus Aurora resume. Document first-request latency. Provisioned concurrency costs money, not used.
 - **Credits and Free-plan expiry.** $100 total, the account closes on 2027-04-24 or when credits run out. Haiku in repeated eval sweeps is the main spend: cache everything, check spend in Billing.
 - **Infra ate day 1.** Streams start on day 2 with one day less of buffer.
+
+Closed on 2026-10-24: Bedrock blocked during account verification (quotas opened by themselves);
+cross-Region inference denied by the Free-plan SCP (it is not); corpus below 50k (66,555 unique
+HotpotQA documents, PR #7).
