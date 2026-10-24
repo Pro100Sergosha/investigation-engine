@@ -8,9 +8,14 @@ owner: Pro100Sergosha
 # 03 Data model
 
 One Postgres database, `investigation`, on Aurora Serverless v2 (PostgreSQL 17.9 with pgvector),
-reached only through the RDS Data API ([ADR 0015](adr/0015-aurora-serverless-data-api.md)).
-The whole schema is [`sql/schema.sql`](../sql/schema.sql); how it gets applied is in
-[07 Infrastructure](07-infrastructure.md#database-schema) and [ADR 0019](adr/0019-isolated-vpc-schema-custom-resource.md).
+express configuration, reached over TLS with IAM auth tokens through `engine.db`
+([ADR 0021](adr/0021-aurora-express-iam-auth.md)). The whole schema is
+[`sql/schema.sql`](../sql/schema.sql); how it gets applied is in
+[07 Infrastructure](07-infrastructure.md#database-schema).
+
+Two roles: `postgres` (master, owns the tables, used only by the schema custom resource) and `app`
+(`LOGIN`, `rds_iam`, `SELECT/INSERT/UPDATE/DELETE` on all tables, `USAGE` on sequences), which
+`api`, `ingest` and the jobs log in as. `app` cannot create, alter or drop anything.
 
 ## Tables
 
@@ -33,8 +38,7 @@ documents 1 ──< chunks          llm_cache (standalone)
 | `created_at` | `timestamptz`, default `now()` | newest-first listing |
 
 `text` is stored once here and not rebuilt from chunks: fixed chunks overlap and collapse
-whitespace, structured chunks repeat headings, so neither reproduces the document. A single document
-must stay under the Data API's 1 MB result limit to be returned whole.
+whitespace, structured chunks repeat headings, so neither reproduces the document.
 
 ### `chunks`: the search units
 
@@ -71,7 +75,7 @@ Reruns of the evaluation and repeated demo questions cost nothing.
 | unique `source`, unique `content_hash` | update-by-source and exact dedup |
 
 The HNSW index is created while the table is empty and then maintained on every insert: building
-it over a loaded table would exceed the Data API's 45 s statement limit.
+it over a loaded table inside a deploy would hold the schema custom resource for minutes.
 
 ## Write paths
 
@@ -82,12 +86,14 @@ it over a loaded table would exceed the Data API's 45 s statement limit.
   document -> skipped as a duplicate.
 - **Delete**: `DELETE FROM documents WHERE id = :id`; the chunks go with it (cascade).
 
-All SQL goes through `db.py` (wave 2), parameterized (`:name`), with vectors sent as text and cast
-(`'[...]'::halfvec`).
+All SQL goes through `db.py` (`db.run(sql, **params)`), parameterized (`:name`), with vectors
+sent as text and cast (`'[...]'::halfvec`). Writes must be idempotent (upsert by `source`): a
+statement whose connection died is retried once on a new connection.
 
 ## Changing the schema
 
 Edit `sql/schema.sql` and merge: the deploy applies it. Every statement must be idempotent, and
 `CREATE TABLE IF NOT EXISTS` never changes an existing table, so add columns with
-`ALTER TABLE ... ADD COLUMN IF NOT EXISTS` below the table. `;` only at the end of a statement and
-comments on their own lines (the file is split on `;`, one Data API call per statement).
+`ALTER TABLE ... ADD COLUMN IF NOT EXISTS` below the table. The file runs in one call (simple
+query protocol), as one implicit transaction: a broken statement applies nothing. New tables get
+the `app` grants because the `GRANT ... ON ALL TABLES` at the end runs on every apply.

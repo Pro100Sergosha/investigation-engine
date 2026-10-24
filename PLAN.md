@@ -63,7 +63,7 @@ Each decision has an ADR in [llm-wiki/adr/](llm-wiki/adr/) with context, cost an
 |---|---|---|
 | Corpus (bulk) | HotpotQA `distractor` validation split (7,405 questions x 10 paragraphs), dedup by title+text | Gold supporting facts give free Recall@K/MRR/citation labels. Many paragraphs repeat across questions: dedup is real, not cosmetic. **Verify unique count >= 50k in phase 0**; if short, add part of `train`. |
 | Corpus (investigation) | Synthetic "Acme Payments" org: ~60-100 docs (incident reports PDF, change logs MD, runbooks DOCX, status pages HTML) generated once by Claude Haiku in a CodeBuild job, committed | Matches the task's example question (March payment outage). Planted contradictions (two reports disagree on root cause/time) and gaps (unanswerable). HotpotQA has neither. |
-| Vector DB | Aurora Serverless v2, PostgreSQL 17 + pgvector (`halfvec(1024)`, HNSW) + built-in full-text search; min 0 ACU (pauses when idle), max 2-4 ACU; accessed only through the RDS Data API (HTTPS + IAM, secret in Secrets Manager) | One store for docs, chunks, vectors, keyword index, CRUD, dedup hashes, LLM cache. Idle cost is ~storage only, so the credits last until the interview; no public endpoint, no NAT, no connection pooling. Trade-off: ~15 s resume after a pause, Data API limits (1 MB result, 45 s statement, no `COPY`). No local database. ADR 0015. |
+| Vector DB | Aurora Serverless v2, PostgreSQL 17 + pgvector (`halfvec(1024)`, HNSW) + built-in full-text search; min 0 ACU (pauses when idle), max 2-4 ACU; **express configuration** (the only Aurora the Free plan creates): no VPC, internet access gateway, IAM auth tokens over TLS with `pg8000`, no password or secret | One store for docs, chunks, vectors, keyword index, CRUD, dedup hashes, LLM cache. Idle cost is ~storage only, so the credits last until the interview; no NAT, no secrets, no Data API limits. Trade-off: ~15 s resume after a pause, a public (IAM-only) endpoint, own connection handling. No local database. ADR 0015, ADR 0021. |
 | Embeddings | Amazon Bedrock Titan Text Embeddings V2 (`amazon.titan-embed-text-v2:0`), 1024 dimensions, in `eu-north-1` | ~$0.19 for the whole corpus, no model in the Lambda image, nothing on the laptop. One text per request: the bulk load is bound by the account's RPM quota. Bonus comparison: 512 vs 1024 dimensions. Fallback: fastembed `bge-small` in CodeBuild. ADR 0016. |
 | Keyword search | Postgres `tsvector` + `ts_rank_cd` | Native, indexed. |
 | Own algorithm | Reciprocal Rank Fusion (dense + keyword) + MMR diversification with per-document cap, written by hand | Small, testable, easy to explain on a whiteboard. Optional: own BM25 scorer to compare with `ts_rank_cd`. |
@@ -74,12 +74,12 @@ Each decision has an ADR in [llm-wiki/adr/](llm-wiki/adr/) with context, cost an
 | UI | One static HTML page + vanilla JS, served by the same `api` Lambda at `GET /` | Same origin as the API: no CORS, no CloudFront, HTTPS from the Function URL. |
 | Ingestion | Every document (UI upload or bulk JSONL shard) lands in S3; the S3 event triggers the `ingest` Lambda (parse, dedup, chunk, embed, insert), reserved concurrency ~5. Browser uploads through a presigned S3 URL | One path for uploads and the bulk corpus; Lambda payload limit is 6 MB. ADR 0018. |
 | Jobs | CodeBuild project `investigation-jobs`, `TARGET` = Makefile target: `dataset`, `acme`, `eval CONFIG=...`; outputs to S3 | Nothing runs on the author's computer; builds run up to 8 h (Lambda: 15 min). ADR 0018. |
-| IaC | AWS CDK (Python), stacks split by lifecycle like binadar: `Investigation-Data-prod` (VPC, Aurora, secret, schema: stateful, rarely changes), `Investigation-prod` (Lambdas, documents bucket, jobs project: changes on every merge), `Investigation-Cicd-prod` (CodeBuild, deployed by hand); `make diff` / `make deploy` | Same tool and workflow as binadar; a code deploy can never replace the database. Lambdas share one container image (`DockerImageFunction`, x86_64), without any ML runtime. |
+| IaC | AWS CDK (Python), stacks split by lifecycle like binadar: `Investigation-Data-prod` (the Aurora cluster: stateful, rarely changes), `Investigation-prod` (Lambdas, documents bucket, jobs project, schema: changes on every merge), `Investigation-Cicd-prod` (CodeBuild, deployed by hand); `make diff` / `make deploy` | Same tool and workflow as binadar; a code deploy can never replace the database. Lambdas share one container image (`DockerImageFunction`, x86_64), without any ML runtime. |
 | AWS access | AWS *project* (new AWS experience) on the Free plan: $100 credits, closes on expiry (2027-04-24) instead of billing. CLI via `aws login --profile investigation`; no long-lived keys | Free plan is a hard requirement. IAM Identity Center and Organizations are not available on it (enabling them upgraded the first account to Paid, which was abandoned). Isolated from binadar's account. |
 | CI/CD | GitHub Actions `make check` on PRs; CodeBuild (via CodeConnections) comments `cdk diff` on PRs and deploys `main` | GitHub OIDC is denied by the Free-plan SCP (`iam:*Provider*`); see llm-wiki ADR 0012. |
 | Observability | JSON log line per request (route, latency, tokens, LLM model, cache hit) in CloudWatch Logs; no custom metrics | Free tier; custom metrics cost $0.30 each (binadar's lesson). Logs Insights for analysis. |
 | Tagging | `Project=investigation-engine` on the CDK app, activated as a cost allocation tag | Spend visible in Cost Explorer. |
-| Secrets | Database credentials in Secrets Manager (required by the Data API, $0.40/month); GitHub token in SSM Parameter Store `SecureString` | Not in code, not in the image, not in plain Lambda env vars. No LLM API keys at all (Bedrock uses IAM). |
+| Secrets | No database password (IAM auth tokens, ADR 0021); GitHub token in SSM Parameter Store `SecureString` | Not in code, not in the image, not in plain Lambda env vars. No LLM API keys at all (Bedrock uses IAM). |
 | Region | `eu-north-1` (Stockholm) | Fixed by the AWS project: all Regional resources must live there. |
 | Tooling | Python 3.12, uv, ruff, pytest, boto3, AWS CDK (Node); Docker only inside CodeBuild | The laptop needs git and `aws login`, nothing else. |
 
@@ -89,7 +89,7 @@ Each decision has an ADR in [llm-wiki/adr/](llm-wiki/adr/) with context, cost an
 UI upload or bulk JSONL shard -> S3 -> ingest Lambda
    -> parse (pdf: pypdf, docx: python-docx, html: stdlib, md/jsonl: stdlib)
    -> normalize + sha256 -> dedup (exact) -> chunk (strategy A|B)
-   -> embed (Bedrock Titan V2) -> Aurora via Data API: documents, chunks(text, tsv, embedding halfvec)
+   -> embed (Bedrock Titan V2) -> Aurora (db.py): documents, chunks(text, tsv, embedding halfvec)
 
 question
    -> agent loop (Claude Haiku on Bedrock + tools)
@@ -113,26 +113,24 @@ browser ──HTTPS──> Lambda Function URL ──> api Lambda (container ima
    │                                         DELETE /documents/{id} GET  /chunks/{id}
    │                                         POST /ask  (agent loop, timeout 90 s)
    │                                             ├──IAM──> Bedrock: Claude Haiku (eu.*), gpt-oss-120b, Titan V2
-   │                                             └──IAM──> RDS Data API ──> Aurora Serverless v2 (PG 17 + pgvector)
+   │                                             └──IAM token, TLS──> Aurora express (PG 17.9 + pgvector)
    └──PUT (presigned)──> S3 uploads/ ──event──> ingest Lambda (same image, reserved concurrency ~5)
-                                                  parse -> dedup -> chunk -> Titan V2 -> Data API
+                                                  parse -> dedup -> chunk -> Titan V2 -> Aurora
 
 CodeBuild investigation-jobs: dataset (HotpotQA -> shards in S3) | acme (Bedrock -> S3) | eval (-> S3)
 CodeBuild investigation-pr-diff / investigation-deploy: CI/CD (ADR 0012)
-Secrets Manager: DB credentials   SSM: GitHub token   CloudWatch Logs: JSON line per request
+SSM: GitHub token   CloudWatch Logs: JSON line per request
 ```
 
 - One container image, two functions (`api`, `ingest`): same code, different handler.
-- Lambdas and CodeBuild run outside any VPC; Aurora sits in the default VPC without public access
-  and is reached only through the Data API. No NAT, no public database endpoint.
+- Lambdas and CodeBuild run outside any VPC; Aurora (express configuration) has no VPC and is
+  reached through its internet access gateway with IAM auth tokens. No NAT, no database password.
 - Cost estimate (eu-north-1 prices from the AWS Pricing API, 2026-10-24):
 
 | Service | Price | 5 days of development | Per month of demo |
 |---|---|---|---|
 | Lambda | always free (1M requests, 400k GB-s/month) | $0 | $0 |
 | Aurora Serverless v2 | $0.14 per ACU-hour while awake, storage ~$0.1/GB-month | ~$1-2 | ~$0.5-1 |
-| RDS Data API | ~$0.35 per 1M requests | <$0.1 | <$0.1 |
-| Secrets Manager | $0.40 per secret-month | $0.07 | $0.40 |
 | Bedrock Titan Embeddings V2 | $0.021 per 1M tokens | ~$0.4 | ~$0 |
 | Bedrock Claude Haiku | $1.10 / $5.50 per 1M (Haiku 4.5, EU) | ~$15-25 | ~$1-2 |
 | Bedrock gpt-oss-120b, Qwen3 | $0.15/$0.60, $0.22/$0.88 per 1M | ~$1 | ~$0 |
@@ -231,7 +229,7 @@ worktree and branch, each ending in a PR that must pass CI. Rules:
 | 1 | Infra: Aurora + secret, S3 bucket + event, `ingest` Lambda, `investigation-jobs` project, schema SQL | `cdk/app.py`, `sql/schema.sql`, `.codebuild/jobs.yml` | - | synth + PR diff |
 | 1 | Dataset job: HotpotQA download, dedup, stats, JSONL shards to S3 | `scripts/dataset.py` | wave 0 | dedup unit tests |
 | 1 | UI page against the API contract (stub responses) | `static/index.html` | wave 0 | manual |
-| 2 | `db.py` (Data API, resume retry) + document insert/update/delete | `db.py`, `index.py` | infra | against Aurora |
+| 2 | `db.py` insert/update/delete on top of `connect`/`run` (pg8000, IAM token, resume retry: ADR 0021) | `db.py`, `index.py` | infra | against Aurora |
 | 2 | `embed.py` (Titan) + `llm.py` (Bedrock client, retry, fallback, cache) | `embed.py`, `llm.py` | Bedrock verified | unit + one live call |
 | 2 | `search.py`: dense + keyword SQL -> `rank.py` | `search.py` | `db.py`, `rank.py` | against Aurora |
 | 2 | API routes + ingest handler wiring | `handlers.py` | `db.py`, `parsers.py`, `chunking.py` | router unit tests + smoke |
@@ -255,11 +253,11 @@ Reference phases (original estimates):
 0. **Setup + data check (0.5 d)** — repo, uv project, AWS project + budget alert (done). `dataset` job: download HotpotQA, count unique paragraphs, decide subset size, fixed seed.
 1. **Ingestion (2 d)** — parsers for 4 formats, metadata, hashing/dedup, two chunkers, CRUD on documents. Tests on small fixtures.
 2. **Synthetic Acme corpus (1 d)** — generator script (LLM once, outputs committed), planted contradictions and gaps listed in `data/acme/GROUND_TRUTH.md`.
-3. **Index + search (1.5 d)** — bulk load through S3 + `ingest` (Titan embeddings, Data API), dense + keyword queries, RRF + MMR, unit tests for fusion.
+3. **Index + search (1.5 d)** — bulk load through S3 + `ingest` (Titan embeddings, `db.py`), dense + keyword queries, RRF + MMR, unit tests for fusion.
 4. **Agent + grounding (2 d)** — Bedrock client (retries, backoff on throttling, timeout, fallback model, prompt caching, cache), tools, loop, JSON answer, citation validator, abstain/conflict statuses.
 5. **API + UI (1 d)** — `POST /documents/upload-url`, `PUT/DELETE /documents/{id}`, `GET /documents`, `POST /ask`, `GET /chunks/{id}`; single HTML page; Lambda router.
 6. **Evaluation (2 d)** — question set, runner, metrics, config sweep, EVALUATION.md with failure analysis.
-7. **Deploy (1 d)** — Dockerfile, CDK stack (Aurora, S3, Lambdas, Function URL, Secrets Manager), budget alert, persistence check (redeploy, data still there), DEPLOYMENT section with limits and cost.
+7. **Deploy (1 d)** — Dockerfile, CDK stacks (Aurora, S3, Lambdas, Function URL), budget alert, persistence check (redeploy, data still there), DEPLOYMENT section with limits and cost.
 8. **Docs + defense prep (1 d)** — README, AI_USAGE.md, rehearse: walk the pipeline, rewrite RRF/MMR by hand, add a small feature without AI.
 
 Core total ~12 days. Bonus only after phase 8: next best value is
@@ -273,8 +271,8 @@ prompt-injection tests (plant malicious text in a doc) and the 512 vs 1024 embed
 - **Titan throttling during the bulk load** (its quota is not visible in Service Quotas).
   Mitigation: reserved concurrency on `ingest`, backoff on `ThrottlingException`; fallback Cohere
   Embed V4 (96 texts per request).
-- **Aurora resume after a pause** (~15 s, `DatabaseResumingException`). Mitigation: retry in `db.py`, warm the database before a demo, document first-request latency.
-- **Data API limits** (1 MB result, 45 s statement, no `COPY`). Mitigation: paginate, `BatchExecuteStatement` for bulk inserts, HNSW maintained on insert instead of built afterwards, temporary max ACU 4.
+- **Aurora resume after a pause** (~15 s). Mitigation: connect retry in `db.py`, warm the database before a demo, document first-request latency.
+- **Aurora express configuration** (Free plan): public IAM-only endpoint, default engine version, ACU range set after creation. Mitigation: least-privilege `app` role, ADR 0021.
 - **HotpotQA chunking comparison is weak** (paragraphs already short). Compare chunkers on Acme, say so in the report.
 - **LLM-as-judge bias**. Judge from a different family (Qwen3 vs Claude), spot-check 10 answers by hand, report agreement.
 - **Defense without AI**. Keep code small and own; no framework magic you cannot rewrite on paper.

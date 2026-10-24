@@ -3,7 +3,7 @@ title: Stacks split by lifecycle, a separate data stack
 status: accepted
 date: 2026-10-24
 supersedes: the stack layout of 0010
-superseded_by: none
+superseded_by: 0021 (schema location only)
 ---
 
 # ADR 0020: Stacks split by lifecycle, a separate data stack

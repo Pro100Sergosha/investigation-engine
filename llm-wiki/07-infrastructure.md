@@ -31,8 +31,8 @@ Check the plan any time:
 |---|---|---|---|
 | `CDKToolkit` | CDK bootstrap (S3 assets bucket, ECR repo, `cdk-hnb659fds-*` roles), qualifier `hnb659fds` | `make bootstrap`, once | **deployed** 2026-10-24 |
 | `Investigation-Cicd-prod` | CodeBuild projects `investigation-pr-diff` and `investigation-deploy`, their roles and log groups (1 month) | `make deploy-cicd`, by hand only | **deployed** 2026-10-24 |
-| `Investigation-Data-prod` | VPC, Aurora, its secret, the schema: stateful, rarely changes, see [below](#data-stack) | CodeBuild on push to `main`, before `Investigation-prod` | deploys with PR #8 |
-| `Investigation-prod` | the application, see [below](#application-stack) | CodeBuild on push to `main` | **deployed** (`api` only); the data path below deploys with PR #8 |
+| `Investigation-Data-prod` | the Aurora cluster: stateful, rarely changes, see [below](#data-stack) | CodeBuild on push to `main`, before `Investigation-prod` | first deploy failed 2026-10-24 (the Free plan requires express configuration); redeploys with ADR 0021 |
+| `Investigation-prod` | the application, see [below](#application-stack) | CodeBuild on push to `main` | **deployed** (`api` only, rolled back to it on 2026-10-24); the data path deploys with the data stack |
 
 Outside CloudFormation, created once with the CLI:
 - CodeConnections connection `investigation-github`
@@ -52,25 +52,25 @@ Every resource is tagged `Project=investigation-engine` at the app level.
 
 Stacks are split by lifecycle ([ADR 0020](adr/0020-data-stack-split-by-lifecycle.md)): a code
 deploy of `Investigation-prod` cannot replace the database. `Investigation-prod` imports two
-exports of `Investigation-Data-prod` (cluster ARN, secret ARN), strong references (`cdk.json`):
+exports of `Investigation-Data-prod` (writer endpoint, cluster resource id), strong references (`cdk.json`):
 never remove an export that is still imported in the same deploy; a removal takes two deploys.
 
 ## Data stack
 
-`Investigation-Data-prod` (`DataStack` in `cdk/app.py`). Decisions: [ADR 0015](adr/0015-aurora-serverless-data-api.md),
-[ADR 0019](adr/0019-isolated-vpc-schema-custom-resource.md), [ADR 0020](adr/0020-data-stack-split-by-lifecycle.md).
+`Investigation-Data-prod` (`DataStack` in `cdk/app.py`). Decisions: [ADR 0020](adr/0020-data-stack-split-by-lifecycle.md),
+[ADR 0021](adr/0021-aurora-express-iam-auth.md).
 
 | Resource | Configuration |
 |---|---|
-| VPC `Vpc` | two `PRIVATE_ISOLATED` subnets (eu-north-1a/b), no internet gateway, `nat_gateways=0`. Exists only because Aurora must live in a VPC |
-| Aurora cluster `Db` | PostgreSQL 17.9, one Serverless v2 writer, **0-4 ACU** (pauses after 5 idle minutes), **Data API on**, database `investigation`, not publicly accessible, security group without ingress, backups 1 day, deletion protection on, `removal_policy=SNAPSHOT` |
-| Secret `Db/Secret` | generated credentials of user `postgres` (Secrets Manager, $0.40/month), read by the Data API callers |
-| Custom resource `Schema` | Lambda `SchemaFn` + `cr.Provider`, see [Database schema](#database-schema) |
+| Aurora cluster `Db` (`CfnDBCluster`) | identifier `investigation`, **express configuration** (the only kind the Free plan creates): Aurora PostgreSQL at the default version (17.9), one serverless writer created by express, no VPC, **internet access gateway** (PostgreSQL over TLS, port 5432), **IAM authentication only**, master user `postgres`, database `investigation`, deletion protection on, `DeletionPolicy`/`UpdateReplacePolicy: Snapshot`. ACU range: the express default for now (see 14 Known gaps) |
+
+`WithExpressConfiguration` is set with `add_property_override` (not in aws-cdk-lib 2.274's schema,
+so `cdk synth` warns; the live CloudFormation registry has it). It is create-only.
 
 ## Application stack
 
 `Investigation-prod` (`AppStack` in `cdk/app.py`). Decisions: [ADR 0018](adr/0018-cloud-only-ingestion-and-jobs.md),
-[ADR 0019](adr/0019-isolated-vpc-schema-custom-resource.md) (bucket CORS). The bucket stays here with its notifications:
+[ADR 0019](adr/0019-isolated-vpc-schema-custom-resource.md) (bucket CORS), [ADR 0021](adr/0021-aurora-express-iam-auth.md) (database access). The bucket stays here with its notifications:
 they call `ingest`, and a bucket in the data stack would make the stacks depend on each other.
 
 | Resource | Configuration |
@@ -80,22 +80,24 @@ they call `ingest`, and a bucket in the data stack would make the stacks depend 
 | Lambda `api` | image, `engine.handlers.api`, x86_64, 1024 MB, 90 s, Function URL (output `ApiUrl`) |
 | Lambda `ingest` | image, `engine.handlers.ingest`, x86_64, 1024 MB, 15 min, **reserved concurrency 5**: throttled S3 events wait in Lambda's async queue (up to 6 h) instead of overloading Bedrock and the database |
 | CodeBuild `investigation-jobs` | see [Jobs](#jobs) |
+| Custom resource `Schema` | Lambda `SchemaFn` (app image, `engine.handlers.schema`) + `cr.Provider`, see [Database schema](#database-schema) |
 
-Environment of `api`, `ingest` and the jobs project (names and ARNs, no secrets): `CLUSTER_ARN`,
-`SECRET_ARN`, `DB_NAME`, `BUCKET`. `src/engine/config.py` reads them (empty defaults for tests).
+Environment of `api`, `ingest` and the jobs project (no secrets): `DB_HOST` (writer endpoint),
+`DB_NAME`, `BUCKET`; `SchemaFn` gets `DB_HOST` and `DB_NAME`. `src/engine/config.py` reads them
+(empty defaults for tests; `DB_USER` defaults to `app`).
 
 Permissions (least privilege, no `*` actions):
 
-| Principal | Data API + secret | Bedrock | S3 |
+| Principal | Database login (`rds-db:connect`) | Bedrock | S3 |
 |---|---|---|---|
-| `api` | yes | Titan V2, gpt-oss-120b, Qwen3-235B, Claude Haiku 4.5 (`eu.*`) | `PutObject` on `uploads/*` (to presign uploads) |
-| `ingest` | yes | Titan V2 only (it embeds, it never calls an LLM) | `GetObject` on `uploads/*`, `bulk/*` |
-| `investigation-jobs` | yes | same as `api` | `GetObject`, `PutObject` on the bucket, `ListBucket` |
-| `SchemaFn` (data stack) | yes | - | - |
+| `api` | `app` | Titan V2, gpt-oss-120b, Qwen3-235B, Claude Haiku 4.5 (`eu.*`) | `PutObject` on `uploads/*` (to presign uploads) |
+| `ingest` | `app` | Titan V2 only (it embeds, it never calls an LLM) | `GetObject` on `uploads/*`, `bulk/*` |
+| `investigation-jobs` | `app` | same as `api` | `GetObject`, `PutObject` on the bucket, `ListBucket` |
+| `SchemaFn` | `postgres` | - | - |
 
-- Data API access is `cluster.grant_data_api_access`: `rds-data:ExecuteStatement`,
-  `BatchExecuteStatement`, `Begin/Commit/RollbackTransaction` on the cluster, plus `GetSecretValue`
-  and `DescribeSecret` on the secret.
+- Database login is `rds-db:connect` on `arn:aws:rds-db:eu-north-1:988277499209:dbuser:<cluster
+  resource id>/<user>`: it lets the role sign an IAM auth token for that one database user
+  (`generate_db_auth_token`, local, no API call). No secret, no password.
 - Bedrock: `InvokeModel` and `InvokeModelWithResponseStream`, which also authorize `Converse` and
   `ConverseStream` (there is no separate Converse action). In-Region models by foundation-model ARN.
   Claude Haiku 4.5 needs two statements: the `eu.anthropic.claude-haiku-4-5-*` inference profile in
@@ -108,16 +110,14 @@ Permissions (least privilege, no `*` actions):
 
 ### Database schema
 
-`sql/schema.sql` ([03 Data model](03-data-model.md)) is applied by the `Schema` custom resource:
-its properties carry the SQL text, so CloudFormation sends *Create* on the first deploy and *Update*
-whenever the file changes; *Delete* does nothing. The handler is `scripts/schema.py`, inlined as
-the code of `SchemaFn` (Python 3.12, 5 min): it splits the file on `;` and runs each statement with
-`rds-data:ExecuteStatement` (the Data API rejects several statements in one call), retrying every
-error every 10 s for ~3 minutes, which covers `DatabaseResumingException` of a paused cluster. The
-resource depends on the cluster and its writer instance. Nothing manual is needed after a merge.
-
-By hand, for repairs: `TARGET=schema` in the jobs project (`make schema` reads `CLUSTER_ARN`,
-`SECRET_ARN`, `DB_NAME` from the environment).
+`sql/schema.sql` ([03 Data model](03-data-model.md)) is applied by the `Schema` custom resource in
+`Investigation-prod`: its properties carry the SQL text and the writer endpoint, so CloudFormation
+sends *Create* on the first deploy and *Update* whenever either changes; *Delete* does nothing.
+The handler is `engine.handlers.schema` in the app image (`SchemaFn`, 5 min): it connects as
+`postgres` with an IAM token (`engine.db.connect`, which retries for ~1 minute while a paused
+cluster resumes) and runs the whole file in one call, one implicit transaction. The file also
+creates the `app` role and its grants. Nothing manual is needed after a merge; a repair is a deploy
+that changes the file.
 
 ### Jobs
 
@@ -139,7 +139,6 @@ aws codebuild start-build --project-name investigation-jobs --profile investigat
 |---|---|
 | `dataset` | HotpotQA -> dedup -> JSONL shards in `bulk/hotpotqa/` (which trigger `ingest`), stats and gold questions in `jobs/dataset/` |
 | `dataset-stats` | the same counts with `--dry-run`, writes nothing |
-| `schema` | re-apply `sql/schema.sql` |
 
 `acme` and `eval CONFIG=...` arrive with their streams. A build without `TARGET` fails on purpose.
 
@@ -152,7 +151,7 @@ aws codebuild start-build --project-name investigation-jobs --profile investigat
 |---|---|---|
 | PR to `main` | GitHub Actions `ci.yml` | `make check` (ruff lint + format check, pytest, `cdk synth`) |
 | PR to `main` (owner only) | CodeBuild `investigation-pr-diff`, `.codebuild/pr-diff.yml` | `make diff-pr` (template diff, lookup role only), posted as one PR comment (edited on each push) by `scripts/comment_pr.py`; status check on the PR |
-| Push to `main` (owner only) | CodeBuild `investigation-deploy`, `.codebuild/deploy.yml` | `make test`, `make deploy` (data stack, then app stack), `make verify` (`cdk diff --fail` on both), `make smoke` (`/health`); status on the commit |
+| Push to `main` (owner only) | CodeBuild `investigation-deploy`, `.codebuild/deploy.yml` (one build at a time once `CicdStack` sets `concurrent_build_limit=1`) | `make test`, `make deploy` (data stack, then app stack), `make verify` (`cdk diff --fail` on both), `make smoke` (`/health`); status on the commit |
 
 - **Why CodeBuild and not GitHub OIDC:** the Free-plan SCP denies `iam:*Provider*`; creating the
   OIDC provider failed with an explicit deny (2026-10-24).

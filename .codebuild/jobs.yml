@@ -1,8 +1,8 @@
 # investigation-jobs: long one-off jobs (ADR 0018), started by hand, never by a webhook:
 #   aws codebuild start-build --project-name investigation-jobs \
 #     --environment-variables-override name=TARGET,value=dataset
-# TARGET is a Makefile target with optional arguments ("eval CONFIG=hybrid"). BUCKET,
-# CLUSTER_ARN, SECRET_ARN and DB_NAME are set on the project by the CDK stack.
+# TARGET is a Makefile target with optional arguments ("eval CONFIG=hybrid"). BUCKET, DB_HOST
+# and DB_NAME are set on the project by the CDK stack; the database login is an IAM token.
 version: 0.2
 
 env:

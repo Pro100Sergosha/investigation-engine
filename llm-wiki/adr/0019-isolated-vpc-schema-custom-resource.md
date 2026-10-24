@@ -3,7 +3,7 @@ title: Aurora in its own isolated VPC, schema applied by a custom resource on de
 status: accepted
 date: 2026-10-24
 supersedes: the default-VPC part of 0015
-superseded_by: none
+superseded_by: 0021 (VPC and schema-runner parts)
 ---
 
 # ADR 0019: Aurora in its own isolated VPC, schema applied by a custom resource on deploy

@@ -61,9 +61,10 @@ old one, and the old one gets `status: superseded` and `superseded_by: 00XX`. Te
 | [0012](adr/0012-codebuild-cicd-via-codeconnections.md) | CD runs in CodeBuild, triggered by GitHub through CodeConnections |
 | [0013](adr/0013-branch-pr-workflow-and-ci.md) | Branches and pull requests, CI on PRs, deploy on main |
 | [0014](adr/0014-shared-contracts-parallel-streams.md) | Shared dataclass contracts and parallel workstreams |
-| [0015](adr/0015-aurora-serverless-data-api.md) | Aurora Serverless v2 with the Data API instead of a public RDS instance (default-VPC part replaced by 0019) |
+| [0015](adr/0015-aurora-serverless-data-api.md) | Aurora Serverless v2 with the Data API instead of a public RDS instance (default-VPC part replaced by 0019, Data API part by 0021) |
 | [0016](adr/0016-titan-embeddings-no-model-in-lambda.md) | Bedrock Titan Text Embeddings V2, no model inside the Lambda image |
 | [0017](adr/0017-bedrock-claude-haiku-llm.md) | All LLM calls on Amazon Bedrock, Claude Haiku as the main model |
 | [0018](adr/0018-cloud-only-ingestion-and-jobs.md) | Nothing runs on the author's computer: S3-triggered ingestion and CodeBuild jobs |
-| [0019](adr/0019-isolated-vpc-schema-custom-resource.md) | Aurora in its own isolated VPC, schema applied by a custom resource on deploy (replaces the default-VPC part of 0015) |
-| [0020](adr/0020-data-stack-split-by-lifecycle.md) | Stacks split by lifecycle: VPC, Aurora, secret and schema in a separate data stack (replaces the stack layout of 0010) |
+| [0019](adr/0019-isolated-vpc-schema-custom-resource.md) | Aurora in its own isolated VPC, schema applied by a custom resource on deploy (replaces the default-VPC part of 0015; VPC and schema runner replaced by 0021) |
+| [0020](adr/0020-data-stack-split-by-lifecycle.md) | Stacks split by lifecycle: VPC, Aurora, secret and schema in a separate data stack (replaces the stack layout of 0010; schema location replaced by 0021) |
+| [0021](adr/0021-aurora-express-iam-auth.md) | Aurora express configuration (Free plan), IAM-authenticated Postgres connections instead of the Data API, no VPC, no secret |

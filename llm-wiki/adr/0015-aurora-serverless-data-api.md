@@ -3,7 +3,7 @@ title: Aurora Serverless v2 with the Data API instead of a public RDS instance
 status: accepted
 date: 2026-10-24
 supersedes: 0007; the hosting part of 0002
-superseded_by: none
+superseded_by: 0021 (Data API part)
 ---
 
 # ADR 0015: Aurora Serverless v2 with the Data API instead of a public RDS instance

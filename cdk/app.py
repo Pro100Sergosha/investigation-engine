@@ -1,7 +1,7 @@
 """CDK app: three stacks in account 988277499209, eu-north-1, split by lifecycle (ADR 0020).
 
 Investigation-Cicd-prod  CodeBuild PR diff + deploy on main. Deployed by hand: make deploy-cicd.
-Investigation-Data-prod  VPC, Aurora, its secret, the schema. Deployed by CodeBuild, rarely changes.
+Investigation-Data-prod  The Aurora cluster. Deployed by CodeBuild, rarely changes.
 Investigation-prod       The application. Deployed by CodeBuild on every push to main.
 """
 
@@ -9,7 +9,6 @@ from pathlib import Path
 
 import aws_cdk as cdk
 from aws_cdk import aws_codebuild as codebuild
-from aws_cdk import aws_ec2 as ec2
 from aws_cdk import aws_iam as iam
 from aws_cdk import aws_lambda as lambda_
 from aws_cdk import aws_logs as logs
@@ -168,98 +167,48 @@ class CicdStack(cdk.Stack):
 
 
 class DataStack(cdk.Stack):
-    """Stateful resources that hold data and rarely change: the VPC, Aurora, its secret, the schema.
+    """Stateful resources that hold data and rarely change: the Aurora cluster.
 
     A stack of its own so that a code deploy of Investigation-prod can never replace the
-    database (ADR 0020). The VPC exists only because an Aurora cluster must live in one (ADR 0019).
-    Investigation-prod imports the cluster and secret ARNs as CloudFormation exports: never remove
-    an export it still uses in the same deploy.
+    database (ADR 0020). Investigation-prod imports the cluster's endpoint and resource id as
+    CloudFormation exports: never remove an export it still uses in the same deploy.
     """
 
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-        # Isolated subnets only: no internet gateway, no NAT, no route out. Nothing in the
-        # VPC needs one. Aurora needs subnets in two AZs. CDK checks these against the
-        # Region's AZs, a lookup cached in cdk.context.json, which is committed because CI
-        # synthesizes without AWS credentials.
-        vpc = ec2.Vpc(
-            self,
-            "Vpc",
-            availability_zones=["eu-north-1a", "eu-north-1b"],
-            nat_gateways=0,
-            subnet_configuration=[
-                ec2.SubnetConfiguration(
-                    name="db", subnet_type=ec2.SubnetType.PRIVATE_ISOLATED, cidr_mask=24
-                )
-            ],
-        )
-        # 17.9: Data API needs 17.4+, pgvector 0.8 (halfvec) and 0-ACU auto-pause are in it.
-        self.cluster = rds.DatabaseCluster(
+        # The Free plan creates Aurora only with express configuration (ADR 0021): no VPC, an
+        # internet access gateway in front of the cluster, IAM auth only, the default engine
+        # version (17.9 on 2026-10-24) and a serverless writer it creates by itself, hence the
+        # L1 resource. Only identity, database name and deletion protection are set at create
+        # time; capacity is changed by a later update.
+        self.cluster = rds.CfnDBCluster(
             self,
             "Db",
-            engine=rds.DatabaseClusterEngine.aurora_postgres(
-                version=rds.AuroraPostgresEngineVersion.VER_17_9
-            ),
-            writer=rds.ClusterInstance.serverless_v2("Writer", publicly_accessible=False),
-            # 0 ACU: the writer pauses after 5 idle minutes and costs only storage until the
-            # next request (~15 s resume). 4 ACU is enough for the bulk load and HNSW upkeep.
-            serverless_v2_min_capacity=0,
-            serverless_v2_max_capacity=4,
-            enable_data_api=True,
-            credentials=rds.Credentials.from_generated_secret("postgres"),
-            default_database_name=DB_NAME,
-            vpc=vpc,
-            vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_ISOLATED),
-            backup=rds.BackupProps(retention=cdk.Duration.days(1)),
-            # A bad deploy or a deleted stack must not lose the corpus.
+            engine="aurora-postgresql",
+            db_cluster_identifier="investigation",
+            database_name=DB_NAME,
             deletion_protection=True,
-            removal_policy=cdk.RemovalPolicy.SNAPSHOT,
         )
-        self._schema(self.cluster)
-
-    def _schema(self, cluster: rds.DatabaseCluster) -> None:
-        """Apply sql/schema.sql on every deploy where it changed (ADR 0019).
-
-        A custom resource whose properties carry the SQL text: CloudFormation sends Update
-        whenever the text changes, and the handler re-runs every (idempotent) statement.
-        """
-        code = (ROOT / "scripts" / "schema.py").read_text()
-        handler = lambda_.Function(
-            self,
-            "SchemaFn",
-            runtime=lambda_.Runtime.PYTHON_3_12,
-            handler="index.handler",
-            code=lambda_.Code.from_inline(code),
-            timeout=cdk.Duration.minutes(5),
-        )
-        cluster.grant_data_api_access(handler)
-        provider = cr.Provider(self, "SchemaProvider", on_event_handler=handler)
-        schema = cdk.CustomResource(
-            self,
-            "Schema",
-            service_token=provider.service_token,
-            properties={
-                "ClusterArn": cluster.cluster_arn,
-                "SecretArn": cluster.secret.secret_arn,
-                "Database": DB_NAME,
-                "Sql": (ROOT / "sql" / "schema.sql").read_text(),
-            },
-        )
-        # The whole cluster construct: the writer instance must exist before any statement.
-        schema.node.add_dependency(cluster)
+        # Not in aws-cdk-lib 2.274's schema yet (synth warns), but in the live CloudFormation
+        # registry. Create-only: it never changes after the first deploy.
+        self.cluster.add_property_override("WithExpressConfiguration", True)
+        # A bad deploy or a deleted stack must not lose the corpus.
+        self.cluster.cfn_options.deletion_policy = cdk.CfnDeletionPolicy.SNAPSHOT
+        self.cluster.cfn_options.update_replace_policy = cdk.CfnDeletionPolicy.SNAPSHOT
 
 
 class AppStack(cdk.Stack):
     """The application: the documents bucket, the api and ingest Lambdas, the jobs project.
 
-    Lambdas and CodeBuild run outside any VPC and reach Aurora only through the Data API
-    (ADR 0015). The bucket stays here with its notifications: they point at `ingest`, and a
-    bucket in another stack would make the two stacks depend on each other.
+    Lambdas and CodeBuild run outside any VPC and reach Aurora through its internet access
+    gateway with IAM auth tokens (ADR 0021). The bucket stays here with its notifications: they
+    point at `ingest`, and a bucket in another stack would make the two stacks depend on each
+    other. The schema custom resource is here too: it runs the app image and `engine.db`.
     """
 
     def __init__(
-        self, scope: Construct, construct_id: str, cluster: rds.DatabaseCluster, **kwargs
+        self, scope: Construct, construct_id: str, cluster: rds.CfnDBCluster, **kwargs
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
@@ -282,12 +231,8 @@ class AppStack(cdk.Stack):
             ],
         )
 
-        data_env = {
-            "CLUSTER_ARN": cluster.cluster_arn,
-            "SECRET_ARN": cluster.secret.secret_arn,
-            "DB_NAME": DB_NAME,
-            "BUCKET": bucket.bucket_name,
-        }
+        db_env = {"DB_HOST": cluster.attr_endpoint_address, "DB_NAME": DB_NAME}
+        data_env = {**db_env, "BUCKET": bucket.bucket_name}
         image = str(ROOT)
         api = lambda_.DockerImageFunction(
             self,
@@ -308,8 +253,8 @@ class AppStack(cdk.Stack):
             architecture=lambda_.Architecture.X86_64,
             memory_size=1024,
             timeout=cdk.Duration.minutes(15),
-            # Caps parallel Bedrock and Data API load during the bulk load; throttled S3
-            # events wait in Lambda's async queue (up to 6 h) instead of failing.
+            # Caps parallel Bedrock calls and database connections during the bulk load;
+            # throttled S3 events wait in Lambda's async queue (up to 6 h) instead of failing.
             reserved_concurrent_executions=5,
             environment=data_env,
         )
@@ -345,13 +290,24 @@ class AppStack(cdk.Stack):
             iam.PolicyStatement(actions=["s3:ListBucket"], resources=[bucket.bucket_arn])
         )
 
-        # Data API on the cluster + read the credentials secret (grant_data_api_access does both).
+        # IAM database auth: rds-db:connect names one database user of this cluster. Everything
+        # logs in as `app` (data access only); only the schema function logs in as `postgres`.
+        def db_user(name: str) -> str:
+            return (
+                f"arn:aws:rds-db:{self.region}:{self.account}:dbuser:"
+                f"{cluster.attr_db_cluster_resource_id}/{name}"
+            )
+
         for grantee in (api, ingest, jobs):
-            cluster.grant_data_api_access(grantee)
+            grantee.add_to_role_policy(
+                iam.PolicyStatement(actions=["rds-db:connect"], resources=[db_user("app")])
+            )
         # ingest only embeds; api and the jobs also call the LLMs.
         self._allow_bedrock(ingest, llm=False)
         self._allow_bedrock(api, llm=True)
         self._allow_bedrock(jobs, llm=True)
+
+        self._schema(image, db_env, db_user("postgres"))
 
     def _allow_bedrock(self, grantee: iam.IGrantable, llm: bool) -> None:
         # Converse and ConverseStream are authorized by these two actions; there is no
@@ -430,6 +386,35 @@ class AppStack(cdk.Stack):
                     )
                 )
             ),
+        )
+
+    def _schema(self, image: str, db_env: dict[str, str], master_user: str) -> None:
+        """Apply sql/schema.sql on every deploy where it changed (ADR 0019, 0021).
+
+        A custom resource whose properties carry the SQL text: CloudFormation sends Update
+        whenever the text changes, and engine.handlers.schema runs the whole file again.
+        """
+        handler = lambda_.DockerImageFunction(
+            self,
+            "SchemaFn",
+            code=lambda_.DockerImageCode.from_image_asset(image, cmd=["engine.handlers.schema"]),
+            architecture=lambda_.Architecture.X86_64,
+            timeout=cdk.Duration.minutes(5),
+            environment=db_env,
+        )
+        handler.add_to_role_policy(
+            iam.PolicyStatement(actions=["rds-db:connect"], resources=[master_user])
+        )
+        provider = cr.Provider(self, "SchemaProvider", on_event_handler=handler)
+        cdk.CustomResource(
+            self,
+            "Schema",
+            service_token=provider.service_token,
+            # The host too: a new cluster gets the schema even if the file did not change.
+            properties={
+                "DbHost": db_env["DB_HOST"],
+                "Sql": (ROOT / "sql" / "schema.sql").read_text(),
+            },
         )
 
 

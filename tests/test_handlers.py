@@ -1,6 +1,6 @@
 import json
 
-from engine.handlers import api, ingest
+from engine.handlers import api, ingest, schema
 
 
 def _event(method: str, path: str) -> dict:
@@ -22,3 +22,8 @@ def test_ingest_logs_decoded_keys(capsys):
     assert ingest(event, None) == {"keys": ["uploads/my file.md"]}
     line = json.loads(capsys.readouterr().out)
     assert line == {"handler": "ingest", "keys": ["uploads/my file.md"]}
+
+
+def test_schema_delete_keeps_the_data():
+    # Delete makes no AWS call: without credentials it would fail if it tried.
+    assert schema({"RequestType": "Delete"}, None) == {"PhysicalResourceId": "schema"}
