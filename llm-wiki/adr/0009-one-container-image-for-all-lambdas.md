@@ -1,9 +1,9 @@
 ---
 title: One container image for all Lambdas, x86_64
-status: accepted
+status: superseded
 date: 2026-10-24
 supersedes: none
-superseded_by: none
+superseded_by: 0016
 ---
 
 # ADR 0009: One container image for all Lambdas, x86_64

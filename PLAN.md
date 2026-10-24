@@ -56,42 +56,43 @@ caching, streaming, observability, load test.
 
 ## 2. Key decisions
 
-Free service options per role (not final): [docs/SERVICES.md](docs/SERVICES.md).
+Each decision has an ADR in [llm-wiki/adr/](llm-wiki/adr/) with context, cost and rejected alternatives.
+[docs/SERVICES.md](docs/SERVICES.md) is an early draft, superseded.
 
 | Area | Choice | Why / trade-off |
 |---|---|---|
 | Corpus (bulk) | HotpotQA `distractor` validation split (7,405 questions x 10 paragraphs), dedup by title+text | Gold supporting facts give free Recall@K/MRR/citation labels. Many paragraphs repeat across questions: dedup is real, not cosmetic. **Verify unique count >= 50k in phase 0**; if short, add part of `train`. |
-| Corpus (investigation) | Synthetic "Acme Payments" org: ~150-300 docs (incident reports PDF, change logs MD, runbooks DOCX, status pages HTML) generated once, committed | Matches the task's example question (March payment outage). Planted contradictions (two reports disagree on root cause/time) and gaps (unanswerable). HotpotQA has neither. |
-| Corpus (real, optional) | danluu/post-mortems README entries as records | Real incident flavor; cheap to parse. Skip if time is short. |
-| Vector DB | AWS RDS Postgres 17 (`db.t4g.micro`, 20 GB gp3) + pgvector (`halfvec`) + built-in full-text search | One store for docs, chunks, vectors, keyword index, CRUD, dedup hashes, LLM cache; SQL is easy to defend. Publicly accessible with forced TLS (see Deployment for why). Local dev on `pgvector/pgvector:pg17` in Docker, same schema. Fallback: Neon free (same schema, `pg_dump`). |
-| Embeddings | `fastembed` + `BAAI/bge-small-en-v1.5` (384d, ONNX, CPU) | Free, no rate limits, no torch. Bulk embedding done locally, query embedding inside the Lambda (model baked into the container image, loaded once per cold start). Bonus comparison: `e5-small` or Gemini embeddings on the eval subset. |
+| Corpus (investigation) | Synthetic "Acme Payments" org: ~60-100 docs (incident reports PDF, change logs MD, runbooks DOCX, status pages HTML) generated once by Claude Haiku in a CodeBuild job, committed | Matches the task's example question (March payment outage). Planted contradictions (two reports disagree on root cause/time) and gaps (unanswerable). HotpotQA has neither. |
+| Vector DB | Aurora Serverless v2, PostgreSQL 17 + pgvector (`halfvec(1024)`, HNSW) + built-in full-text search; min 0 ACU (pauses when idle), max 2-4 ACU; accessed only through the RDS Data API (HTTPS + IAM, secret in Secrets Manager) | One store for docs, chunks, vectors, keyword index, CRUD, dedup hashes, LLM cache. Idle cost is ~storage only, so the credits last until the interview; no public endpoint, no NAT, no connection pooling. Trade-off: ~15 s resume after a pause, Data API limits (1 MB result, 45 s statement, no `COPY`). No local database. ADR 0015. |
+| Embeddings | Amazon Bedrock Titan Text Embeddings V2 (`amazon.titan-embed-text-v2:0`), 1024 dimensions, in `eu-north-1` | ~$0.19 for the whole corpus, no model in the Lambda image, nothing on the laptop. One text per request: the bulk load is bound by the account's RPM quota. Bonus comparison: 512 vs 1024 dimensions. Fallback: fastembed `bge-small` in CodeBuild. ADR 0016. |
 | Keyword search | Postgres `tsvector` + `ts_rank_cd` | Native, indexed. |
 | Own algorithm | Reciprocal Rank Fusion (dense + keyword) + MMR diversification with per-document cap, written by hand | Small, testable, easy to explain on a whiteboard. Optional: own BM25 scorer to compare with `ts_rank_cd`. |
-| LLM | Groq (`openai/gpt-oss-120b` main, smaller model for planning/judge), Amazon Bedrock (Nova Lite, from credits) as fallback | Free, fast, tool calling. Free limits (~8k tokens/min, ~1k req/day per model) are the real bottleneck: LLM calls cached in a Postgres table by prompt hash (Lambda has no persistent disk), eval spread across days/models. |
+| LLM | Amazon Bedrock only (Converse API, IAM, no external keys): **Claude Haiku** (`eu.anthropic.claude-haiku-*` cross-Region profile, 4.5 or 5.5) for the agent and Acme generation; `openai.gpt-oss-120b` (in Region) as automatic fallback; `qwen.qwen3-235b-a22b-2507` (in Region) as the evaluation judge | Reliable JSON and tool calling from Haiku ($1.10/$5.50 per 1M in EU), paid from credits. `llm.py`: timeout, backoff on throttling, fallback, prompt caching, Postgres `llm_cache`. Open risk: the Free-plan SCP may deny cross-Region inference, then gpt-oss-120b is the main model. ADR 0017. |
 | Orchestration | Own agent loop with tool calling: `search`, `get_document`, `final_answer` (JSON schema) | Satisfies tool calling + multi-step + agentic bonus. Hard step cap (e.g. 6), token budget per question. |
 | Grounding | Structured answer `{claims:[{text, citations:[chunk_id]}], contradictions:[], status: answered/insufficient/conflicting}`; server drops claims citing chunks that were never retrieved | Mechanical anti-hallucination check, not only prompt wording. |
 | Backend | AWS Lambda (Python 3.12 container image) behind a Lambda Function URL; hand-written router over the event, no web framework | Pay per request, always-free tier (1M req, 400k GB-s/month) covers the demo. Function URL instead of API Gateway: API Gateway cuts requests at 30 s, the agent loop can take longer (Function URL allows up to 15 min). Trade-off: no SSE streaming in Python Lambda, the trace comes back with the final answer. |
 | UI | One static HTML page + vanilla JS, served by the same `api` Lambda at `GET /` | Same origin as the API: no CORS, no CloudFront, HTTPS from the Function URL. |
-| Uploads | Browser gets a presigned S3 URL, uploads directly; S3 event triggers the `ingest` Lambda | Lambda payload limit is 6 MB; ingestion runs async with its own timeout. S3 keeps originals for re-ingestion. |
-| IaC | AWS CDK (Python), one stack `Investigation-prod`; `make diff` / `make deploy` | Same tool and workflow as binadar, so it is already known and defensible. Lambdas built as one container image (`DockerImageFunction`, x86_64: ARM builds on Windows run under emulation). Zip + uv cross-platform wheels (binadar's approach) rejected: onnxruntime + model are too close to the 250 MB limit. |
+| Ingestion | Every document (UI upload or bulk JSONL shard) lands in S3; the S3 event triggers the `ingest` Lambda (parse, dedup, chunk, embed, insert), reserved concurrency ~5. Browser uploads through a presigned S3 URL | One path for uploads and the bulk corpus; Lambda payload limit is 6 MB. ADR 0018. |
+| Jobs | CodeBuild project `investigation-jobs`, `TARGET` = Makefile target: `dataset`, `acme`, `eval CONFIG=...`; outputs to S3 | Nothing runs on the author's computer; builds run up to 8 h (Lambda: 15 min). ADR 0018. |
+| IaC | AWS CDK (Python): `Investigation-prod` (app) and `Investigation-Cicd-prod` (CodeBuild); `make diff` / `make deploy` | Same tool and workflow as binadar. Lambdas share one container image (`DockerImageFunction`, x86_64), now without any ML runtime. |
 | AWS access | AWS *project* (new AWS experience) on the Free plan: $100 credits, closes on expiry (2027-04-24) instead of billing. CLI via `aws login --profile investigation`; no long-lived keys | Free plan is a hard requirement. IAM Identity Center and Organizations are not available on it (enabling them upgraded the first account to Paid, which was abandoned). Isolated from binadar's account. |
 | CI/CD | GitHub Actions `make check` on PRs; CodeBuild (via CodeConnections) comments `cdk diff` on PRs and deploys `main` | GitHub OIDC is denied by the Free-plan SCP (`iam:*Provider*`); see llm-wiki ADR 0012. |
 | Observability | JSON log line per request (route, latency, tokens, LLM model, cache hit) in CloudWatch Logs; no custom metrics | Free tier; custom metrics cost $0.30 each (binadar's lesson). Logs Insights for analysis. |
 | Tagging | `Project=investigation-engine` on the CDK app, activated as a cost allocation tag | Spend visible in Cost Explorer. |
-| Secrets | SSM Parameter Store `SecureString` (free tier), read once per cold start | Not in code, not in the image, not in plain Lambda env vars. |
+| Secrets | Database credentials in Secrets Manager (required by the Data API, $0.40/month); GitHub token in SSM Parameter Store `SecureString` | Not in code, not in the image, not in plain Lambda env vars. No LLM API keys at all (Bedrock uses IAM). |
 | Region | `eu-north-1` (Stockholm) | Fixed by the AWS project: all Regional resources must live there. |
-| Tooling | Python 3.12, uv, ruff, pytest, Docker, AWS CLI, AWS CDK (Node) | |
+| Tooling | Python 3.12, uv, ruff, pytest, boto3, AWS CDK (Node); Docker only inside CodeBuild | The laptop needs git and `aws login`, nothing else. |
 
 ## 3. Architecture
 
 ```
-upload / bulk loader
-   -> parse (pdf: pypdf, docx: python-docx, html: bs4/stdlib, md/jsonl: stdlib)
+UI upload or bulk JSONL shard -> S3 -> ingest Lambda
+   -> parse (pdf: pypdf, docx: python-docx, html: stdlib, md/jsonl: stdlib)
    -> normalize + sha256 -> dedup (exact) -> chunk (strategy A|B)
-   -> embed (fastembed) -> Postgres: documents, chunks(text, tsv, embedding halfvec)
+   -> embed (Bedrock Titan V2) -> Aurora via Data API: documents, chunks(text, tsv, embedding halfvec)
 
 question
-   -> agent loop (LLM + tools)
+   -> agent loop (Claude Haiku on Bedrock + tools)
         plan sub-questions -> search(q) = dense top-k + keyword top-k -> RRF -> MMR
         -> get_document(id) when context is needed -> repeat <= N steps
    -> final_answer JSON -> citation validator -> answer | insufficient | conflicting
@@ -99,7 +100,7 @@ question
 ```
 
 Schema (sketch): `documents(id, source, title, doc_type, created_at, content_hash, version, metadata jsonb)`,
-`chunks(id, document_id, ord, text, tsv, embedding halfvec(384), strategy)`,
+`chunks(id, document_id, ord, text, tsv, embedding halfvec(1024), strategy)`,
 `llm_cache(prompt_hash, model, response jsonb, created_at)`.
 Update = new version replaces chunks in one transaction; delete cascades.
 
@@ -111,25 +112,34 @@ browser ──HTTPS──> Lambda Function URL ──> api Lambda (container ima
    │                                         GET  /documents        POST /documents/upload-url
    │                                         DELETE /documents/{id} GET  /chunks/{id}
    │                                         POST /ask  (agent loop, timeout 90 s)
-   │                                             │  └──HTTPS──> Groq API (fallback: Bedrock)
-   │                                             └──TLS──> RDS Postgres + pgvector
-   └──PUT (presigned)──> S3 bucket uploads/ ──event──> ingest Lambda (same image, timeout 5 min)
-                                                         parse -> dedup -> chunk -> embed -> RDS
+   │                                             ├──IAM──> Bedrock: Claude Haiku (eu.*), gpt-oss-120b, Titan V2
+   │                                             └──IAM──> RDS Data API ──> Aurora Serverless v2 (PG 17 + pgvector)
+   └──PUT (presigned)──> S3 uploads/ ──event──> ingest Lambda (same image, reserved concurrency ~5)
+                                                  parse -> dedup -> chunk -> Titan V2 -> Data API
 
-laptop: scripts/bulk_load.py (HotpotQA, fastembed) ──TLS──> RDS     eval runner ──> engine.ask() in-process
-SSM Parameter Store: DB URL, Groq key      CloudWatch Logs: JSON logs per request      AWS Budgets: alert at $10
+CodeBuild investigation-jobs: dataset (HotpotQA -> shards in S3) | acme (Bedrock -> S3) | eval (-> S3)
+CodeBuild investigation-pr-diff / investigation-deploy: CI/CD (ADR 0012)
+Secrets Manager: DB credentials   SSM: GitHub token   CloudWatch Logs: JSON line per request
 ```
 
 - One container image, two functions (`api`, `ingest`): same code, different handler.
-- **Lambdas run outside the VPC, RDS is publicly accessible.** A Lambda inside a VPC needs a
-  NAT Gateway (~$32/month) to reach Groq. Mitigations: `rds.force_ssl=1`, long random password
-  in SSM, dedicated DB user with no superuser rights, reserved concurrency 5 on `api` (caps DB
-  connections and runaway cost). Production path, written in README: VPC + RDS Proxy + NAT or
-  VPC endpoints, IAM DB auth.
-- Bulk load and eval run from the laptop: no Lambda timeouts, no payload limits, LLM cache shared via RDS.
-- Cost estimate: RDS ~$15 + storage ~$2.5 + public IPv4 ~$3.6 = ~$21/month; Lambda, S3, SSM,
-  CloudWatch within free tier; ECR ~$0.1. Credits ($100 + up to $100 from onboarding tasks)
-  cover ~5-9 months. Stop the RDS instance when not needed (auto-restarts after 7 days).
+- Lambdas and CodeBuild run outside any VPC; Aurora sits in the default VPC without public access
+  and is reached only through the Data API. No NAT, no public database endpoint.
+- Cost estimate (eu-north-1 prices from the AWS Pricing API, 2026-10-24):
+
+| Service | Price | 5 days of development | Per month of demo |
+|---|---|---|---|
+| Lambda | always free (1M requests, 400k GB-s/month) | $0 | $0 |
+| Aurora Serverless v2 | $0.14 per ACU-hour while awake, storage ~$0.1/GB-month | ~$1-2 | ~$0.5-1 |
+| RDS Data API | ~$0.35 per 1M requests | <$0.1 | <$0.1 |
+| Secrets Manager | $0.40 per secret-month | $0.07 | $0.40 |
+| Bedrock Titan Embeddings V2 | $0.021 per 1M tokens | ~$0.4 | ~$0 |
+| Bedrock Claude Haiku | $1.10 / $5.50 per 1M (Haiku 4.5, EU) | ~$15-25 | ~$1-2 |
+| Bedrock gpt-oss-120b, Qwen3 | $0.15/$0.60, $0.22/$0.88 per 1M | ~$1 | ~$0 |
+| CodeBuild | 100 min/month free, then ~$0.005/min | ~$1-2 | ~$0 |
+| S3, ECR | cents (ECR needs a lifecycle policy) | ~$0.1 | ~$0.2 |
+| CloudFormation, CodeConnections, SSM, CloudWatch Logs, IAM, KMS | free at this volume | $0 | $0 |
+| **Total** | | **~$20-30** | **~$2-4** |
 
 ## 4. Evaluation design
 
@@ -142,7 +152,7 @@ Question set (`eval/questions.jsonl`, >= 40, target 60):
 
 Metrics:
 - Retrieval: Recall@5/10, MRR (vs gold doc ids)
-- Answer: EM/F1 for HotpotQA, LLM-as-judge correctness (different model than generator) for the rest
+- Answer: EM/F1 for HotpotQA, LLM-as-judge correctness (Qwen3-235B, a different family than the Claude generator) for the rest
 - Citation accuracy: share of cited chunks that belong to gold docs; share of claims with >= 1 valid citation
 - Abstention: precision/recall of `insufficient` on unanswerable set
 - Contradiction: detection rate on contradictory set
@@ -152,8 +162,9 @@ Configurations compared:
 1. chunking A (fixed 300 tokens, 50 overlap) vs B (structure-aware: headings/paragraphs, size cap)
 2. dense only vs hybrid RRF vs hybrid RRF + MMR
 3. single-shot RAG vs agent loop
+4. (bonus, cheap) Titan V2 embeddings at 512 vs 1024 dimensions
 
-Output: `eval/results/<config>.json` + generated `EVALUATION.md` table and a failure analysis section.
+Runs in the CodeBuild jobs project (`TARGET=eval`); output: `eval/results/<config>.json` (via S3, committed by PR) + generated `EVALUATION.md` table and a failure analysis section.
 
 ## 5. Schedule
 
@@ -162,11 +173,12 @@ schedule is compressed and scope is cut (see "Cuts"). Code freeze 2026-10-29 15:
 
 | Day | Date | Work | Done when |
 |---|---|---|---|
-| 1 | 10-24/25 | Phases 0, 1, 3 + infra: repo, local Docker Postgres, AWS project + `aws login` + budget + CDK skeleton with RDS, HotpotQA subset, parsers, 2 chunkers, dedup, bulk embed + load, hybrid search with RRF + MMR | `search("...")` returns fused results over >= 50k records |
-| 2 | 10-26 | Phase 4 + start 2: LLM client (retry/backoff/fallback/cache), agent loop, JSON answer, citation validator; kick off Acme generation | CLI answers a HotpotQA multi-hop question with valid citations |
-| 3 | 10-27 | Phases 2, 5, 7: Acme corpus finished, Lambda router + HTML UI, deploy real code to AWS (infra already up from day 1), persistence check | public URL answers a question end to end |
-| 4 | 10-28 | Phase 6: 40-45 questions, runner, metrics, config sweep (cached LLM calls) | `eval/results/*.json` for all configs |
-| 5 | 10-29 | Phase 8: EVALUATION.md with failure analysis, README, AI_USAGE.md, buffer, defense rehearsal | submitted before 18:00 |
+| 1 | 10-24 | **Done:** repo, uv, Makefile, AWS project + `aws login`, CDK skeleton, CI/CD (GitHub Actions + CodeBuild PR diff/deploy), llm-wiki + ADRs 0001-0018, stack decisions | `/health` live, merges deploy automatically |
+| 2 | 10-25 | Stream A: Aurora + S3 + `ingest` + jobs project in the stack, schema, `dataset` job (HotpotQA shards), dedup, 2 chunkers, Titan embeddings, bulk load, dense + keyword + RRF + MMR | `search("...")` returns fused results over >= 50k records |
+| 3 | 10-26 | Stream B: `llm.py` (Bedrock, retry/backoff/fallback/cache), agent loop, JSON answer, citation validator; stream C: start the `acme` job | `ask()` answers a HotpotQA multi-hop question with valid citations |
+| 4 | 10-27 | Streams C + D: Acme corpus + parsers indexed, Lambda router + HTML UI, persistence check; stream E: questions + metrics | public URL answers a question end to end |
+| 5 | 10-28 | Stream E: eval runner in the jobs project, config sweep (cached LLM calls) | `eval/results/*.json` for all configs |
+| 6 | 10-29 | EVALUATION.md with failure analysis, README, AI_USAGE.md, buffer, defense rehearsal | submitted before 18:00 |
 
 ### Parallel workstreams
 
@@ -184,18 +196,17 @@ branch/worktree and merges to `main` when its tests pass.
 
 | Stream | Scope | Modules | Depends on | Start |
 |---|---|---|---|---|
-| A. Data + search | HotpotQA subset, schema, dedup, 2 chunkers, bulk embed, load, dense + keyword, RRF + MMR, CRUD | `data/`, `db.py`, `chunking.py`, `index.py`, `search.py` | local Docker Postgres (RDS for the final load) | day 1 |
-| B. LLM + agent | Groq client (retry/backoff/timeout/fallback/cache), tools, agent loop, JSON answer, citation validator | `llm.py`, `agent.py` | stub `search` | day 1 |
-| C. Acme corpus + parsers | generator, planted contradictions/gaps, `GROUND_TRUTH.md`, PDF/DOCX/HTML/MD parsers | `parsers.py`, `scripts/gen_acme.py`, `data/acme/` | Groq key | day 1 |
-| D. Infra + API + UI | AWS project, `aws login`, budget alert, CDK stack (RDS, S3, 2 Lambdas, Function URL, SSM), CI, Lambda router, HTML page, Dockerfile, persistence check | `handlers.py`, `static/`, `Dockerfile`, `cdk/`, `Makefile`, `.github/workflows/` | stubs `ask`/`search` | day 1 (infra), day 2 (API/UI) |
-| E. Evaluation | questions, Recall@K/MRR/citation metrics (pure functions), runner, config sweep, EVALUATION.md | `eval/` | real `ask` for runs only | day 2 |
+| A. Data + search | Aurora + S3 + `ingest` + jobs in the stack, schema, `dataset` job, dedup, 2 chunkers, Titan embeddings, bulk load, dense + keyword, RRF + MMR, CRUD | `db.py`, `chunking.py`, `embed.py`, `index.py`, `search.py`, `handlers.py` (ingest), `cdk/` | Aurora, Bedrock (account verification) | day 2 |
+| B. LLM + agent | Bedrock client (retry/backoff/timeout/fallback/prompt caching/cache), tools, agent loop, JSON answer, citation validator | `llm.py`, `agent.py` | stub `search`, Bedrock | day 3 |
+| C. Acme corpus + parsers | generator (`acme` job), planted contradictions/gaps, `GROUND_TRUTH.md`, PDF/DOCX/HTML/MD parsers | `parsers.py`, `scripts/gen_acme.py`, `data/acme/` | `llm.py`, jobs project | day 3 |
+| D. Infra + API + UI | Done: AWS project, CDK, CI/CD. Left: Lambda router, HTML page, presigned uploads, persistence check | `handlers.py`, `static/`, `cdk/` | stubs `ask`/`search` | day 4 |
+| E. Evaluation | questions, Recall@K/MRR/citation metrics (pure functions), runner (`eval` job), config sweep, EVALUATION.md | `eval/` | real `ask` for runs only | day 4 |
 
-Merge points: A+B on day 2 (real search inside the agent); C into A on day 3 (Acme indexed);
-D deploys with real A+B on day 3; E runs the sweep on day 4.
-Groq limits are shared: C (generation) and E (runs) must not run at the same time as heavy B testing.
+Merge points: A+B on day 3 (real search inside the agent); C into A on day 4 (Acme indexed);
+D serves real A+B on day 4; E runs the sweep on day 5.
+Bedrock quotas are shared: the bulk load (A), Acme generation (C) and eval runs (E) should not run at the same time.
 
 Cuts (in order of what goes first if behind):
-- danluu/post-mortems corpus — dropped.
 - Acme corpus: ~60-100 docs instead of 150-300.
 - Question set: 40-45 instead of 60.
 - Config comparison: chunking A vs B and dense vs hybrid are mandatory; single-shot vs agent only if time allows.
@@ -203,27 +214,29 @@ Cuts (in order of what goes first if behind):
 
 Reference phases (original estimates):
 
-0. **Setup + data check (0.5 d)** — repo, uv project, local Docker Postgres, AWS account + budget alert, Groq key. Download HotpotQA, count unique paragraphs, decide subset size. Commit subset script with fixed seed.
+0. **Setup + data check (0.5 d)** — repo, uv project, AWS project + budget alert (done). `dataset` job: download HotpotQA, count unique paragraphs, decide subset size, fixed seed.
 1. **Ingestion (2 d)** — parsers for 4 formats, metadata, hashing/dedup, two chunkers, CRUD on documents. Tests on small fixtures.
 2. **Synthetic Acme corpus (1 d)** — generator script (LLM once, outputs committed), planted contradictions and gaps listed in `data/acme/GROUND_TRUTH.md`.
-3. **Index + search (1.5 d)** — bulk embed locally, load into Postgres (local, then RDS), dense + keyword queries, RRF + MMR, unit tests for fusion.
-4. **Agent + grounding (2 d)** — LLM client (retries, backoff on 429, timeout, fallback model, cache), tools, loop, JSON answer, citation validator, abstain/conflict statuses.
+3. **Index + search (1.5 d)** — bulk load through S3 + `ingest` (Titan embeddings, Data API), dense + keyword queries, RRF + MMR, unit tests for fusion.
+4. **Agent + grounding (2 d)** — Bedrock client (retries, backoff on throttling, timeout, fallback model, prompt caching, cache), tools, loop, JSON answer, citation validator, abstain/conflict statuses.
 5. **API + UI (1 d)** — `POST /documents/upload-url`, `PUT/DELETE /documents/{id}`, `GET /documents`, `POST /ask`, `GET /chunks/{id}`; single HTML page; Lambda router.
 6. **Evaluation (2 d)** — question set, runner, metrics, config sweep, EVALUATION.md with failure analysis.
-7. **Deploy (1 d)** — Dockerfile, CDK stack (RDS, S3, Lambdas, Function URL, SSM), budget alert, persistence check (redeploy, data still there), DEPLOYMENT section with limits and cost.
+7. **Deploy (1 d)** — Dockerfile, CDK stack (Aurora, S3, Lambdas, Function URL, Secrets Manager), budget alert, persistence check (redeploy, data still there), DEPLOYMENT section with limits and cost.
 8. **Docs + defense prep (1 d)** — README, AI_USAGE.md, rehearse: walk the pipeline, rewrite RRF/MMR by hand, add a small feature without AI.
 
 Core total ~12 days. Bonus only after phase 8: next best value is
-prompt-injection tests (plant malicious text in a doc) and embedding-model comparison.
+prompt-injection tests (plant malicious text in a doc) and the 512 vs 1024 embedding comparison.
 
 ## 6. Risks
 
-- **Groq free limits** stall eval runs. Mitigation: cache, smaller model for judge/planning, run configs on different days, keep agent step cap low.
-- **RDS storage/RAM** (20 GB disk is plenty; 1 GB RAM limits HNSW build and `shared_buffers`). Mitigation: `halfvec`, build HNSW once after bulk load with raised `maintenance_work_mem`, measure query latency early in phase 3.
-- **HotpotQA chunking comparison is weak** (paragraphs already short). Compare chunkers on Acme + post-mortems, say so in the report.
-- **LLM-as-judge bias**. Use a different model than the generator, spot-check 10 answers by hand, report agreement.
+- **Bedrock blocked while the new account is verified** (every call returned "account is being verified" on 2026-10-24). Mitigation: non-Bedrock work first (stack, schema, chunkers, RRF/MMR, dataset job); recheck before stream A needs embeddings.
+- **Free-plan SCP may deny cross-Region inference** (Claude Haiku via `eu.*`). Mitigation: `llm.py` falls back to gpt-oss-120b in Region; test once Bedrock works and record the outcome.
+- **Bedrock quotas of a new account** (Titan RPM for ~60k embedding calls, Haiku tokens/min for eval). Mitigation: reserved concurrency on `ingest`, retries with backoff, LLM cache; fallbacks: fastembed in CodeBuild, Titan batch inference.
+- **Aurora resume after a pause** (~15 s, `DatabaseResumingException`). Mitigation: retry in `db.py`, warm the database before a demo, document first-request latency.
+- **Data API limits** (1 MB result, 45 s statement, no `COPY`). Mitigation: paginate, `BatchExecuteStatement` for bulk inserts, `continueAfterTimeout` for the HNSW build, temporary max ACU 2-4.
+- **HotpotQA chunking comparison is weak** (paragraphs already short). Compare chunkers on Acme, say so in the report.
+- **LLM-as-judge bias**. Judge from a different family (Qwen3 vs Claude), spot-check 10 answers by hand, report agreement.
 - **Defense without AI**. Keep code small and own; no framework magic you cannot rewrite on paper.
-- **Lambda cold start** (container pull + ONNX model load, ~3-6 s). Model baked into the image, loaded at module level; document first-request latency. Provisioned concurrency costs money, not used.
-- **Public RDS endpoint.** Accepted for the demo to avoid NAT cost; mitigations and production path in Deployment.
-- **AWS credits / free plan expiry.** Budget alert at $10; account closes when credits run out or after 6 months unless upgraded; the demo must live until the interview.
-- **Infra eats coding time.** CDK stack written on day 1 in parallel with A/B/C; deploy a hello-world Lambda + RDS first, real code later.
+- **Lambda cold start** (container pull, no model any more, ~1-2 s) plus Aurora resume. Document first-request latency. Provisioned concurrency costs money, not used.
+- **Credits and Free-plan expiry.** $100 total, the account closes on 2027-04-24 or when credits run out. Haiku in repeated eval sweeps is the main spend: cache everything, check spend in Billing.
+- **Infra ate day 1.** Streams start on day 2 with one day less of buffer.
