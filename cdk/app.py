@@ -44,6 +44,9 @@ class CicdStack(cdk.Stack):
                 codebuild.EventAction.PULL_REQUEST_REOPENED,
             ).and_base_ref_is("^refs/heads/main$"),
             privileged=False,
+            # PR code is untrusted: read-only lookup role only, enough for `cdk diff
+            # --method=template`. No change sets, no asset publishing, no deploy.
+            assume_roles=["lookup"],
         )
         pr_diff.add_to_role_policy(
             iam.PolicyStatement(
@@ -61,6 +64,7 @@ class CicdStack(cdk.Stack):
                 "^refs/heads/main$"
             ),
             privileged=True,  # docker build of the Lambda image
+            assume_roles=["lookup", "deploy", "file-publishing", "image-publishing"],
         )
         deploy.add_to_role_policy(
             iam.PolicyStatement(
@@ -78,12 +82,13 @@ class CicdStack(cdk.Stack):
         buildspec: str,
         filters: codebuild.FilterGroup,
         privileged: bool,
+        assume_roles: list[str],
     ) -> codebuild.Project:
         project = codebuild.Project(
             self,
             construct_id,
             project_name=name,
-            # Only the repo owner's events build: the role below can deploy.
+            # Only the repo owner's events build, so code from forks never runs here.
             source=codebuild.Source.git_hub(
                 owner=GITHUB_OWNER,
                 repo=GITHUB_REPO,
@@ -126,11 +131,14 @@ class CicdStack(cdk.Stack):
                 resources=[CONNECTION_ARN],
             )
         )
-        # cdk deploy/diff only needs to assume the CDK bootstrap roles.
+        # CDK commands work by assuming the bootstrap roles; grant only the ones this build needs.
         project.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["sts:AssumeRole"],
-                resources=[f"arn:aws:iam::{self.account}:role/cdk-hnb659fds-*"],
+                resources=[
+                    f"arn:aws:iam::{self.account}:role/cdk-hnb659fds-{role}-role-{self.account}-{self.region}"
+                    for role in assume_roles
+                ],
             )
         )
         return project

@@ -14,7 +14,6 @@ that closes it.
 |---|---|---|
 | Branch protection is off: a red PR can be merged by hand | GitHub free plan offers it only on public repositories | the repository is made public (required for submission anyway) |
 | `Investigation-Cicd-prod` not deployed: no PR diff comments, merges to `main` deploy nothing | needs the CodeConnections handshake, the GitHub token in SSM, then a manual `make deploy-cicd` | first green `investigation-deploy` build |
-| PR CodeBuild role can deploy | `cdk diff` needs the bootstrap deploy role; limited by the owner-only webhook filter ([ADR 0012](adr/0012-codebuild-cicd-via-codeconnections.md)) | a read-only diff role, if collaborators join |
 | No reserved concurrency on `api` | not configured yet | added with the real `/ask` route (quota is 400, so it is possible here) |
 | No RDS, S3 bucket, `ingest` Lambda or SSM parameters in the stack | stream D adds them when stream A needs the database | the corresponding PRs merge |
 | Docker image never built locally | Docker Desktop was not running; CI builds it on deploy | first successful deploy |

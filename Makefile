@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install lint fmt test check synth diff deploy verify smoke diff-cicd deploy-cicd bootstrap
+.PHONY: help install lint fmt test check synth diff diff-pr deploy verify smoke diff-cicd deploy-cicd bootstrap
 
 # CLI pinned here, library pinned in uv.lock. npx downloads it once and caches it.
 CDK := npx --yes aws-cdk@2.1146.1
@@ -33,6 +33,9 @@ synth:  ## Synthesize CloudFormation templates (no AWS calls)
 
 diff:  ## Show what a deploy would change. Read it before deploying.
 	cd cdk && $(CDK) diff Investigation-prod
+
+diff-pr:  ## Read-only diff for PR builds (template compare via the lookup role, no change set)
+	cd cdk && $(CDK) diff Investigation-prod --method=template
 
 deploy:  ## Deploy the application stack (CodeBuild does this on push to main)
 	cd cdk && $(CDK) deploy Investigation-prod --require-approval never

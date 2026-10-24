@@ -19,7 +19,7 @@ phases:
       - uv sync --frozen
   build:
     commands:
-      - set -o pipefail; make diff 2>&1 | tee diff.txt
+      - set -o pipefail; make diff-pr 2>&1 | tee diff.txt
   post_build:
     # Runs even when the diff failed, so the PR always gets a comment.
     commands:

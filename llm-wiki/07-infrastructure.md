@@ -50,15 +50,15 @@ Every resource is tagged `Project=investigation-engine` at the app level.
 | Event | Where | What |
 |---|---|---|
 | PR to `main` | GitHub Actions `ci.yml` | `make check` (ruff lint + format check, pytest, `cdk synth`) |
-| PR to `main` (owner only) | CodeBuild `investigation-pr-diff`, `.codebuild/pr-diff.yml` | `make diff`, posted as one PR comment (edited on each push) by `scripts/comment_pr.py`; status check on the PR |
+| PR to `main` (owner only) | CodeBuild `investigation-pr-diff`, `.codebuild/pr-diff.yml` | `make diff-pr` (template diff, lookup role only), posted as one PR comment (edited on each push) by `scripts/comment_pr.py`; status check on the PR |
 | Push to `main` (owner only) | CodeBuild `investigation-deploy`, `.codebuild/deploy.yml` | `make test`, `make deploy`, `make verify` (`cdk diff --fail`), `make smoke` (`/health`); status on the commit |
 
 - **Why CodeBuild and not GitHub OIDC:** the Free-plan SCP denies `iam:*Provider*`; creating the
   OIDC provider failed with an explicit deny (2026-10-24).
 - Webhooks filter on the owner's GitHub id (`139613549`) and anchored refs (`^refs/heads/main$`),
-  because the project roles can deploy.
-- Project roles may only assume `cdk-hnb659fds-*`; PR role also reads the token parameter, deploy
-  role also describes `Investigation-prod` (for the smoke check).
+  so code from anyone else never runs in the account.
+- PR role: assume only `cdk-hnb659fds-lookup-role-*` (ReadOnly) + read the token parameter. Deploy
+  role: assume lookup, deploy, file-publishing, image-publishing + describe `Investigation-prod`.
 - Buildspecs are read from the repo at build time: editing `.codebuild/*.yml` needs no redeploy.
 - Images: `aws/codebuild/standard:7.0`, `general1.small`; deploy runs privileged (Docker build).
   uv is installed in the build (`0.9.21`), Node from the image runtime (22).
