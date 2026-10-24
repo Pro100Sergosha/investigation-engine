@@ -206,6 +206,44 @@ Merge points: A+B on day 3 (real search inside the agent); C into A on day 4 (Ac
 D serves real A+B on day 4; E runs the sweep on day 5.
 Bedrock quotas are shared: the bulk load (A), Acme generation (C) and eval runs (E) should not run at the same time.
 
+### Parallel agent waves
+
+To write code faster, independent tasks run as parallel coding agents, each in its own git
+worktree and branch, each ending in a PR that must pass CI. Rules:
+- **One owner per file per wave.** Two agents never edit the same file. Shared files
+  (`src/engine/models.py`, `cdk/app.py`, `pyproject.toml` + `uv.lock`, `handlers.py`) have exactly
+  one owning task in a wave; everyone else codes against the contract.
+- **Contracts first.** Wave 0 fixes the function signatures every wave-1 agent codes against.
+- **Dependencies are added only by the owner of `pyproject.toml`** in that wave (uv.lock conflicts
+  are painful); other agents list what they need in their PR description.
+- **Review is the bottleneck, not typing.** At most 3-4 agents at a time: the author must understand
+  every merged line for the interview. The main session reviews and merges; the author reads each PR.
+- **Bedrock quota is shared:** at most one agent runs bulk embedding, Acme generation or eval at once.
+
+| Wave | Task | Owns files | Needs | Tests |
+|---|---|---|---|---|
+| 0 | Contracts: signatures for `db`, `embed`, `llm`, `search`, `chunking`, `grounding`, `parsers`; stub implementations | `models.py`, module stubs | - | import + stub tests |
+| 1 | Chunkers A (fixed 300/50) and B (structure-aware) | `chunking.py` | wave 0 | pure unit tests |
+| 1 | RRF + MMR with per-document cap | `rank.py` | wave 0 | pure unit tests |
+| 1 | Parsers PDF/DOCX/HTML/MD/JSONL -> `ParsedDoc`, metadata, small fixtures | `parsers.py`, `tests/fixtures/` | wave 0 | fixture tests |
+| 1 | Citation validator + `Answer` assembly, statuses | `grounding.py` | wave 0 | pure unit tests |
+| 1 | Eval metrics: Recall@K, MRR, EM/F1, citation accuracy, abstention P/R, contradiction rate | `eval/metrics.py` | wave 0 | pure unit tests |
+| 1 | Infra: Aurora + secret, S3 bucket + event, `ingest` Lambda, `investigation-jobs` project, schema SQL | `cdk/app.py`, `sql/schema.sql`, `.codebuild/jobs.yml`, `pyproject.toml` | - | synth + PR diff |
+| 1 | Dataset job: HotpotQA download, dedup, stats, JSONL shards to S3 | `scripts/dataset.py` | wave 0 | dedup unit tests |
+| 1 | UI page against the API contract (stub responses) | `static/index.html` | wave 0 | manual |
+| 2 | `db.py` (Data API, resume retry) + document insert/update/delete | `db.py`, `index.py` | infra | against Aurora |
+| 2 | `embed.py` (Titan) + `llm.py` (Bedrock client, retry, fallback, cache) | `embed.py`, `llm.py` | Bedrock verified | unit + one live call |
+| 2 | `search.py`: dense + keyword SQL -> `rank.py` | `search.py` | `db.py`, `rank.py` | against Aurora |
+| 2 | API routes + ingest handler wiring | `handlers.py` | `db.py`, `parsers.py`, `chunking.py` | router unit tests + smoke |
+| 2 | HotpotQA questions (gold ids) | `eval/questions.jsonl` | dataset stats | schema check |
+| 3 | Agent loop + tools | `agent.py` | `llm.py`, `search.py`, `grounding.py` | one live question |
+| 3 | Acme generator + `GROUND_TRUTH.md` + Acme questions | `scripts/gen_acme.py`, `data/acme/` | `llm.py`, jobs project | ground-truth check |
+| 3 | Eval runner + config sweep in the jobs project | `eval/run.py` | `agent.py` | dry run on 3 questions |
+| 4 | EVALUATION.md, README, AI_USAGE.md | docs | results | - |
+
+Wave 1 tasks are pure Python or infra and can all start immediately (Bedrock is not needed);
+wave 2 starts when infra is merged and the account verification lets Bedrock calls through.
+
 Cuts (in order of what goes first if behind):
 - Acme corpus: ~60-100 docs instead of 150-300.
 - Question set: 40-45 instead of 60.
