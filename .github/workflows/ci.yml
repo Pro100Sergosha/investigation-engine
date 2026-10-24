@@ -1,55 +1,30 @@
 name: CI
 
+# Pull requests only. A merge to main is checked again by the `check` job in
+# deploy.yml, which is the one standing between a merge and production; running it
+# here on push too would start the same suite twice on the same commit.
 on:
-  push:
-    branches: [main]
   pull_request:
-  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
+    name: lint, test, synth
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: true
+      # CDK's Python bindings drive a Node subprocess (jsii), and the CLI comes from npx.
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
       - run: uv sync --frozen
       - run: make check
-
-  deploy:
-    needs: check
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write  # OIDC
-      contents: read
-    concurrency:
-      group: deploy-prod
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
-        with:
-          enable-cache: true
-      - uses: actions/setup-node@v7
-        with:
-          node-version: '22'
-      - run: uv sync --frozen
-      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
-        with:
-          role-to-assume: arn:aws:iam::988277499209:role/investigation-deploy
-          aws-region: eu-north-1
-      - run: make diff
-      - run: make deploy
-      - name: Smoke check
-        run: |
-          url=$(aws cloudformation describe-stacks --stack-name Investigation-prod \
-            --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text)
-          curl --fail --silent --show-error "${url}health"

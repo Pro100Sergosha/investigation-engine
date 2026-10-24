@@ -79,8 +79,9 @@ CDK (Python), project `988277499209`, Region `eu-north-1`.
 
 ## Infra and deploy
 
-- Push to `main` = CI runs `make check`, then deploys `Investigation-prod` and smoke-checks `/health`.
-  So `main` must always be deployable.
+- Pull request = `ci.yml` runs `make check`. Merge to `main` = `deploy.yml` runs `make check`,
+  `make diff`, deploys `Investigation-prod`, smoke-checks `/health`. So `main` must always be
+  deployable. `Investigation-Github-prod` (CI's own role) is deployed only by hand.
 - Before infra changes: `make diff` and read it. Never destroy RDS or its data by accident
   (set retention/removal policy on stateful resources).
 - Cost rules: no NAT Gateway, no custom CloudWatch metrics, no provisioned concurrency.
@@ -108,7 +109,9 @@ instead of billing. Staying on the Free plan is a project requirement (task dema
 
 ## Git
 
+- Never commit to `main` directly. Branch per change: `feat/…`, `fix/…`, `chore/…`, `docs/…`
+  (one branch/worktree per stream), push, `gh pr create`, wait for green CI, squash merge.
 - Small commits, imperative subject (`Add RRF fusion`), body explains why if not obvious.
-- One branch/worktree per stream, merge to `main` when its tests pass.
+  PR title = squash commit subject, same style.
 - No Claude/AI attribution in commits or PRs (no `Co-Authored-By`, no "Generated with").
 - Never commit `.env`, `data/raw/`, parquet files, `cdk.out/`.
