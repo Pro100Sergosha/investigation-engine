@@ -12,7 +12,19 @@ def fixed_chunks(text: str, size: int = 300, overlap: int = 50) -> list[str]:
     (300 words, size 300 -> exactly one chunk). Empty or whitespace-only text -> [].
     Raises ValueError unless 0 <= overlap < size.
     """
-    raise NotImplementedError
+    if overlap < 0 or overlap >= size:  # also rejects size <= 0
+        raise ValueError(f"need 0 <= overlap < size, got size={size}, overlap={overlap}")
+    words = text.split()
+    step = size - overlap
+    chunks = []
+    start = 0
+    while start < len(words):
+        end = start + size
+        chunks.append(" ".join(words[start:end]))
+        if end >= len(words):
+            break  # this window reached the end; another one would lie inside it
+        start += step
+    return chunks
 
 
 def structured_chunks(text: str, max_words: int = 300) -> list[str]:
@@ -28,4 +40,64 @@ def structured_chunks(text: str, max_words: int = 300) -> list[str]:
     stay separated by a blank line. Empty text -> [].
     Raises ValueError unless max_words > 0.
     """
-    raise NotImplementedError
+    if max_words <= 0:
+        raise ValueError(f"max_words must be > 0, got {max_words}")
+    chunks = []
+    parts = []  # the chunk being built: heading lines first, then paragraphs
+    chunk_words = 0
+    has_paragraph = False  # a chunk made only of headings is never emitted
+
+    for block in _split_blocks(text):
+        heading = ""
+        if block[0].startswith("#"):
+            # A heading may be followed by paragraph text with no blank line; cut it off.
+            heading = " ".join(block[0].split())
+            block = block[1:]
+        words = " ".join(block).split()
+
+        # A new heading, or a paragraph that does not fit, closes the chunk.
+        if has_paragraph and (heading or chunk_words + len(words) > max_words):
+            chunks.append("\n\n".join(parts))
+            parts = []
+            chunk_words = 0
+            has_paragraph = False
+
+        if heading:
+            parts.append(heading)
+            chunk_words += len(heading.split())
+        if not words:
+            continue
+
+        paragraph = " ".join(words)
+        if len(words) > max_words:
+            # Only the first piece carries the headings; the chunk is closed right here.
+            pieces = fixed_chunks(paragraph, max_words, 0)
+            pieces[0] = "\n\n".join(parts + [pieces[0]])
+            chunks.extend(pieces)
+            parts = []
+            chunk_words = 0
+        else:
+            parts.append(paragraph)
+            chunk_words += len(words)
+            has_paragraph = True
+
+    if has_paragraph:
+        chunks.append("\n\n".join(parts))
+    return chunks
+
+
+def _split_blocks(text: str) -> list[list[str]]:
+    """Blocks are runs of non-blank lines; each block is a list of stripped lines."""
+    blocks = []
+    block = []
+    for line in text.splitlines():  # splitlines also handles \r\n
+        line = line.strip()
+        if line == "":
+            if block:
+                blocks.append(block)
+                block = []
+        else:
+            block.append(line)
+    if block:
+        blocks.append(block)
+    return blocks
