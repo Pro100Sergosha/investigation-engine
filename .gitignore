@@ -5,3 +5,5 @@ data/raw/
 *.parquet
 .ruff_cache/
 .pytest_cache/
+.idea/
+*.stackdump
