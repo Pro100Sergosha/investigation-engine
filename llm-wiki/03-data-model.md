@@ -7,7 +7,7 @@ owner: Pro100Sergosha
 
 # 03 Data model
 
-One Postgres database, `investigation`, on Aurora Serverless v2 (PostgreSQL 17.9 with pgvector),
+One Postgres database, the default `postgres` (express configuration creates no other), on Aurora Serverless v2 (PostgreSQL 17.9 with pgvector),
 express configuration, reached over TLS with IAM auth tokens through `engine.db`
 ([ADR 0021](adr/0021-aurora-express-iam-auth.md)). The whole schema is
 [`sql/schema.sql`](../sql/schema.sql); how it gets applied is in

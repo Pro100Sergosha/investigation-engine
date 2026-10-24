@@ -62,7 +62,7 @@ never remove an export that is still imported in the same deploy; a removal take
 
 | Resource | Configuration |
 |---|---|
-| Aurora cluster `Db` (`CfnDBCluster`) | identifier `investigation`, **express configuration** (the only kind the Free plan creates): Aurora PostgreSQL at the default version (17.9), one serverless writer created by express, no VPC, **internet access gateway** (PostgreSQL over TLS, port 5432), **IAM authentication only**, master user `postgres`, database `investigation`, deletion protection on, `DeletionPolicy`/`UpdateReplacePolicy: Snapshot`. ACU range: the express default for now (see 14 Known gaps) |
+| Aurora cluster `Db` (`CfnDBCluster`) | identifier `investigation`, **express configuration** (the only kind the Free plan creates): Aurora PostgreSQL at the default version (17.9), one serverless writer created by express, no VPC, **internet access gateway** (PostgreSQL over TLS, port 5432), **IAM authentication only**, master user `postgres`, database `postgres` (express rejects an initial database name), `DeletionPolicy`/`UpdateReplacePolicy: Snapshot`. Deletion protection and ACU range: not set at create, applied by an update (see 14 Known gaps) |
 
 `WithExpressConfiguration` is set with `add_property_override` (not in aws-cdk-lib 2.274's schema,
 so `cdk synth` warns; the live CloudFormation registry has it). It is create-only.
