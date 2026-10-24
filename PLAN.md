@@ -185,7 +185,7 @@ schedule is compressed and scope is cut (see "Cuts"). Code freeze 2026-10-29 15:
 Streams talk only through `src/engine/models.py` (`ParsedDoc`, `Hit`, `Answer`) and these functions:
 
 ```python
-parse(path) -> ParsedDoc                       # C
+parse(path, source) -> ParsedDoc               # C
 search(query: str, k: int = 10) -> list[Hit]   # A
 get_document(document_id: int) -> ParsedDoc    # A
 ask(question: str) -> Answer                   # B
@@ -222,13 +222,13 @@ worktree and branch, each ending in a PR that must pass CI. Rules:
 
 | Wave | Task | Owns files | Needs | Tests |
 |---|---|---|---|---|
-| 0 | Contracts: signatures for `db`, `embed`, `llm`, `search`, `chunking`, `grounding`, `parsers`; stub implementations | `models.py`, module stubs | - | import + stub tests |
+| 0 | **Done:** contracts in `models.py`, signatures for `chunking`, `rank`, `grounding`, `parsers`, `eval/metrics`; dedup hash in `index.py`; API contract (llm-wiki 04); wave-1 dependencies added. `db`/`embed`/`llm`/`search` signatures are left to their wave-2 owners (nobody calls them in wave 1) | `models.py`, module stubs, `pyproject.toml` | - | dedup tests |
 | 1 | Chunkers A (fixed 300/50) and B (structure-aware) | `chunking.py` | wave 0 | pure unit tests |
 | 1 | RRF + MMR with per-document cap | `rank.py` | wave 0 | pure unit tests |
 | 1 | Parsers PDF/DOCX/HTML/MD/JSONL -> `ParsedDoc`, metadata, small fixtures | `parsers.py`, `tests/fixtures/` | wave 0 | fixture tests |
 | 1 | Citation validator + `Answer` assembly, statuses | `grounding.py` | wave 0 | pure unit tests |
 | 1 | Eval metrics: Recall@K, MRR, EM/F1, citation accuracy, abstention P/R, contradiction rate | `eval/metrics.py` | wave 0 | pure unit tests |
-| 1 | Infra: Aurora + secret, S3 bucket + event, `ingest` Lambda, `investigation-jobs` project, schema SQL | `cdk/app.py`, `sql/schema.sql`, `.codebuild/jobs.yml`, `pyproject.toml` | - | synth + PR diff |
+| 1 | Infra: Aurora + secret, S3 bucket + event, `ingest` Lambda, `investigation-jobs` project, schema SQL | `cdk/app.py`, `sql/schema.sql`, `.codebuild/jobs.yml` | - | synth + PR diff |
 | 1 | Dataset job: HotpotQA download, dedup, stats, JSONL shards to S3 | `scripts/dataset.py` | wave 0 | dedup unit tests |
 | 1 | UI page against the API contract (stub responses) | `static/index.html` | wave 0 | manual |
 | 2 | `db.py` (Data API, resume retry) + document insert/update/delete | `db.py`, `index.py` | infra | against Aurora |

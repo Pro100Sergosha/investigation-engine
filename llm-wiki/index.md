@@ -14,7 +14,7 @@ is**, not as it was planned; the plan and schedule live in [PLAN.md](../PLAN.md)
 and the document did not, the document is a bug.
 
 Numbering follows binadar's wiki. A document is written when there is something real to describe,
-so gaps in the numbers are deliberate: 03 Data model, 04 API contract, 05 Corpora, 09 Evaluation
+so gaps in the numbers are deliberate: 03 Data model, 05 Corpora, 09 Evaluation
 and 10 Runbook appear with the streams that build them.
 
 ## What to read for what task
@@ -26,12 +26,14 @@ and 10 Runbook appear with the streams that build them.
 | Search, ranking, embeddings, the database | [02 Architecture](02-architecture.md), ADRs [0002](adr/0002-postgres-pgvector-single-store.md), [0003](adr/0003-hybrid-search-own-rrf-mmr.md), [0015](adr/0015-aurora-serverless-data-api.md), [0016](adr/0016-titan-embeddings-no-model-in-lambda.md) |
 | LLM calls, the agent, citations | [ADR 0017](adr/0017-bedrock-claude-haiku-llm.md), [ADR 0005](adr/0005-agent-loop-with-citation-validation.md) |
 | Datasets, Acme corpus, ingestion, jobs | [ADR 0006](adr/0006-hotpotqa-plus-synthetic-acme-corpus.md), [ADR 0018](adr/0018-cloud-only-ingestion-and-jobs.md) |
-| Shared types or stream interfaces | [ADR 0014](adr/0014-shared-contracts-parallel-streams.md), `src/engine/models.py` |
+| Shared types or stream interfaces | [02 Architecture](02-architecture.md#contracts), [ADR 0014](adr/0014-shared-contracts-parallel-streams.md), `src/engine/models.py` |
+| The UI, HTTP routes | [04 API contract](04-api-contract.md) |
 | Something does not work yet or is temporary | [14 Known gaps](14-known-gaps.md) |
 
 ## Document index
 
 - [02 Architecture](02-architecture.md): components, data flow, and why each choice was made
+- [04 API contract](04-api-contract.md): HTTP routes, JSON shapes, upload/update/delete flow
 - [07 Infrastructure](07-infrastructure.md): AWS project, CDK stacks, CI/CD, deploying, cost
 - [14 Known gaps](14-known-gaps.md): what does not work yet, or works on a temporary arrangement
 
