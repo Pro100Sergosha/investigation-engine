@@ -14,8 +14,8 @@ own small code instead.
 **Updated 2026-10-25 (day 2 of 6).** Wave 0 and wave 1 merged (PRs #4-#17). Wave 2 in progress:
 contracts and `embed.py` (#19), document writes (#22) merged; search, LLM client, API routes in review.
 **Behind:** the day 2 goal (`search()` over >= 50k records) is not met: nothing is indexed yet,
-`ingest` is a stub, `db.py` has no writes, `embed.py`/`search.py`/`llm.py` do not exist.
-Next: wave 2 (`db.py` writes, `embed.py` + `llm.py`, `search.py`, API routes).
+`ingest` is a stub, `search.py`/`llm.py` are not merged.
+Next: merge search (#23), LLM client (#20), API routes + ingest (#21), then the bulk load.
 
 How status is kept (every PR that finishes or advances a task updates it in the same PR):
 - this section: date, current day and wave, what is behind, what is next;
