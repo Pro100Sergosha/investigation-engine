@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS documents (
 
 -- Chunks of every strategy live side by side; search filters on `strategy`.
 -- `tsv` is computed by Postgres, so keyword search can never drift from the text.
--- `embedding` is Titan Text Embeddings V2 at 1024 dimensions, stored as half precision.
+-- `embedding` is Cohere Embed V4 (search_document) at 1024 dimensions, stored as half precision.
 CREATE TABLE IF NOT EXISTS chunks (
     id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     document_id bigint NOT NULL REFERENCES documents (id) ON DELETE CASCADE,

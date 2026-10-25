@@ -1,7 +1,7 @@
 ---
 title: Corpora
 status: current
-last_updated: 2026-10-24
+last_updated: 2026-10-25
 owner: Pro100Sergosha
 ---
 
@@ -77,6 +77,25 @@ aws codebuild start-build --project-name investigation-jobs \
 ```
 
 `TARGET=dataset-stats` downloads and prints the stats without uploading (`--dry-run`).
+
+**Load** (shards -> `ingest` -> Aurora). Each shard is one `ingest` invocation; at most 2 run at
+once. `ingest` calls `index.upsert_many` with the whole shard: dedup checks for all 500
+documents, then one Cohere Embed V4 request per 96 distinct chunk inputs, then one transaction
+per document ([ADR 0022](adr/0022-cohere-embed-v4-batched.md)). Numbers:
+
+| | |
+|---|---|
+| tokens per document | ~158 ("<title>\n\n<text>"; 96 documents = 15,180 tokens) |
+| corpus | ~10.5-11M tokens, ~$1.3; ~11M of the pool's 16.2M tokens/day |
+| requests | ~700 at 96 texts, 2.2-3.2 s each; the `eu.*` pool allows 20/min and 300k tokens/min |
+| expected time | ~35-40 min for the corpus, bound by the pool, not by the database (~0.03 s per document) |
+
+History: the first load (2026-10-25, Titan V2, one request per chunk, 5 workers) stalled at
+1,853 documents: Titan throttled beyond ~1 request/s and Lambda dropped the shards after its
+retries. Those documents carry Titan vectors, which do not compare with Cohere's: they must be
+deleted and the corpus reloaded with Cohere ([14 Known gaps](14-known-gaps.md)). A shard Lambda gives up on now lands in the
+`IngestFailures` queue (`make redrive-ingest` reruns it); rerunning `dataset` also works, since
+`ingest` skips what is stored.
 
 ## Acme (synthetic)
 

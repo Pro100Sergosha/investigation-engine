@@ -13,8 +13,12 @@ own small code instead.
 
 **Updated 2026-10-25 (day 2 of 6).** Wave 0 and wave 1 merged (PRs #4-#17). Wave 2 in progress:
 contracts and `embed.py` (#19), document writes (#22), search (#23), LLM client (#20), API routes + `ingest` (#21) merged: wave 2 code is complete.
-**Behind:** the day 2 goal (`search()` over >= 50k records) is not met: nothing is indexed yet.
-Next: bulk load (`dataset` job -> shards -> `ingest`), UI check of upload/update/delete, then wave 3.
+**Behind:** the day 2 goal (`search()` over >= 50k records) is not met. The first bulk load
+stalled at 1,853 of 66,555 documents: Titan throttled beyond ~1 request/s (~18 h for the corpus)
+and Lambda dropped the failed shards. Embeddings switch to Cohere Embed V4, 96 texts per request,
+whole shards per call, failed events kept in SQS (#PR, ADR 0022).
+Next: after that deploy, delete the 1,853 Titan-embedded documents and rerun `dataset` (~35-40
+min), then the UI check of upload/update/delete, then wave 3.
 
 How status is kept (every PR that finishes or advances a task updates it in the same PR):
 - this section: date, current day and wave, what is behind, what is next;
@@ -34,7 +38,7 @@ Ingestion
 - [ ] add / update / delete documents — partial: `index.upsert/delete` (#22), checked live on Aurora, API routes + `ingest` (#21); not checked through the UI
 
 Search
-- [ ] vector DB, embeddings, semantic search — partial: Aurora + pgvector (#8, #10), Titan `embed.py` (#19), writes (#22), dense search (#23); nothing indexed
+- [ ] vector DB, embeddings, semantic search — partial: Aurora + pgvector (#8, #10), `embed.py` (#19, Cohere Embed V4 since #PR), writes (#22, batched since #PR), dense search (#23); 1,853 Titan-embedded documents to be replaced by the Cohere reload
 - [ ] hybrid search (semantic + keyword) — partial: dense + OR keyword + RRF in `search.py` (#23), checked live on 10 test documents; not run over the loaded corpus
 - [ ] >= 1 own ranking/search algorithm (not only library calls) — partial: RRF + MMR with per-document cap (#5), called by `search.py` (#23); not run over the loaded corpus
 
@@ -79,7 +83,7 @@ Each decision has an ADR in [llm-wiki/adr/](llm-wiki/adr/) with context, cost an
 | Corpus (bulk) | HotpotQA `distractor` validation split (7,405 questions x 10 paragraphs), dedup by title+text | Gold supporting facts give free Recall@K/MRR/citation labels. Many paragraphs repeat across questions: dedup is real, not cosmetic. **Verify unique count >= 50k in phase 0**; if short, add part of `train`. |
 | Corpus (investigation) | Synthetic "Acme Payments" org: ~60-100 docs (incident reports PDF, change logs MD, runbooks DOCX, status pages HTML) generated once by Claude Haiku in a CodeBuild job, committed | Matches the task's example question (March payment outage). Planted contradictions (two reports disagree on root cause/time) and gaps (unanswerable). HotpotQA has neither. |
 | Vector DB | Aurora Serverless v2, PostgreSQL 17 + pgvector (`halfvec(1024)`, HNSW) + built-in full-text search; min 0 ACU (pauses when idle), max 2-4 ACU; **express configuration** (the only Aurora the Free plan creates): no VPC, internet access gateway, IAM auth tokens over TLS with `pg8000`, no password or secret | One store for docs, chunks, vectors, keyword index, CRUD, dedup hashes, LLM cache. Idle cost is ~storage only, so the credits last until the interview; no NAT, no secrets, no Data API limits. Trade-off: ~15 s resume after a pause, a public (IAM-only) endpoint, own connection handling. No local database. ADR 0015, ADR 0021. |
-| Embeddings | Amazon Bedrock Titan Text Embeddings V2 (`amazon.titan-embed-text-v2:0`), 1024 dimensions, in `eu-north-1` | ~$0.19 for the whole corpus, no model in the Lambda image, nothing on the laptop. One text per request: the bulk load is bound by the account's RPM quota. Bonus comparison: 512 vs 1024 dimensions. Fallback: fastembed `bge-small` in CodeBuild. ADR 0016. |
+| Embeddings | Amazon Bedrock Cohere Embed V4 through the `eu.cohere.embed-v4:0` inference profile (EU Regions only), 1024 dimensions, `search_document` / `search_query` | 96 texts per request: the corpus loads in ~35-40 min within the pool's 20 requests/min (Titan V2, one text per request, throttled at ~1 request/s: ~18 h). ~$1.3 for the corpus, no model in the Lambda image, nothing on the laptop. Query embeddings share the pool with the bulk load. Fallback: the `global.*` profile (second pool, data may leave the EU). ADR 0016, ADR 0022. |
 | Keyword search | Postgres `tsvector` + `ts_rank_cd` | Native, indexed. |
 | Own algorithm | Reciprocal Rank Fusion (dense + keyword) + MMR diversification with per-document cap, written by hand | Small, testable, easy to explain on a whiteboard. Optional: own BM25 scorer to compare with `ts_rank_cd`. |
 | LLM | Amazon Bedrock only (Converse API, IAM, no external keys): **Claude Haiku 4.5** (`eu.anthropic.claude-haiku-4-5-20251001-v1:0` cross-Region profile) for the agent and Acme generation; `openai.gpt-oss-120b` (in Region) as automatic fallback; `qwen.qwen3-235b-a22b-2507` (in Region) as the evaluation judge | Reliable JSON and tool calling from Haiku ($1.10/$5.50 per 1M in EU), paid from credits. `llm.py`: timeout, backoff on throttling, fallback, prompt caching, Postgres `llm_cache`. All models verified with real calls on 2026-10-24; Haiku is limited to 10 requests/min per profile until the requested increase is approved. ADR 0017 (+ updates), ADR 0023. |
@@ -87,7 +91,7 @@ Each decision has an ADR in [llm-wiki/adr/](llm-wiki/adr/) with context, cost an
 | Grounding | Structured answer `{claims:[{text, citations:[chunk_id]}], contradictions:[], status: answered/insufficient/conflicting}`; server drops claims citing chunks that were never retrieved | Mechanical anti-hallucination check, not only prompt wording. |
 | Backend | AWS Lambda (Python 3.12 container image) behind a Lambda Function URL; hand-written router over the event, no web framework | Pay per request, always-free tier (1M req, 400k GB-s/month) covers the demo. Function URL instead of API Gateway: API Gateway cuts requests at 30 s, the agent loop can take longer (Function URL allows up to 15 min). Trade-off: no SSE streaming in Python Lambda, the trace comes back with the final answer. |
 | UI | One static HTML page + vanilla JS, served by the same `api` Lambda at `GET /` | Same origin as the API: no CORS, no CloudFront, HTTPS from the Function URL. |
-| Ingestion | Every document (UI upload or bulk JSONL shard) lands in S3; the S3 event triggers the `ingest` Lambda (parse, dedup, chunk, embed, insert), reserved concurrency ~5. Browser uploads through a presigned S3 URL | One path for uploads and the bulk corpus; Lambda payload limit is 6 MB. ADR 0018. |
+| Ingestion | Every document (UI upload or bulk JSONL shard) lands in S3; the S3 event triggers the `ingest` Lambda (parse, dedup, chunk, embed a whole file in batches of 96, insert), reserved concurrency 2. Events Lambda gives up on go to the SQS queue `IngestFailures`; `make redrive-ingest` reruns them. Browser uploads through a presigned S3 URL | One path for uploads and the bulk corpus; Lambda payload limit is 6 MB; a failed upload is never silently dropped. ADR 0018, ADR 0022. |
 | Jobs | CodeBuild project `investigation-jobs`, `TARGET` = Makefile target: `dataset`, `acme`, `eval CONFIG=...`; outputs to S3 | Nothing runs on the author's computer; builds run up to 8 h (Lambda: 15 min). ADR 0018. |
 | IaC | AWS CDK (Python), stacks split by lifecycle like binadar: `Investigation-Data-prod` (the Aurora cluster: stateful, rarely changes), `Investigation-prod` (Lambdas, documents bucket, jobs project, schema: changes on every merge), `Investigation-Cicd-prod` (CodeBuild, deployed by hand); `make diff` / `make deploy` | Same tool and workflow as binadar; a code deploy can never replace the database. Lambdas share one container image (`DockerImageFunction`, x86_64), without any ML runtime. |
 | AWS access | AWS *project* (new AWS experience) on the Free plan: $100 credits, closes on expiry (2027-04-24) instead of billing. CLI via `aws login --profile investigation`; no long-lived keys | Free plan is a hard requirement. IAM Identity Center and Organizations are not available on it (enabling them upgraded the first account to Paid, which was abandoned). Isolated from binadar's account. |
@@ -104,7 +108,7 @@ Each decision has an ADR in [llm-wiki/adr/](llm-wiki/adr/) with context, cost an
 UI upload or bulk JSONL shard -> S3 -> ingest Lambda
    -> parse (pdf: pypdf, docx: python-docx, html: stdlib, md/jsonl: stdlib)
    -> normalize + sha256 -> dedup (exact) -> chunk (strategy A|B)
-   -> embed (Bedrock Titan V2) -> Aurora (db.py): documents, chunks(text, tsv, embedding halfvec)
+   -> embed (Bedrock Cohere Embed V4, 96 texts per request) -> Aurora (db.py): documents, chunks(text, tsv, embedding halfvec)
 
 question
    -> agent loop (Claude Haiku on Bedrock + tools)
@@ -127,10 +131,10 @@ browser ──HTTPS──> Lambda Function URL ──> api Lambda (container ima
    │                                         GET  /documents        POST /documents/upload-url
    │                                         DELETE /documents/{id} GET  /chunks/{id}
    │                                         POST /ask  (agent loop, timeout 90 s)
-   │                                             ├──IAM──> Bedrock: Claude Haiku (eu.*), gpt-oss-120b, Titan V2
+   │                                             ├──IAM──> Bedrock: Claude Haiku (eu.*), gpt-oss-120b, Cohere Embed V4 (eu.*)
    │                                             └──IAM token, TLS──> Aurora express (PG 17.9 + pgvector)
-   └──PUT (presigned)──> S3 uploads/ ──event──> ingest Lambda (same image, reserved concurrency ~5)
-                                                  parse -> dedup -> chunk -> Titan V2 -> Aurora
+   └──PUT (presigned)──> S3 uploads/ ──event──> ingest Lambda (same image, reserved concurrency 2; failures -> SQS)
+                                                  parse -> dedup -> chunk -> Cohere V4 -> Aurora
 
 CodeBuild investigation-jobs: dataset (HotpotQA -> shards in S3) | acme (Bedrock -> S3) | eval (-> S3)
 CodeBuild investigation-pr-diff / investigation-deploy: CI/CD (ADR 0012)
@@ -146,7 +150,8 @@ SSM: GitHub token   CloudWatch Logs: JSON line per request
 |---|---|---|---|
 | Lambda | always free (1M requests, 400k GB-s/month) | $0 | $0 |
 | Aurora Serverless v2 | $0.14 per ACU-hour while awake, storage ~$0.1/GB-month | ~$1-2 | ~$0.5-1 |
-| Bedrock Titan Embeddings V2 | $0.021 per 1M tokens | ~$0.4 | ~$0 |
+| Bedrock Cohere Embed V4 (`eu.*`) | ~$0.12 per 1M tokens (third-party trackers; the Pricing API gave no clear figure) | ~$1.5-3 (one or two full loads of ~11M tokens) | ~$0 |
+| SQS (`IngestFailures`) | 1M requests/month free | $0 | $0 |
 | Bedrock Claude Haiku | $1.10 / $5.50 per 1M (Haiku 4.5, EU) | ~$15-25 | ~$1-2 |
 | Bedrock gpt-oss-120b, Qwen3 | $0.15/$0.60, $0.22/$0.88 per 1M | ~$1 | ~$0 |
 | CodeBuild | 100 min/month free, then ~$0.005/min | ~$1-2 | ~$0 |
@@ -175,7 +180,7 @@ Configurations compared:
 1. chunking A (fixed 300 tokens, 50 overlap) vs B (structure-aware: headings/paragraphs, size cap)
 2. dense only vs hybrid RRF vs hybrid RRF + MMR
 3. single-shot RAG vs agent loop
-4. (bonus, cheap) Titan V2 embeddings at 512 vs 1024 dimensions
+4. (bonus, cheap) Cohere V4 embeddings at 512 vs 1024 dimensions (`output_dimension`; needs a second vector column or a reload)
 
 Runs in the CodeBuild jobs project (`TARGET=eval`); output: `eval/results/<config>.json` (via S3, committed by PR) + generated `EVALUATION.md` table and a failure analysis section.
 
@@ -187,7 +192,7 @@ schedule is compressed and scope is cut (see "Cuts"). Code freeze 2026-10-29 15:
 | Day | Date | Work | Done when |
 |---|---|---|---|
 | 1 | 10-24 | **Done:** repo, uv, Makefile, AWS project + `aws login`, CDK skeleton, CI/CD (GitHub Actions + CodeBuild PR diff/deploy), llm-wiki + ADRs 0001-0018, stack decisions | `/health` live, merges deploy automatically |
-| 2 | 10-25 | **In progress.** Done: Aurora + S3 + `ingest` stub + jobs project (#8, #10, #12, #13), `dataset` job (#7), 2 chunkers (#6), RRF + MMR (#5); pulled forward from days 3-4: citation validator (#14), parsers (#16), UI page (#17), eval metrics (#15). Wave 2: Titan embeddings (#19), writes with dedup (#22), dense + keyword search (#23). `ingest` wiring (#21). Left: bulk load. Plan: Stream A: Aurora + S3 + `ingest` + jobs project in the stack, schema, `dataset` job (HotpotQA shards), dedup, 2 chunkers, Titan embeddings, bulk load, dense + keyword + RRF + MMR | `search("...")` returns fused results over >= 50k records |
+| 2 | 10-25 | **In progress.** Done: Aurora + S3 + `ingest` stub + jobs project (#8, #10, #12, #13), `dataset` job (#7), 2 chunkers (#6), RRF + MMR (#5); pulled forward from days 3-4: citation validator (#14), parsers (#16), UI page (#17), eval metrics (#15). Wave 2: embeddings (#19, Titan; Cohere V4 since #PR), writes with dedup (#22), dense + keyword search (#23). `ingest` wiring (#21). Left: bulk load (the Titan load stalled at 1,853 documents; redone with Cohere after #PR). Plan: Stream A: Aurora + S3 + `ingest` + jobs project in the stack, schema, `dataset` job (HotpotQA shards), dedup, 2 chunkers, embeddings, bulk load, dense + keyword + RRF + MMR | `search("...")` returns fused results over >= 50k records |
 | 3 | 10-26 | Stream B: `llm.py` (Bedrock, retry/backoff/fallback/cache), agent loop, JSON answer, citation validator; stream C: start the `acme` job | `ask()` answers a HotpotQA multi-hop question with valid citations |
 | 4 | 10-27 | Streams C + D: Acme corpus + parsers indexed, Lambda router + HTML UI, persistence check; stream E: questions + metrics | public URL answers a question end to end |
 | 5 | 10-28 | Stream E: eval runner in the jobs project, config sweep (cached LLM calls) | `eval/results/*.json` for all configs |
@@ -209,7 +214,7 @@ branch/worktree and merges to `main` when its tests pass.
 
 | Stream | Scope | Modules | Depends on | Start |
 |---|---|---|---|---|
-| A. Data + search | Aurora + S3 + `ingest` + jobs in the stack, schema, `dataset` job, dedup, 2 chunkers, Titan embeddings, bulk load, dense + keyword, RRF + MMR, CRUD | `db.py`, `chunking.py`, `embed.py`, `index.py`, `search.py`, `handlers.py` (ingest), `cdk/` | Aurora, Bedrock (account verification) | day 2 |
+| A. Data + search | Aurora + S3 + `ingest` + jobs in the stack, schema, `dataset` job, dedup, 2 chunkers, embeddings, bulk load, dense + keyword, RRF + MMR, CRUD | `db.py`, `chunking.py`, `embed.py`, `index.py`, `search.py`, `handlers.py` (ingest), `cdk/` | Aurora, Bedrock (account verification) | day 2 |
 | B. LLM + agent | Bedrock client (retry/backoff/timeout/fallback/prompt caching/cache), tools, agent loop, JSON answer, citation validator | `llm.py`, `agent.py` | stub `search`, Bedrock | day 3 |
 | C. Acme corpus + parsers | generator (`acme` job), planted contradictions/gaps, `GROUND_TRUTH.md`, PDF/DOCX/HTML/MD parsers | `parsers.py`, `scripts/gen_acme.py`, `data/acme/` | `llm.py`, jobs project | day 3 |
 | D. Infra + API + UI | Done: AWS project, CDK, CI/CD, HTML page (#17). Left: Lambda routes, presigned uploads, persistence check | `handlers.py`, `static/`, `cdk/` | stubs `ask`/`search` | day 4 |
@@ -249,6 +254,7 @@ worktree and branch, each ending in a PR that must pass CI. Rules:
 | 2 | **Done (#19, #20):** `embed.py` (Titan) + `llm.py` (Bedrock client, retry, fallback, cache; ADR 0023) | `embed.py`, `llm.py` | Bedrock verified | unit + one live call |
 | 2 | **Done (#23):** `search.py`: dense (partial HNSW per strategy) + OR keyword -> RRF -> MMR, modes `dense`/`hybrid`/`mmr`; document and chunk reads (ADR 0024) | `search.py`, `sql/schema.sql` | `db.py`, `rank.py` | against Aurora |
 | 2 | **Done (#21):** API routes (documents, upload URL, delete, chunks) + ingest handler wiring | `handlers.py` | `db.py`, `parsers.py`, `chunking.py` | router unit tests + smoke |
+| 2 | **Done (#PR):** Cohere Embed V4 instead of Titan (ADR 0022): `embed_documents` (96 per request) / `embed_query`, `index.upsert_many` per shard, `ingest` capped at 2, IAM through the `eu.*` profile, failed ingest events in SQS + `make redrive-ingest` | `embed.py`, `index.py`, `handlers.py`, `cdk/app.py`, `scripts/redrive_ingest.py` | Bedrock (Cohere quota) | unit + live calls, `upsert_many` against Aurora |
 | 3 | Agent loop + tools | `agent.py` | `llm.py`, `search.py`, `grounding.py` | one live question |
 | 3 | Acme generator + `GROUND_TRUTH.md` + Acme questions | `scripts/gen_acme.py`, `data/acme/` | `llm.py`, jobs project | ground-truth check |
 | 3 | Eval runner + config sweep in the jobs project, HotpotQA questions (moved from wave 2: the runner defines their format) | `eval/run.py`, `eval/questions.jsonl` | `agent.py`, dataset labels | dry run on 3 questions |
@@ -268,7 +274,7 @@ Reference phases (original estimates):
 0. **Setup + data check (0.5 d)** — repo, uv project, AWS project + budget alert (done). `dataset` job: download HotpotQA, count unique paragraphs, decide subset size, fixed seed.
 1. **Ingestion (2 d)** — parsers for 4 formats, metadata, hashing/dedup, two chunkers, CRUD on documents. Tests on small fixtures.
 2. **Synthetic Acme corpus (1 d)** — generator script (LLM once, outputs committed), planted contradictions and gaps listed in `data/acme/GROUND_TRUTH.md`.
-3. **Index + search (1.5 d)** — bulk load through S3 + `ingest` (Titan embeddings, `db.py`), dense + keyword queries, RRF + MMR, unit tests for fusion.
+3. **Index + search (1.5 d)** — bulk load through S3 + `ingest` (Bedrock embeddings, `db.py`), dense + keyword queries, RRF + MMR, unit tests for fusion.
 4. **Agent + grounding (2 d)** — Bedrock client (retries, backoff on throttling, timeout, fallback model, prompt caching, cache), tools, loop, JSON answer, citation validator, abstain/conflict statuses.
 5. **API + UI (1 d)** — `POST /documents/upload-url`, `PUT/DELETE /documents/{id}`, `GET /documents`, `POST /ask`, `GET /chunks/{id}`; single HTML page; Lambda router.
 6. **Evaluation (2 d)** — question set, runner, metrics, config sweep, EVALUATION.md with failure analysis.
@@ -283,9 +289,10 @@ prompt-injection tests (plant malicious text in a doc) and the 512 vs 1024 embed
 - **Haiku throughput: 10 requests/min per profile** (Bedrock quota of a new account). An eval sweep
   takes ~2 h. Mitigation: account-level increase filed (support case opened), spread calls over the
   `eu.*` and `global.*` pools, LLM cache, gpt-oss-120b (100 requests/min) as fallback.
-- **Titan throttling during the bulk load** (its quota is not visible in Service Quotas).
-  Mitigation: reserved concurrency on `ingest`, backoff on `ThrottlingException`; fallback Cohere
-  Embed V4 (96 texts per request).
+- **Cohere Embed V4 pool: 20 requests/min, 16.2M tokens/day** shared by the bulk load and query
+  embeddings. A full load takes ~35-40 min and ~11M tokens. Mitigation: 96 texts per request,
+  `ingest` capped at 2, adaptive retry, failed events kept in `IngestFailures` for a redrive;
+  never run a load and an eval at once; `global.*` as a second pool.
 - **Aurora resume after a pause** (~15 s). Mitigation: connect retry in `db.py`, warm the database before a demo, document first-request latency.
 - **Aurora express configuration** (Free plan): public IAM-only endpoint, default engine version, ACU range set after creation. Mitigation: least-privilege `app` role, ADR 0021.
 - **HotpotQA chunking comparison is weak** (paragraphs already short). Compare chunkers on Acme, say so in the report.
@@ -298,3 +305,5 @@ prompt-injection tests (plant malicious text in a doc) and the 512 vs 1024 embed
 Closed on 2026-10-24: Bedrock blocked during account verification (quotas opened by themselves);
 cross-Region inference denied by the Free-plan SCP (it is not); corpus below 50k (66,555 unique
 HotpotQA documents, PR #7).
+Closed on 2026-10-25: Titan throttling during the bulk load (it happened: the load stalled at
+1,853 documents; replaced by Cohere Embed V4, ADR 0022, #PR).

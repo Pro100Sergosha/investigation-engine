@@ -68,7 +68,7 @@ def transaction() -> Iterator[pg8000.native.Connection]:
     send the statement on a new connection, outside the transaction. A dead connection is
     replaced only at BEGIN, where nothing has been sent yet; inside the block nothing is retried.
     Success commits; any error rolls back and re-raises, so the caller reruns the whole unit
-    (for ingest: the Lambda retry reruns the shard, and `index.upsert` skips what is stored).
+    (for ingest: the Lambda retry reruns the shard, and `index.upsert_many` skips what is stored).
     """
     global _conn
     if _conn is None:
