@@ -12,10 +12,10 @@ own small code instead.
 ## 0. Status
 
 **Updated 2026-10-25 (day 2 of 6).** Wave 0 and wave 1 merged (PRs #4-#17). Wave 2 in progress:
-contracts and `embed.py` (#19), four parallel tasks running.
+contracts and `embed.py` (#19), document writes (#22), search (#23) merged; LLM client, API routes in review.
 **Behind:** the day 2 goal (`search()` over >= 50k records) is not met: nothing is indexed yet,
-`ingest` is a stub, `db.py` has no writes, `embed.py`/`search.py`/`llm.py` do not exist.
-Next: wave 2 (`db.py` writes, `embed.py` + `llm.py`, `search.py`, API routes).
+`ingest` is a stub, `llm.py` is not merged.
+Next: merge LLM client (#20), API routes + ingest (#21), then the bulk load.
 
 How status is kept (every PR that finishes or advances a task updates it in the same PR):
 - this section: date, current day and wave, what is behind, what is next;
@@ -31,13 +31,13 @@ Ingestion
 - [ ] >= 3 file formats (plan: PDF, DOCX, Markdown/HTML, JSONL) — partial: `parsers.py` (#16); not wired into `ingest`
 - [ ] text + metadata extraction (source, title, date, doc type, service names) — partial: `ParsedDoc` metadata from parsers (#16); not stored
 - [ ] chunking, >= 2 strategies compared — partial: fixed + structure-aware chunkers (#6); comparison needs the eval
-- [ ] duplicate handling — partial: sha256 of normalized text (#4), HotpotQA deduplicated in the dataset job (#7); upload path not wired
-- [ ] add / update / delete documents — needs `db.py` writes + API routes (wave 2)
+- [ ] duplicate handling — partial: sha256 of normalized text (#4), HotpotQA deduplicated in the dataset job (#7), `index.upsert` skips same-hash documents (#22); `ingest` not wired
+- [ ] add / update / delete documents — partial: `index.upsert/delete` (#22), checked live on Aurora; needs the API routes and `ingest` wiring
 
 Search
-- [ ] vector DB, embeddings, semantic search — partial: Aurora + pgvector schema deployed (#8, #10); no `embed.py`, nothing indexed
-- [ ] hybrid search (semantic + keyword) — partial: `tsvector` column in the schema (#8); no `search.py`
-- [ ] >= 1 own ranking/search algorithm (not only library calls) — partial: RRF + MMR with per-document cap (#5); not called by search yet
+- [ ] vector DB, embeddings, semantic search — partial: Aurora + pgvector (#8, #10), Titan `embed.py` (#19), writes (#22), dense search (#23); nothing indexed
+- [ ] hybrid search (semantic + keyword) — partial: dense + OR keyword + RRF in `search.py` (#23), checked live on 10 test documents; not run over the loaded corpus
+- [ ] >= 1 own ranking/search algorithm (not only library calls) — partial: RRF + MMR with per-document cap (#5), called by `search.py` (#23); not run over the loaded corpus
 
 LLM / RAG
 - [ ] RAG, multi-document synthesis, multi-step handling of complex questions
@@ -188,7 +188,7 @@ schedule is compressed and scope is cut (see "Cuts"). Code freeze 2026-10-29 15:
 | Day | Date | Work | Done when |
 |---|---|---|---|
 | 1 | 10-24 | **Done:** repo, uv, Makefile, AWS project + `aws login`, CDK skeleton, CI/CD (GitHub Actions + CodeBuild PR diff/deploy), llm-wiki + ADRs 0001-0018, stack decisions | `/health` live, merges deploy automatically |
-| 2 | 10-25 | **In progress.** Done: Aurora + S3 + `ingest` stub + jobs project (#8, #10, #12, #13), `dataset` job (#7), 2 chunkers (#6), RRF + MMR (#5); pulled forward from days 3-4: citation validator (#14), parsers (#16), UI page (#17), eval metrics (#15). Left: dedup in `ingest`, Titan embeddings, `db.py` writes, bulk load, dense + keyword search. Plan: Stream A: Aurora + S3 + `ingest` + jobs project in the stack, schema, `dataset` job (HotpotQA shards), dedup, 2 chunkers, Titan embeddings, bulk load, dense + keyword + RRF + MMR | `search("...")` returns fused results over >= 50k records |
+| 2 | 10-25 | **In progress.** Done: Aurora + S3 + `ingest` stub + jobs project (#8, #10, #12, #13), `dataset` job (#7), 2 chunkers (#6), RRF + MMR (#5); pulled forward from days 3-4: citation validator (#14), parsers (#16), UI page (#17), eval metrics (#15). Wave 2: Titan embeddings (#19), writes with dedup (#22), dense + keyword search (#23). Left: `ingest` wiring, bulk load. Plan: Stream A: Aurora + S3 + `ingest` + jobs project in the stack, schema, `dataset` job (HotpotQA shards), dedup, 2 chunkers, Titan embeddings, bulk load, dense + keyword + RRF + MMR | `search("...")` returns fused results over >= 50k records |
 | 3 | 10-26 | Stream B: `llm.py` (Bedrock, retry/backoff/fallback/cache), agent loop, JSON answer, citation validator; stream C: start the `acme` job | `ask()` answers a HotpotQA multi-hop question with valid citations |
 | 4 | 10-27 | Streams C + D: Acme corpus + parsers indexed, Lambda router + HTML UI, persistence check; stream E: questions + metrics | public URL answers a question end to end |
 | 5 | 10-28 | Stream E: eval runner in the jobs project, config sweep (cached LLM calls) | `eval/results/*.json` for all configs |
@@ -246,9 +246,9 @@ worktree and branch, each ending in a PR that must pass CI. Rules:
 | 1 | **Done (#7):** Dataset job: HotpotQA download, dedup, stats, JSONL shards to S3 | `scripts/dataset.py` | wave 0 | dedup unit tests |
 | 1 | **Done (#17):** UI page against the API contract (stub responses) | `static/index.html` | wave 0 | manual |
 | 2 | **Done (#19):** contracts for wave 2 (`index.upsert/delete`, `search.*` signatures), `embed.py` (Titan V2) | `embed.py`, `index.py`, `search.py` stubs | wave 1 | one live call |
-| 2 | `db.py` insert/update/delete on top of `connect`/`run` (pg8000, IAM token, resume retry: ADR 0021) | `db.py`, `index.py` | infra | against Aurora |
+| 2 | **Done (#22):** `db.transaction()` + `index.upsert/delete`: dedup checks before embedding, one Titan call per distinct chunk, insert/update in one transaction; 137 ms per document in Region | `db.py`, `index.py` | infra | against Aurora |
 | 2 | `embed.py` (Titan) + `llm.py` (Bedrock client, retry, fallback, cache) | `embed.py`, `llm.py` | Bedrock verified | unit + one live call |
-| 2 | `search.py`: dense + keyword SQL -> `rank.py` | `search.py` | `db.py`, `rank.py` | against Aurora |
+| 2 | **Done (#23):** `search.py`: dense (partial HNSW per strategy) + OR keyword -> RRF -> MMR, modes `dense`/`hybrid`/`mmr`; document and chunk reads (ADR 0024) | `search.py`, `sql/schema.sql` | `db.py`, `rank.py` | against Aurora |
 | 2 | API routes + ingest handler wiring | `handlers.py` | `db.py`, `parsers.py`, `chunking.py` | router unit tests + smoke |
 | 3 | Agent loop + tools | `agent.py` | `llm.py`, `search.py`, `grounding.py` | one live question |
 | 3 | Acme generator + `GROUND_TRUTH.md` + Acme questions | `scripts/gen_acme.py`, `data/acme/` | `llm.py`, jobs project | ground-truth check |

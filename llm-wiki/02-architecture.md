@@ -29,10 +29,10 @@ the specification, with `NotImplementedError` bodies until their wave owners imp
 | recall@k, reciprocal rank, EM, F1, citation precision, abstention P/R, contradiction P/R | `eval/metrics.py` | gold labels are document sources, not database ids |
 | `normalize`, `content_hash` | `index.py` | implemented: the dataset job and `ingest` must dedup identically |
 | `embed(text) -> list[float]` | `embed.py` | implemented: Titan V2, 1024 floats of unit length, adaptive retry on throttling |
-| `upsert(doc) -> (status, id)`, `delete(id)` | `index.py` | wave 2: dedup checks before any embedding; chunks embedded as `<title>
+| `upsert(doc) -> (status, id)`, `delete(id)` | `index.py` | implemented: dedup checks before any embedding; chunks embedded as `<title>
 
 <chunk>` |
-| `search(query, k, strategy, mode)`, `get_document`, `list_documents`, `document_detail`, `get_chunks` | `search.py` | wave 2: `mode` is `dense`, `hybrid` (RRF) or `mmr` (RRF + MMR), the evaluated configurations |
+| `search(query, k, strategy, mode)`, `get_document`, `list_documents`, `document_detail`, `get_chunks` | `search.py` | implemented, `k` 1-40: `mode` is `dense`, `hybrid` (RRF) or `mmr` (RRF + MMR), the evaluated configurations |
 
 `ParsedDoc.text` has one shape for every format: paragraphs separated by a blank line, headings
 on their own line starting with `#`. The structure-aware chunker depends on it.
@@ -78,8 +78,9 @@ Ingestion: parse (pdf: pypdf, docx: python-docx, html/md/jsonl: stdlib) -> norma
 exact dedup -> chunk (fixed 300/50 tokens or structure-aware) -> embed (Titan V2, 1024d) -> insert
 `documents` + `chunks` in one transaction (`db.py`). Bulk corpus: JSONL shards in S3, same path.
 
-Question: agent loop -> `search(q)` = dense top-N + keyword top-N -> RRF -> MMR with per-document
-cap -> optional `get_document(id)` -> repeat up to 6 steps -> `final_answer` JSON -> citation
+Question: agent loop -> `search(q)` = Titan query vector -> dense top-40 (partial HNSW of the
+strategy) + keyword top-40 (OR `tsquery`, `ts_rank_cd`) -> RRF -> MMR over the top-40 fused, with
+per-document cap (modes `dense | hybrid | mmr`, ADR 0024) -> optional `get_document(id)` -> repeat up to 6 steps -> `final_answer` JSON -> citation
 validator -> `Answer(status=answered | insufficient | conflicting)` with claims, citations,
 contradictions and the trace.
 

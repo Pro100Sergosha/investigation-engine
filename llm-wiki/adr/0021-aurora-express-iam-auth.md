@@ -101,3 +101,14 @@ The create with only the identifier succeeded. Express chose 0-4 ACU with auto-p
 backups for 1 day, IAM auth, `VPCNetworkingEnabled: false`, `InternetAccessGatewayEnabled: true`,
 engine 17.9, writer `investigation-instance-1`, and no deletion protection. Deletion protection and
 the (unchanged) capacity range are now set by an update of the same resource.
+
+## Update 2026-10-25
+
+Multi-statement writes now go through `db.transaction()` (#22), not `db.run`: a dead connection
+is replaced only before `BEGIN`, nothing inside the transaction is retried, and any error rolls
+back and re-raises. The caller reruns the whole unit (the Lambda retry reruns the shard), which is
+safe because `index.upsert` returns `unchanged` for what is already stored. Single statements keep
+`db.run`'s reconnect-and-retry-once. `db.connect` now passes `region_name` to the RDS client, so
+token signing works outside Lambda and CodeBuild too. Measured from the Region: ~0.8 ms per round
+trip, 137 ms per inserted HotpotQA document (108 ms of it Titan); from Tbilisi 88 ms per round
+trip, and pg8000 makes ~3 round trips per parameterized statement.
