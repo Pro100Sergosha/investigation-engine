@@ -26,7 +26,7 @@ the specification, with `NotImplementedError` bodies until their wave-1 owners i
 | `fixed_chunks`, `structured_chunks` | `chunking.py` | strategies "fixed" and "structured"; a token is a whitespace word |
 | `rrf`, `mmr` | `rank.py` | MMR relevance is the normalized fused score, diversity is cosine of chunk vectors |
 | `build_answer(raw, retrieved) -> Answer` | `grounding.py` | the citation validator and the status rules |
-| recall@k, reciprocal rank, EM, F1, citation precision, abstention P/R | `eval/metrics.py` | gold labels are document sources, not database ids |
+| recall@k, reciprocal rank, EM, F1, citation precision, abstention P/R, contradiction P/R | `eval/metrics.py` | gold labels are document sources, not database ids |
 | `normalize`, `content_hash` | `index.py` | implemented: the dataset job and `ingest` must dedup identically |
 
 `ParsedDoc.text` has one shape for every format: paragraphs separated by a blank line, headings
