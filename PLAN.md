@@ -22,7 +22,7 @@ min), then the UI check of upload/update/delete, then wave 3.
 
 How status is kept (every PR that finishes or advances a task updates it in the same PR):
 - this section: date, current day and wave, what is behind, what is next;
-- the wave table in section 5: the row gets `**Done (#PR):**`; the day table: `**Done:**` or
+- the wave table in section 5: the row gets `**Done (#27):**`; the day table: `**Done:**` or
   `**In progress:**` with what is left;
 - the checklist below: `[x]` only when the requirement works end to end on the deployed system;
   otherwise `[ ]` with a `partial:` note naming the merged pieces (PR numbers) and what is missing.
@@ -43,12 +43,12 @@ Search
 - [ ] >= 1 own ranking/search algorithm (not only library calls) — partial: RRF + MMR with per-document cap (#5), called by `search.py` (#23); not run over the loaded corpus
 
 LLM / RAG
-- [ ] RAG, multi-document synthesis, multi-step handling of complex questions — partial: `agent.ask` loop with seeded search and sub-searches (#PR), answered two HotpotQA multi-hop questions against the deployed corpus from the laptop; `POST /ask` not yet checked on the public URL
-- [ ] answers grounded in evidence, sources + citations — partial: citation validator (#14) wired into the agent, `POST /ask` returns cited `sources` (#PR); not yet checked on the public URL
-- [ ] contradiction detection attempt — partial: `conflicting` status (#14), the agent prompt asks to compare sources and report contradictions citing >= 2 documents (#PR); untested until the Acme corpus exists
-- [ ] abstain when information is insufficient — partial: `insufficient` status (#14), the agent abstains on no evidence, model errors and its 80 s deadline (#PR); not measured on unanswerable questions
-- [ ] LLM error/limit handling (timeouts, 429, malformed output) — partial: `llm.py` retry, fallback, cache (#20); agent deadline, forced final answer, reprompt on malformed output, Bedrock errors -> `insufficient` (#PR); search is not bounded by the deadline (llm-wiki/14)
-- [ ] >= 1 tool-calling mechanism — partial: Converse tools `search`, `get_document`, `final_answer` in `agent.py` (#PR), checked live; deployed on merge
+- [ ] RAG, multi-document synthesis, multi-step handling of complex questions — partial: `agent.ask` loop with seeded search and sub-searches (#27), answered two HotpotQA multi-hop questions against the deployed corpus from the laptop; `POST /ask` not yet checked on the public URL
+- [ ] answers grounded in evidence, sources + citations — partial: citation validator (#14) wired into the agent, `POST /ask` returns cited `sources` (#27); not yet checked on the public URL
+- [ ] contradiction detection attempt — partial: `conflicting` status (#14), the agent prompt asks to compare sources and report contradictions citing >= 2 documents (#27); untested until the Acme corpus exists
+- [ ] abstain when information is insufficient — partial: `insufficient` status (#14), the agent abstains on no evidence, model errors and its 80 s deadline (#27); not measured on unanswerable questions
+- [ ] LLM error/limit handling (timeouts, 429, malformed output) — partial: `llm.py` retry, fallback, cache (#20); agent deadline, forced final answer, reprompt on malformed output, Bedrock errors -> `insufficient` (#27); search is not bounded by the deadline (llm-wiki/14)
+- [ ] >= 1 tool-calling mechanism — partial: Converse tools `search`, `get_document`, `final_answer` in `agent.py` (#27), checked live; deployed on merge
 
 Evaluation
 - [ ] own automated eval, >= 40 questions: simple, multi-hop, multi-doc, unanswerable, contradictory
@@ -57,7 +57,7 @@ Evaluation
 - [ ] error analysis: where it fails, why, how to improve
 
 Backend / UI
-- [ ] Python backend, functional UI: upload/manage docs, ask, inspect sources — partial: page served at `GET /` (#17), document routes (#21), `POST /ask` with cited sources and the short answer on the page (#PR); not checked through the UI
+- [ ] Python backend, functional UI: upload/manage docs, ask, inspect sources — partial: page served at `GET /` (#17), document routes (#21), `POST /ask` with cited sources and the short answer on the page (#27); not checked through the UI
 
 Dataset
 - [ ] >= 50,000 documents/records, reproducible subset with justification — partial: dataset job, 66,555 unique HotpotQA documents as JSONL shards (#7); not indexed
@@ -256,7 +256,7 @@ worktree and branch, each ending in a PR that must pass CI. Rules:
 | 2 | **Done (#21):** API routes (documents, upload URL, delete, chunks) + ingest handler wiring | `handlers.py` | `db.py`, `parsers.py`, `chunking.py` | router unit tests + smoke |
 | 2 | **Done (#24):** Cohere Embed V4 instead of Titan (ADR 0022): `embed_documents` (96 per request) / `embed_query`, `index.upsert_many` per shard, `ingest` capped at 2, IAM through the `eu.*` profile, failed ingest events in SQS + `make redrive-ingest` | `embed.py`, `index.py`, `handlers.py`, `cdk/app.py`, `scripts/redrive_ingest.py` | Bedrock (Cohere quota) | unit + live calls, `upsert_many` against Aurora |
 | 3 | **Done (#25):** contracts for wave 3: `Answer.answer` (short answer for EM/F1), `agent.ask(question, strategy, mode, max_steps)` stub with the trace contract | `models.py`, `agent.py` stub | wave 2 | - |
-| 3 | **Done (#PR):** Agent loop + tools (ADR 0025): seeded search, `search` / `get_document` / `final_answer`, forced last step, 80 s deadline, `POST /ask`, reserved concurrency 4 on `api`, short answer in the UI | `agent.py`, `llm.py`, `grounding.py`, `handlers.py`, `cdk/app.py`, `static/index.html` | `llm.py`, `search.py`, `grounding.py` | two live questions |
+| 3 | **Done (#27):** Agent loop + tools (ADR 0025): seeded search, `search` / `get_document` / `final_answer`, forced last step, 80 s deadline, `POST /ask`, reserved concurrency 4 on `api`, short answer in the UI | `agent.py`, `llm.py`, `grounding.py`, `handlers.py`, `cdk/app.py`, `static/index.html` | `llm.py`, `search.py`, `grounding.py` | two live questions |
 | 3 | Acme generator + `GROUND_TRUTH.md` + Acme questions | `scripts/gen_acme.py`, `data/acme/` | `llm.py`, jobs project | ground-truth check |
 | 3 | Eval runner + config sweep in the jobs project, HotpotQA questions (moved from wave 2: the runner defines their format) | `eval/run.py`, `eval/questions.jsonl` | `agent.py`, dataset labels | dry run on 3 questions |
 | 4 | EVALUATION.md, README, AI_USAGE.md | docs | results | - |
