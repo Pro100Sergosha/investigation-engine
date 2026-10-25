@@ -12,10 +12,10 @@ own small code instead.
 ## 0. Status
 
 **Updated 2026-10-25 (day 2 of 6).** Wave 0 and wave 1 merged (PRs #4-#17). Wave 2 in progress:
-contracts and `embed.py` (#19), document writes (#22), search (#23) merged; LLM client, API routes in review.
+contracts and `embed.py` (#19), document writes (#22), search (#23), LLM client (#20) merged; API routes in review.
 **Behind:** the day 2 goal (`search()` over >= 50k records) is not met: nothing is indexed yet,
-`ingest` is a stub, `llm.py` is not merged.
-Next: merge LLM client (#20), API routes + ingest (#21), then the bulk load.
+`ingest` is a stub.
+Next: merge API routes + ingest (#21), then the bulk load.
 
 How status is kept (every PR that finishes or advances a task updates it in the same PR):
 - this section: date, current day and wave, what is behind, what is next;
@@ -44,7 +44,7 @@ LLM / RAG
 - [ ] answers grounded in evidence, sources + citations — partial: citation validator drops claims citing unretrieved chunks (#14); no agent
 - [ ] contradiction detection attempt — partial: `conflicting` answer status (#14); no detection prompt
 - [ ] abstain when information is insufficient — partial: `insufficient` answer status (#14); no agent
-- [ ] LLM error/limit handling (timeouts, 429, malformed output) — needs `llm.py` (wave 2)
+- [ ] LLM error/limit handling (timeouts, 429, malformed output) — partial: `llm.py` timeouts, retry with backoff, Haiku -> gpt-oss-120b fallback, Postgres cache (#20), checked live; not wired into an agent
 - [ ] >= 1 tool-calling mechanism — needs `agent.py` (wave 3)
 
 Evaluation
@@ -83,7 +83,7 @@ Each decision has an ADR in [llm-wiki/adr/](llm-wiki/adr/) with context, cost an
 | Embeddings | Amazon Bedrock Titan Text Embeddings V2 (`amazon.titan-embed-text-v2:0`), 1024 dimensions, in `eu-north-1` | ~$0.19 for the whole corpus, no model in the Lambda image, nothing on the laptop. One text per request: the bulk load is bound by the account's RPM quota. Bonus comparison: 512 vs 1024 dimensions. Fallback: fastembed `bge-small` in CodeBuild. ADR 0016. |
 | Keyword search | Postgres `tsvector` + `ts_rank_cd` | Native, indexed. |
 | Own algorithm | Reciprocal Rank Fusion (dense + keyword) + MMR diversification with per-document cap, written by hand | Small, testable, easy to explain on a whiteboard. Optional: own BM25 scorer to compare with `ts_rank_cd`. |
-| LLM | Amazon Bedrock only (Converse API, IAM, no external keys): **Claude Haiku 4.5** (`eu.anthropic.claude-haiku-4-5-20251001-v1:0` cross-Region profile) for the agent and Acme generation; `openai.gpt-oss-120b` (in Region) as automatic fallback; `qwen.qwen3-235b-a22b-2507` (in Region) as the evaluation judge | Reliable JSON and tool calling from Haiku ($1.10/$5.50 per 1M in EU), paid from credits. `llm.py`: timeout, backoff on throttling, fallback, prompt caching, Postgres `llm_cache`. All models verified with real calls on 2026-10-24; Haiku is limited to 10 requests/min per profile until the requested increase is approved. ADR 0017 (+ update). |
+| LLM | Amazon Bedrock only (Converse API, IAM, no external keys): **Claude Haiku 4.5** (`eu.anthropic.claude-haiku-4-5-20251001-v1:0` cross-Region profile) for the agent and Acme generation; `openai.gpt-oss-120b` (in Region) as automatic fallback; `qwen.qwen3-235b-a22b-2507` (in Region) as the evaluation judge | Reliable JSON and tool calling from Haiku ($1.10/$5.50 per 1M in EU), paid from credits. `llm.py`: timeout, backoff on throttling, fallback, prompt caching, Postgres `llm_cache`. All models verified with real calls on 2026-10-24; Haiku is limited to 10 requests/min per profile until the requested increase is approved. ADR 0017 (+ updates), ADR 0023. |
 | Orchestration | Own agent loop with tool calling: `search`, `get_document`, `final_answer` (JSON schema) | Satisfies tool calling + multi-step + agentic bonus. Hard step cap (e.g. 6), token budget per question. |
 | Grounding | Structured answer `{claims:[{text, citations:[chunk_id]}], contradictions:[], status: answered/insufficient/conflicting}`; server drops claims citing chunks that were never retrieved | Mechanical anti-hallucination check, not only prompt wording. |
 | Backend | AWS Lambda (Python 3.12 container image) behind a Lambda Function URL; hand-written router over the event, no web framework | Pay per request, always-free tier (1M req, 400k GB-s/month) covers the demo. Function URL instead of API Gateway: API Gateway cuts requests at 30 s, the agent loop can take longer (Function URL allows up to 15 min). Trade-off: no SSE streaming in Python Lambda, the trace comes back with the final answer. |
@@ -247,7 +247,7 @@ worktree and branch, each ending in a PR that must pass CI. Rules:
 | 1 | **Done (#17):** UI page against the API contract (stub responses) | `static/index.html` | wave 0 | manual |
 | 2 | **Done (#19):** contracts for wave 2 (`index.upsert/delete`, `search.*` signatures), `embed.py` (Titan V2) | `embed.py`, `index.py`, `search.py` stubs | wave 1 | one live call |
 | 2 | **Done (#22):** `db.transaction()` + `index.upsert/delete`: dedup checks before embedding, one Titan call per distinct chunk, insert/update in one transaction; 137 ms per document in Region | `db.py`, `index.py` | infra | against Aurora |
-| 2 | `embed.py` (Titan) + `llm.py` (Bedrock client, retry, fallback, cache) | `embed.py`, `llm.py` | Bedrock verified | unit + one live call |
+| 2 | **Done (#19, #20):** `embed.py` (Titan) + `llm.py` (Bedrock client, retry, fallback, cache; ADR 0023) | `embed.py`, `llm.py` | Bedrock verified | unit + one live call |
 | 2 | **Done (#23):** `search.py`: dense (partial HNSW per strategy) + OR keyword -> RRF -> MMR, modes `dense`/`hybrid`/`mmr`; document and chunk reads (ADR 0024) | `search.py`, `sql/schema.sql` | `db.py`, `rank.py` | against Aurora |
 | 2 | API routes + ingest handler wiring | `handlers.py` | `db.py`, `parsers.py`, `chunking.py` | router unit tests + smoke |
 | 3 | Agent loop + tools | `agent.py` | `llm.py`, `search.py`, `grounding.py` | one live question |

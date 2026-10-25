@@ -25,7 +25,7 @@ and 10 Runbook appear with the streams that build them.
 | Anything, first time | [02 Architecture](02-architecture.md), [CLAUDE.md](../CLAUDE.md), [PLAN.md](../PLAN.md) |
 | CDK, AWS resources, deploys, CI | [07 Infrastructure](07-infrastructure.md), ADRs 0010-0013, 0015, 0018, 0019 |
 | Search, ranking, embeddings, the database | [02 Architecture](02-architecture.md), [03 Data model](03-data-model.md), ADRs [0002](adr/0002-postgres-pgvector-single-store.md), [0003](adr/0003-hybrid-search-own-rrf-mmr.md), [0015](adr/0015-aurora-serverless-data-api.md), [0016](adr/0016-titan-embeddings-no-model-in-lambda.md), [0024](adr/0024-partial-hnsw-per-strategy-or-keyword-query.md) |
-| LLM calls, the agent, citations | [ADR 0017](adr/0017-bedrock-claude-haiku-llm.md), [ADR 0005](adr/0005-agent-loop-with-citation-validation.md) |
+| LLM calls, the agent, citations | [ADR 0017](adr/0017-bedrock-claude-haiku-llm.md), [ADR 0023](adr/0023-llm-client-own-retry-fallback-cache.md), [ADR 0005](adr/0005-agent-loop-with-citation-validation.md) |
 | Datasets, Acme corpus, ingestion, jobs | [ADR 0006](adr/0006-hotpotqa-plus-synthetic-acme-corpus.md), [ADR 0018](adr/0018-cloud-only-ingestion-and-jobs.md) |
 | Shared types or stream interfaces | [02 Architecture](02-architecture.md#contracts), [ADR 0014](adr/0014-shared-contracts-parallel-streams.md), `src/engine/models.py` |
 | The UI, HTTP routes | [04 API contract](04-api-contract.md) |
@@ -69,4 +69,5 @@ old one, and the old one gets `status: superseded` and `superseded_by: 00XX`. Te
 | [0019](adr/0019-isolated-vpc-schema-custom-resource.md) | Aurora in its own isolated VPC, schema applied by a custom resource on deploy (replaces the default-VPC part of 0015; VPC and schema runner replaced by 0021) |
 | [0020](adr/0020-data-stack-split-by-lifecycle.md) | Stacks split by lifecycle: VPC, Aurora, secret and schema in a separate data stack (replaces the stack layout of 0010; schema location replaced by 0021) |
 | [0021](adr/0021-aurora-express-iam-auth.md) | Aurora express configuration (Free plan), IAM-authenticated Postgres connections instead of the Data API, no VPC, no secret |
+| [0023](adr/0023-llm-client-own-retry-fallback-cache.md) | One LLM client with its own retry loop, Haiku-only fallback and a Postgres cache |
 | [0024](adr/0024-partial-hnsw-per-strategy-or-keyword-query.md) | A partial HNSW index per chunking strategy, and OR semantics for keyword search |
