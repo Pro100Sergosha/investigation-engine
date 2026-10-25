@@ -25,6 +25,11 @@ fmt:  ## Format and apply safe lint fixes
 	uv run ruff format .
 	uv run ruff check --fix .
 
+# Fake credentials: boto3 clients are created at import (once per cold start) and resolve
+# credentials then; the `aws login` profile would need botocore[crt] for that. Tests never call
+# AWS, and with fake keys an accidental call fails instead of touching the real account.
+test: export AWS_ACCESS_KEY_ID := test
+test: export AWS_SECRET_ACCESS_KEY := test
 test:  ## Run tests
 	uv run pytest -q
 
@@ -45,8 +50,15 @@ deploy:  ## Deploy the data and application stacks (CodeBuild does this on push 
 verify:  ## Fail if a deployed data or application stack differs from the code
 	cd cdk && $(CDK) diff $(STACKS) --fail
 
-smoke:  ## Smoke-check /health on the deployed Function URL
-	curl --fail --silent --show-error "$$(aws cloudformation describe-stacks 	  --stack-name Investigation-prod 	  --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text)health"
+# /documents proves the database path on every deploy. A paused cluster resumes on the first
+# connection (the api waits for it); if it still answers 503, curl retries (it treats 503 and
+# timeouts as transient).
+smoke:  ## Smoke-check /health and the database path (/documents) on the deployed Function URL
+	url="$$(aws cloudformation describe-stacks --stack-name Investigation-prod \
+	  --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text)" && \
+	curl --fail --silent --show-error "$${url}health" && echo && \
+	curl --fail --silent --show-error --max-time 100 --retry 3 --retry-delay 15 \
+	  "$${url}documents?limit=1" && echo
 
 # Jobs: run in CodeBuild investigation-jobs (TARGET=<target>), which sets BUCKET, DB_HOST and
 # DB_NAME. They read only shell variables, so they also run anywhere those are set.
