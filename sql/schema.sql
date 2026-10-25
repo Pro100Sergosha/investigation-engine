@@ -40,9 +40,18 @@ CREATE TABLE IF NOT EXISTS chunks (
 
 CREATE INDEX IF NOT EXISTS chunks_tsv_idx ON chunks USING gin (tsv);
 
--- Built while the table is empty, then maintained on every insert: building it over a loaded
+-- One HNSW graph per chunking strategy (ADR 0024). Dense search always filters on `strategy`,
+-- and pgvector applies a WHERE filter after the index scan, which returns at most
+-- hnsw.ef_search (40) rows: with one shared graph about half of them belong to the other
+-- strategy, so a top-40 query silently got ~20 rows. A partial index holds only matching rows.
+-- The planner picks it because pg8000 sends unnamed statements, planned with the actual value.
+-- Built while the table is empty, then maintained on every insert: building them over a loaded
 -- table inside a deploy would hold the custom resource for minutes.
-CREATE INDEX IF NOT EXISTS chunks_embedding_idx ON chunks USING hnsw (embedding halfvec_cosine_ops);
+DROP INDEX IF EXISTS chunks_embedding_idx;
+CREATE INDEX IF NOT EXISTS chunks_embedding_fixed_idx ON chunks
+    USING hnsw (embedding halfvec_cosine_ops) WHERE strategy = 'fixed';
+CREATE INDEX IF NOT EXISTS chunks_embedding_structured_idx ON chunks
+    USING hnsw (embedding halfvec_cosine_ops) WHERE strategy = 'structured';
 
 -- No separate index on chunks (document_id): the UNIQUE (document_id, strategy, ord) index
 -- starts with it and already serves lookups by document and the cascade delete.

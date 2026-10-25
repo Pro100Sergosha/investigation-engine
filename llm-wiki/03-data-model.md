@@ -70,12 +70,12 @@ Reruns of the evaluation and repeated demo questions cost nothing.
 | Index | Serves |
 |---|---|
 | `chunks_tsv_idx`, GIN on `tsv` | keyword search (`@@`, `ts_rank_cd`) |
-| `chunks_embedding_idx`, HNSW on `embedding halfvec_cosine_ops` | dense search by cosine distance (`<=>`) |
+| `chunks_embedding_fixed_idx`, `chunks_embedding_structured_idx`: partial HNSW on `embedding halfvec_cosine_ops WHERE strategy = '<strategy>'` | dense search by cosine distance (`<=>`) within one strategy. A shared index returned ~half the rows: pgvector filters after the scan, which yields at most `hnsw.ef_search` (40) rows ([ADR 0024](adr/0024-partial-hnsw-per-strategy-or-keyword-query.md)) |
 | unique `(document_id, strategy, ord)` | chunks of one document, the cascade delete, and the re-insert on update. It starts with `document_id`, so a separate index on `document_id` alone would be redundant |
 | unique `source`, unique `content_hash` | update-by-source and exact dedup |
 
-The HNSW index is created while the table is empty and then maintained on every insert: building
-it over a loaded table inside a deploy would hold the schema custom resource for minutes.
+The HNSW indexes are created while the table is empty and then maintained on every insert: building
+them over a loaded table inside a deploy would hold the schema custom resource for minutes.
 
 ## Write paths
 

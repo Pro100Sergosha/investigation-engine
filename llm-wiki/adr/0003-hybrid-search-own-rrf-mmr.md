@@ -37,3 +37,21 @@ search instead of one.
 Listed as a bonus, after the core.
 
 **Own BM25**: optional comparison against `ts_rank_cd` if time allows.
+
+## Update 2026-10-25
+
+`engine.search` implements the decision: dense top-40 and keyword top-40 per strategy (40 =
+pgvector's default `hnsw.ef_search`), RRF over both, then MMR (`lam = 0.7`, cap 3 per document)
+over the top 40 fused candidates. The three modes the evaluation compares are `dense`, `hybrid`
+and `mmr`. How the strategy filter and the keyword query are built: ADR 0024.
+
+Measured on 2026-10-25 against the real cluster (pgvector 0.8.1, PostgreSQL 17.9) with 10 test
+documents, from a laptop in Tbilisi, warm, median of 5, k = 10: embedding the question with
+Titan V2 187 ms; `dense` 715 ms, `hybrid` 960 ms, `mmr` 1,117 ms in total. Almost all of the
+database part is network: one parameterized `db.run` costs ~260 ms from the laptop against a
+95 ms round trip (pg8000 prepares, then executes: ~2.7 round trips per statement), and the
+server-side work at this size is negligible. From a Lambda in `eu-north-1` the round trip should
+be about 1 ms, so a search should cost roughly the embedding call plus MMR. MMR in pure Python
+over 40 candidates of 1,024 floats took 189 ms on the laptop; fetching the candidate vectors
+(~10 KB of text per row) added ~100 ms over the laptop link. To be re-measured from the Lambda
+and over the full corpus.
