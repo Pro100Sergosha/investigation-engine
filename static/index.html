@@ -412,8 +412,8 @@ function stubApi(method, path, body) {
     const off = Number(params.get("offset")), lim = Number(params.get("limit"));
     return { documents: stubDocs.slice(off, off + lim).map(({ text, metadata, ...d }) => d), total: stubDocs.length };
   }
-  if (method === "POST" && route === "/documents/upload-url") return { url: "https://stub.amazonaws.com/put", key: "uploads/" + body.filename, filename: body.filename };
-  if (method === "PUT") { stubPending = { name: stubUploadName, polls: 0 }; return {}; }
+  if (method === "POST" && route === "/documents/upload-url") return { url: "https://stub.amazonaws.com/put", key: "uploads/" + body.filename };
+  if (method === "PUT") { stubPending = { name: body.name, polls: 0 }; return {}; } // body is the File
   if ((m = route.match(/^\/documents\/(\d+)$/))) {
     const i = stubDocs.findIndex((d) => d.id === Number(m[1]));
     if (i < 0) throw new Error("Document not found.");
@@ -423,15 +423,11 @@ function stubApi(method, path, body) {
   if ((m = route.match(/^\/chunks\/(\d+)$/))) return { ...stubSources[0], chunk_id: Number(m[1]), ord: 0 };
   throw new Error("Not found.");
 }
-let stubUploadName = "";
 
 // ---------- wiring ----------
 $("question").addEventListener("input", updateCounter);
 $("ask-btn").addEventListener("click", onAsk);
-$("upload-btn").addEventListener("click", () => {
-  stubUploadName = $("file").files[0] ? $("file").files[0].name : "";
-  onUpload();
-});
+$("upload-btn").addEventListener("click", onUpload);
 $("prev").addEventListener("click", () => { offset = Math.max(0, offset - PAGE); loadDocuments(); });
 $("next").addEventListener("click", () => { offset += PAGE; loadDocuments(); });
 if (STUB) $("net").textContent = "Stub mode: canned responses, no backend. Try questions with 'conflict' or 'unknown'.";
