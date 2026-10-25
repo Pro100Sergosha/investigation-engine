@@ -12,7 +12,7 @@ own small code instead.
 ## 0. Status
 
 **Updated 2026-10-25 (day 2 of 6).** Wave 0 and wave 1 merged (PRs #4-#17). Wave 2 in progress:
-contracts and `embed.py` (#19), four parallel tasks running.
+contracts and `embed.py` (#19), document writes (#22) merged; search, LLM client, API routes in review.
 **Behind:** the day 2 goal (`search()` over >= 50k records) is not met: nothing is indexed yet,
 `ingest` is a stub, `db.py` has no writes, `embed.py`/`search.py`/`llm.py` do not exist.
 Next: wave 2 (`db.py` writes, `embed.py` + `llm.py`, `search.py`, API routes).
@@ -31,8 +31,8 @@ Ingestion
 - [ ] >= 3 file formats (plan: PDF, DOCX, Markdown/HTML, JSONL) — partial: `parsers.py` (#16); not wired into `ingest`
 - [ ] text + metadata extraction (source, title, date, doc type, service names) — partial: `ParsedDoc` metadata from parsers (#16); not stored
 - [ ] chunking, >= 2 strategies compared — partial: fixed + structure-aware chunkers (#6); comparison needs the eval
-- [ ] duplicate handling — partial: sha256 of normalized text (#4), HotpotQA deduplicated in the dataset job (#7); upload path not wired
-- [ ] add / update / delete documents — needs `db.py` writes + API routes (wave 2)
+- [ ] duplicate handling — partial: sha256 of normalized text (#4), HotpotQA deduplicated in the dataset job (#7), `index.upsert` skips same-hash documents (#22); `ingest` not wired
+- [ ] add / update / delete documents — partial: `index.upsert/delete` (#22), checked live on Aurora; needs the API routes and `ingest` wiring
 
 Search
 - [ ] vector DB, embeddings, semantic search — partial: Aurora + pgvector schema deployed (#8, #10); no `embed.py`, nothing indexed
@@ -246,7 +246,7 @@ worktree and branch, each ending in a PR that must pass CI. Rules:
 | 1 | **Done (#7):** Dataset job: HotpotQA download, dedup, stats, JSONL shards to S3 | `scripts/dataset.py` | wave 0 | dedup unit tests |
 | 1 | **Done (#17):** UI page against the API contract (stub responses) | `static/index.html` | wave 0 | manual |
 | 2 | **Done (#19):** contracts for wave 2 (`index.upsert/delete`, `search.*` signatures), `embed.py` (Titan V2) | `embed.py`, `index.py`, `search.py` stubs | wave 1 | one live call |
-| 2 | `db.py` insert/update/delete on top of `connect`/`run` (pg8000, IAM token, resume retry: ADR 0021) | `db.py`, `index.py` | infra | against Aurora |
+| 2 | **Done (#22):** `db.transaction()` + `index.upsert/delete`: dedup checks before embedding, one Titan call per distinct chunk, insert/update in one transaction; 137 ms per document in Region | `db.py`, `index.py` | infra | against Aurora |
 | 2 | `embed.py` (Titan) + `llm.py` (Bedrock client, retry, fallback, cache) | `embed.py`, `llm.py` | Bedrock verified | unit + one live call |
 | 2 | `search.py`: dense + keyword SQL -> `rank.py` | `search.py` | `db.py`, `rank.py` | against Aurora |
 | 2 | API routes + ingest handler wiring | `handlers.py` | `db.py`, `parsers.py`, `chunking.py` | router unit tests + smoke |
