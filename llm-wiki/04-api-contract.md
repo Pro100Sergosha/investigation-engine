@@ -57,6 +57,7 @@ UI needs no extra requests:
 ```json
 {
   "status": "answered | insufficient | conflicting",
+  "answer": "the direct answer in a few words, empty when insufficient",
   "claims": [{"text": "...", "citations": [101, 205]}],
   "contradictions": [{"text": "Report A says 14:02, report B says 14:30", "citations": [101, 307]}],
   "sources": [Source, "... one per chunk id cited above"],

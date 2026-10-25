@@ -33,6 +33,7 @@ the specification, with `NotImplementedError` bodies until their wave owners imp
 | `embed_documents(texts) -> list[list[float]]`, `embed_query(text) -> list[float]` | `embed.py` | implemented: Cohere Embed V4 (`eu.*` profile), 1024 floats of unit length, 96 texts per request (`search_document`), queries as `search_query`, adaptive retry on throttling |
 | `upsert_many(docs) -> [(status, id)]`, `upsert(doc)`, `delete(id)` | `index.py` | implemented: dedup checks of the whole batch before any embedding (also within the batch), the distinct inputs of all docs to write embedded in one go, one transaction per doc; `upsert(doc)` is `upsert_many([doc])[0]`; chunks embedded as `<title>\n\n<chunk>` |
 | `search(query, k, strategy, mode)`, `get_document`, `list_documents`, `document_detail`, `get_chunks` | `search.py` | implemented, `k` 1-40: `mode` is `dense`, `hybrid` (RRF) or `mmr` (RRF + MMR), the evaluated configurations |
+| `ask(question, strategy, mode, max_steps) -> Answer` | `agent.py` | wave 3: `max_steps=1` is single-shot RAG; `trace` entries with `"step": "llm"` carry `model`, `cached`, `usage` (the eval runner paces and costs from them); never raises for model errors or timeouts, abstains instead. `Answer.answer` is the short direct answer EM/F1 compare |
 
 `ParsedDoc.text` has one shape for every format: paragraphs separated by a blank line, headings
 on their own line starting with `#`. The structure-aware chunker depends on it.

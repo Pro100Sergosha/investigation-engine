@@ -46,5 +46,8 @@ class Answer:
 
     status: Literal["answered", "insufficient", "conflicting"]
     claims: list[Claim]
+    # The direct answer in a few words ("Paris", "yes"), "" when insufficient. Claims carry the
+    # evidence; this field is what EM/F1 compare with HotpotQA's short gold answers.
+    answer: str = ""
     contradictions: list[Claim] = field(default_factory=list)  # each cites >= 2 chunks
     trace: list[dict] = field(default_factory=list)  # agent steps for UI/debug
