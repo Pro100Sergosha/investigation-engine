@@ -80,3 +80,23 @@ Outcomes of the open risks, checked with real calls:
   console.
 - While the quotas were at 0, Nova 2 Lite and external providers (Mistral, Gemini) were evaluated
   as replacements. Once the quotas opened, the decision above stands unchanged.
+
+## Update 2026-10-25
+
+Measured with real Converse calls while building `llm.py` ([ADR 0023](0023-llm-client-own-retry-fallback-cache.md)):
+- **Tool calling works on all three models.** With a `search` + `final_answer` tool list and a
+  ~1.3k-token prompt: Haiku 4.5 1.2 s, 1,250 in / 69 out, `tool_use` (a text block, then the
+  tool call); gpt-oss-120b 0.7 s, 746 in / 48 out, `tool_use`; Qwen3 also calls tools (0.5 s).
+  Qwen3 as judge, plain call: 0.3 s, 38 in / 2 out.
+- **gpt-oss-120b returns `reasoningContent` blocks** (its chain of thought, no signature) before
+  the tool call. Sent back to Haiku in the history they fail with ValidationException
+  (`thinking.signature: Field required`); without them Haiku continues the gpt-oss turn fine.
+  gpt-oss itself accepts its own reasoning blocks back.
+- **`cachePoint` is Claude-only here:** gpt-oss-120b and Qwen3 answer a request with a
+  `cachePoint` with AccessDeniedException ("did not allow prompt caching").
+- **Haiku 4.5 caches only from 4,096 tokens** (Anthropic's minimum for this model, on every
+  platform). The ~1.3k-token agent prompt reports `cacheWriteInputTokens: 0` (no error, no
+  premium). A 5,030-token prefix (tools + system) was written on the first call and read on the
+  second (`cacheReadInputTokens: 5030`), with one cache point after the system prompt.
+- **Postgres cache:** a repeated call was served from `llm_cache` on Aurora in 262 ms from the
+  laptop (Haiku call: 1.5 s); jsonb comes back as a dict through pg8000.
