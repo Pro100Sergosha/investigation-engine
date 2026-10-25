@@ -28,20 +28,26 @@ def parse(path: Path, source: str) -> ParsedDoc:
     metadata title, else the file stem. Metadata: whatever the format offers among "date"
     (ISO 8601 string) and "author", plus "services" for Acme docs if the text has a
     "Services: a, b" line. HTML: <script>/<style> dropped, entities decoded, h1-h6 become
-    `#` headings. Raises ValueError for an unsupported suffix or a file with no text.
+    `#` headings. Raises ValueError for an unsupported suffix, a corrupt file or a file with
+    no text.
     """
     doc_type = _DOC_TYPES.get(path.suffix.lower())
     if doc_type is None:
         raise ValueError(f"unsupported file type: {path.suffix or '(none)'}")
 
-    if doc_type == "pdf":
-        text, format_title, metadata = _read_pdf(path)
-    elif doc_type == "docx":
-        text, format_title, metadata = _read_docx(path)
-    elif doc_type == "html":
-        text, format_title, metadata = _read_html(path)
-    else:
-        text, format_title, metadata = path.read_text(encoding="utf-8"), "", {}
+    # A corrupt upload makes pypdf / python-docx raise their own errors (PdfReadError,
+    # BadZipFile, KeyError, ...); the caller must see one bad-input error, not a crash.
+    try:
+        if doc_type == "pdf":
+            text, format_title, metadata = _read_pdf(path)
+        elif doc_type == "docx":
+            text, format_title, metadata = _read_docx(path)
+        elif doc_type == "html":
+            text, format_title, metadata = _read_html(path)
+        else:
+            text, format_title, metadata = path.read_text(encoding="utf-8"), "", {}
+    except Exception as e:
+        raise ValueError(f"cannot read {path.name}: {e}") from e
 
     text = _normalize(text)
     if not text:

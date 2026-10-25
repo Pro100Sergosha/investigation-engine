@@ -200,6 +200,15 @@ def test_unsupported_suffix_raises(tmp_path, name):
         parse(path, "s")
 
 
+@pytest.mark.parametrize("name", ["broken.pdf", "broken.docx"])
+def test_corrupt_file_raises_value_error(tmp_path, name):
+    # An upload with the right suffix but garbage inside is bad input, not a server error.
+    path = tmp_path / name
+    path.write_bytes(b"not really a document")
+    with pytest.raises(ValueError, match="cannot read"):
+        parse(path, "s")
+
+
 @pytest.mark.parametrize(
     "name, content", [("empty.md", ""), ("blank.html", "<script>x</script> \n")]
 )

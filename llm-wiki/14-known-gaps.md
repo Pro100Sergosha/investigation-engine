@@ -1,7 +1,7 @@
 ---
 title: Known gaps
 status: current
-last_updated: 2026-10-24
+last_updated: 2026-10-25
 owner: Pro100Sergosha
 ---
 
@@ -12,6 +12,8 @@ that closes it.
 
 | Gap | Why | Closes when |
 |---|---|---|
+| A PDF page becomes one paragraph: paragraph boundaries inside a page are lost, so fixed and structured chunking behave alike on PDFs | pypdf rarely emits blank lines between paragraphs (`parsers._read_pdf`) | split on vertical gaps between lines (pypdf `visitor_text`) if PDF retrieval measurably suffers |
+| DOCX tables, headers, footers and text boxes are not indexed | `parsers._read_docx` reads body paragraphs only | an Acme document keeps facts in a table |
 | Branch protection is off: a red PR can be merged by hand | GitHub free plan offers it only on public repositories | the repository is made public (required for submission anyway) |
 | Claude Haiku 4.5 limited to 10 requests/min per profile (`eu.*` and `global.*`); an eval sweep takes ~2 h | Bedrock quota of a new account ([ADR 0017](adr/0017-bedrock-claude-haiku-llm.md) update) | the account-level increase to 10,000 is approved |
 | No reserved concurrency on `api` | not configured yet | added with the real `/ask` route (quota is 400, so it is possible here) |
