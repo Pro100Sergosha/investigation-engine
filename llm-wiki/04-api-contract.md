@@ -75,7 +75,8 @@ UI needs no extra requests:
    Only `host` is signed, so the browser may send any `Content-Type` and no custom headers.
 2. The browser `PUT`s the file body to `url`. The S3 event triggers `ingest`, which parses,
    dedups, chunks, embeds and stores it with `source = "upload:<filename>"`. A `.jsonl` upload
-   is read as a bulk shard instead: each line keeps its own `source`.
+   is read as a shard instead: one document per line, `source = "upload:<filename>:<line
+   source>"`.
 3. Ingestion is asynchronous: the UI polls `GET /documents` until the document appears.
 
 Update = upload a file with the same name: same `source`, new content hash -> `version + 1`, its
@@ -91,9 +92,14 @@ even on error), then:
 | Key | Read with | `source` |
 |---|---|---|
 | `bulk/**.jsonl` | `parsers.read_jsonl` | from each line |
-| `uploads/<name>.jsonl` | `parsers.read_jsonl` | from each line |
+| `uploads/<name>.jsonl` | `parsers.read_jsonl` | `upload:<name>:<line source>` |
 | `uploads/<name>` (other suffix) | `parsers.parse` | `upload:<name>` |
 | anything else (`bulk/` non-JSONL, folder markers) | skipped without download | - |
+
+Uploads only ever touch `upload:*` sources: anyone with the page can upload, so an uploaded
+shard's line sources are prefixed and cannot overwrite a `hotpotqa:*` or other bulk document.
+Only `bulk/` shards (written by the jobs project, not reachable from the page) keep their
+sources as they are.
 
 and calls `index.upsert` for every document, one after another. One JSON log line per object:
 `{"handler": "ingest", "key", "counts": {"inserted": n, "unchanged": n, ...}, "seconds"}`, or

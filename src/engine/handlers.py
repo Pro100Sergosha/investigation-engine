@@ -82,6 +82,11 @@ def _ingest_object(bucket: str, key: str) -> None:
         try:
             if is_jsonl:
                 docs = parsers.read_jsonl(path)
+                if key.startswith("uploads/"):
+                    # Anyone with the page can upload: an uploaded shard only ever touches
+                    # upload:* sources, never overwrites hotpotqa:* or another bulk document.
+                    for doc in docs:
+                        doc.source = f"upload:{name}:{doc.source}"
             else:
                 docs = [parsers.parse(path, source=f"upload:{name}")]
         except ValueError as error:

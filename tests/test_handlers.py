@@ -225,6 +225,15 @@ def test_ingest_upload_uses_upload_source_and_decodes_the_key(ingest_env):
     ]
 
 
+def test_ingest_prefixes_sources_of_an_uploaded_shard(ingest_env):
+    upserts, _, _ = ingest_env
+    ingest(_s3_event("uploads/shard.jsonl"), None)
+    assert [d.source for d in upserts] == [
+        "upload:shard.jsonl:hotpotqa:Alpha",
+        "upload:shard.jsonl:hotpotqa:Beta",
+    ]
+
+
 def test_ingest_skips_a_bad_file_and_keeps_going(ingest_env, capsys):
     upserts, _, tmp_path = ingest_env
     (tmp_path / "broken.jsonl").write_text('{"source": "x"\n', encoding="utf-8")
