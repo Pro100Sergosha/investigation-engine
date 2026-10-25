@@ -10,8 +10,8 @@ owner: Pro100Sergosha
 ## Built so far
 
 Wave 2 (2026-10-25): the `api` Lambda serves the page and the document routes (llm-wiki/04);
-`ingest` parses, dedups, chunks, embeds (Titan) and stores every object put under `uploads/` or
-`bulk/`; `search.py` runs dense + keyword -> RRF -> MMR; `llm.py` is the Bedrock client. Not built:
+`ingest` parses, dedups, chunks, embeds (Cohere Embed V4, 96 texts per request) and stores every
+object put under `uploads/` or `bulk/`, and keeps the events it gave up on in an SQS queue; `search.py` runs dense + keyword -> RRF -> MMR; `llm.py` is the Bedrock client. Not built:
 the agent loop and `POST /ask` (wave 3), the Acme corpus, the evaluation runner. Everything marked
 *(planned)* is decided (see the ADRs) but not built.
 
@@ -30,10 +30,8 @@ the specification, with `NotImplementedError` bodies until their wave owners imp
 | `build_answer(raw, retrieved) -> Answer` | `grounding.py` | the citation validator and the status rules |
 | recall@k, reciprocal rank, EM, F1, citation precision, abstention P/R, contradiction P/R | `eval/metrics.py` | gold labels are document sources, not database ids |
 | `normalize`, `content_hash` | `index.py` | implemented: the dataset job and `ingest` must dedup identically |
-| `embed(text) -> list[float]` | `embed.py` | implemented: Titan V2, 1024 floats of unit length, adaptive retry on throttling |
-| `upsert(doc) -> (status, id)`, `delete(id)` | `index.py` | implemented: dedup checks before any embedding; chunks embedded as `<title>
-
-<chunk>` |
+| `embed_documents(texts) -> list[list[float]]`, `embed_query(text) -> list[float]` | `embed.py` | implemented: Cohere Embed V4 (`eu.*` profile), 1024 floats of unit length, 96 texts per request (`search_document`), queries as `search_query`, adaptive retry on throttling |
+| `upsert_many(docs) -> [(status, id)]`, `upsert(doc)`, `delete(id)` | `index.py` | implemented: dedup checks of the whole batch before any embedding (also within the batch), the distinct inputs of all docs to write embedded in one go, one transaction per doc; `upsert(doc)` is `upsert_many([doc])[0]`; chunks embedded as `<title>\n\n<chunk>` |
 | `search(query, k, strategy, mode)`, `get_document`, `list_documents`, `document_detail`, `get_chunks` | `search.py` | implemented, `k` 1-40: `mode` is `dense`, `hybrid` (RRF) or `mmr` (RRF + MMR), the evaluated configurations |
 
 `ParsedDoc.text` has one shape for every format: paragraphs separated by a blank line, headings
@@ -66,22 +64,25 @@ browser ──HTTPS──> Lambda Function URL ──> api Lambda (container ima
    │                                         GET  /documents        POST /documents/upload-url
    │                                         DELETE /documents/{id} GET  /chunks/{id}
    │                                         POST /ask  (agent loop, timeout 90 s)    (planned)
-   │                                             ├──IAM──> Bedrock: Claude Haiku, gpt-oss-120b, Titan V2
+   │                                             ├──IAM──> Bedrock: Claude Haiku, gpt-oss-120b, Cohere Embed V4 (eu.*)
    │                                             └──IAM token, TLS 5432──> Aurora (express)
-   └──PUT (presigned)──> S3 uploads/ ──event──> ingest Lambda (same image)
-                                                  parse -> dedup -> chunk -> Titan V2 -> Aurora
+   └──PUT (presigned)──> S3 uploads/ ──event──> ingest Lambda (same image, at most 2 at once)
+                                                  parse -> dedup -> chunk -> Cohere V4 (96 per request) -> Aurora
+                                                  gave up after 2 retries -> SQS IngestFailures
 
-CodeBuild investigation-jobs: dataset (HotpotQA shards -> S3 -> ingest) | acme, eval (planned)
+CodeBuild investigation-jobs: dataset (HotpotQA shards -> S3 -> ingest) | redrive-ingest
+                              (IngestFailures -> ingest) | acme, eval (planned)
 ```
 
 ## Data flow
 
 Ingestion: parse (pdf: pypdf, docx: python-docx, html/md/jsonl: stdlib) -> normalize -> sha256 ->
-exact dedup -> chunk (fixed 300/50 tokens or structure-aware) -> embed (Titan V2, 1024d) -> insert
-`documents` + `chunks` in one transaction (`db.py`). Bulk corpus: JSONL shards in S3, same path.
+exact dedup -> chunk (fixed 300/50 tokens or structure-aware) -> embed (Cohere Embed V4, 1024d,
+the chunks of a whole file in batches of 96) -> insert `documents` + `chunks`, one transaction per
+document (`db.py`). Bulk corpus: JSONL shards in S3, same path.
 
-Question: agent loop -> `search(q)` = Titan query vector -> dense top-40 (partial HNSW of the
-strategy) + keyword top-40 (OR `tsquery`, `ts_rank_cd`) -> RRF -> MMR over the top-40 fused, with
+Question: agent loop -> `search(q)` = Cohere query vector (`search_query`) -> dense top-40
+(partial HNSW of the strategy) + keyword top-40 (OR `tsquery`, `ts_rank_cd`) -> RRF -> MMR over the top-40 fused, with
 per-document cap (modes `dense | hybrid | mmr`, ADR 0024) -> optional `get_document(id)` -> repeat up to 6 steps -> `final_answer` JSON -> citation
 validator -> `Answer(status=answered | insufficient | conflicting)` with claims, citations,
 contradictions and the trace.
@@ -94,9 +95,9 @@ contradictions and the trace.
 | HTTP entry | Lambda Function URL, UI served by the same function | [ADR 0008](adr/0008-function-url-not-api-gateway.md) |
 | Database | Aurora Serverless v2 express configuration (PG 17.9 + pgvector), IAM-token connections (pg8000) | [ADR 0002](adr/0002-postgres-pgvector-single-store.md), [ADR 0015](adr/0015-aurora-serverless-data-api.md), [ADR 0021](adr/0021-aurora-express-iam-auth.md) |
 | Search | dense + `tsvector`, own RRF + MMR | [ADR 0003](adr/0003-hybrid-search-own-rrf-mmr.md) |
-| Embeddings | Bedrock Titan Text Embeddings V2, 1024d | [ADR 0016](adr/0016-titan-embeddings-no-model-in-lambda.md) |
+| Embeddings | Bedrock Cohere Embed V4 through the `eu.*` profile, 1024d, 96 texts per request | [ADR 0022](adr/0022-cohere-embed-v4-batched.md) |
 | LLM | Bedrock: Claude Haiku 4.5 (agent), gpt-oss-120b (fallback), Qwen3-235B (judge); `llm.converse`: own retry loop, Haiku-only fallback, `cachePoint` for Claude only, Postgres cache | [ADR 0017](adr/0017-bedrock-claude-haiku-llm.md), [ADR 0023](adr/0023-llm-client-own-retry-fallback-cache.md) |
-| Ingestion | presigned S3 PUT or bulk shard, S3 event -> `ingest` | [ADR 0008](adr/0008-function-url-not-api-gateway.md), [ADR 0018](adr/0018-cloud-only-ingestion-and-jobs.md) |
+| Ingestion | presigned S3 PUT or bulk shard, S3 event -> `ingest` (2 at once); events it gave up on -> SQS `IngestFailures`, rerun by `make redrive-ingest` | [ADR 0008](adr/0008-function-url-not-api-gateway.md), [ADR 0018](adr/0018-cloud-only-ingestion-and-jobs.md), [ADR 0022](adr/0022-cohere-embed-v4-batched.md) |
 | Jobs | CodeBuild `investigation-jobs`: dataset, acme, eval | [ADR 0018](adr/0018-cloud-only-ingestion-and-jobs.md) |
 | Config and secrets | no database password (IAM auth tokens), GitHub token in SSM; no LLM keys (IAM) | not in code, image or env vars |
 | Observability | one JSON log line per request in CloudWatch Logs, no custom metrics | free tier; binadar paid $6/month for 22 extra metrics |

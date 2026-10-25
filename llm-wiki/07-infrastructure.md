@@ -1,7 +1,7 @@
 ---
 title: Infrastructure
 status: current
-last_updated: 2026-10-24
+last_updated: 2026-10-25
 owner: Pro100Sergosha
 ---
 
@@ -78,21 +78,23 @@ they call `ingest`, and a bucket in the data stack would make the stacks depend 
 | Bucket `Documents` | all public access blocked, SSL enforced, `RETAIN`, CORS `PUT` from `*` (presigned browser uploads, [ADR 0019](adr/0019-isolated-vpc-schema-custom-resource.md)). Prefixes: `uploads/` (UI), `bulk/` (JSONL shards), `jobs/` (job outputs, inert) |
 | S3 events | `ObjectCreated` on `uploads/` and `bulk/` -> `ingest` (asynchronous invoke) |
 | Lambda `api` | image, `engine.handlers.api`, x86_64, 1024 MB, 90 s, Function URL (output `ApiUrl`) |
-| Lambda `ingest` | image, `engine.handlers.ingest`, x86_64, 1024 MB, 15 min, **reserved concurrency 5**: throttled S3 events wait in Lambda's async queue (up to 6 h) instead of overloading Bedrock and the database |
+| Lambda `ingest` | image, `engine.handlers.ingest`, x86_64, 1024 MB, 15 min, **reserved concurrency 2**: two workers fill the ~20 requests/min of the Cohere `eu.*` pool ([ADR 0022](adr/0022-cohere-embed-v4-batched.md)); throttled S3 events wait in Lambda's async queue instead of overloading Bedrock and the database. Async invoke config: 2 retries, maximum event age 6 h (set explicitly), **on failure -> `IngestFailures`** |
+| Queue `IngestFailures` | SQS, SQS-managed encryption, SSL enforced, 14 days retention. Lambda puts here every `ingest` event it gave up on (retries exhausted or older than 6 h): the original S3 event (`requestPayload`), `requestContext.condition` and the error (`responsePayload`). No alarm: the depth is visible in the SQS console. Rerun with `make redrive-ingest` ([Jobs](#jobs)) |
 | CodeBuild `investigation-jobs` | see [Jobs](#jobs) |
 | Custom resource `Schema` | Lambda `SchemaFn` (app image, `engine.handlers.schema`) + `cr.Provider`, see [Database schema](#database-schema) |
 
 Environment of `api`, `ingest` and the jobs project (no secrets): `DB_HOST` (writer endpoint),
-`DB_NAME`, `BUCKET`; `SchemaFn` gets `DB_HOST` and `DB_NAME`. `src/engine/config.py` reads them
+`DB_NAME`, `BUCKET`; the jobs project also `INGEST_FAILURES_QUEUE` (queue URL) and
+`INGEST_FUNCTION` (the `ingest` function name); `SchemaFn` gets `DB_HOST` and `DB_NAME`. `src/engine/config.py` reads them
 (empty defaults for tests; `DB_USER` defaults to `app`).
 
 Permissions (least privilege, no `*` actions):
 
 | Principal | Database login (`rds-db:connect`) | Bedrock | S3 |
 |---|---|---|---|
-| `api` | `app` | Titan V2, gpt-oss-120b, Qwen3-235B, Claude Haiku 4.5 (`eu.*`) | `PutObject` on `uploads/*` (to presign uploads) |
-| `ingest` | `app` | Titan V2 only (it embeds, it never calls an LLM) | `GetObject` on `uploads/*`, `bulk/*` |
-| `investigation-jobs` | `app` | same as `api` | `GetObject`, `PutObject` on the bucket, `ListBucket` |
+| `api` | `app` | Cohere Embed V4 (`eu.*`), gpt-oss-120b, Qwen3-235B, Claude Haiku 4.5 (`eu.*`) | `PutObject` on `uploads/*` (to presign uploads) |
+| `ingest` | `app` | Cohere Embed V4 (`eu.*`) only (it embeds, it never calls an LLM) | `GetObject` on `uploads/*`, `bulk/*`; `SendMessage` to `IngestFailures` (the failure destination) |
+| `investigation-jobs` | `app` | same as `api` | `GetObject`, `PutObject` on the bucket, `ListBucket`; receive/delete on `IngestFailures` and `lambda:InvokeFunction` on `ingest` (for `redrive-ingest`) |
 | `SchemaFn` | `postgres` | - | - |
 
 - Database login is `rds-db:connect` on `arn:aws:rds-db:eu-north-1:988277499209:dbuser:<cluster
@@ -100,13 +102,17 @@ Permissions (least privilege, no `*` actions):
   (`generate_db_auth_token`, local, no API call). No secret, no password.
 - Bedrock: `InvokeModel` and `InvokeModelWithResponseStream`, which also authorize `Converse` and
   `ConverseStream` (there is no separate Converse action). In-Region models by foundation-model ARN.
-  Claude Haiku 4.5 needs two statements: the `eu.anthropic.claude-haiku-4-5-*` inference profile in
-  eu-north-1, and `arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-*` (every EU Region
-  the profile routes to) with the condition `bedrock:InferenceProfileArn` = that profile, so the
-  model can be called only through the profile.
+  Cohere Embed V4 and Claude Haiku 4.5 exist here only through `eu.*` inference profiles; each
+  needs two statements (`_allow_eu_profile` in `cdk/app.py`): the profile in eu-north-1
+  (`inference-profile/eu.cohere.embed-v4:0`, `inference-profile/eu.anthropic.claude-haiku-4-5-*`),
+  and `arn:aws:bedrock:*::foundation-model/<model>` (every EU Region the profile routes to) with
+  the condition `bedrock:InferenceProfileArn` = that profile, so the model can be called only
+  through the profile.
 - IAM is not quota: verified on 2026-10-24, all four models answer and cross-Region inference works,
   but Claude Haiku 4.5 is limited to 10 requests/min per profile until the account-level increase
   is approved (14 Known gaps). Haiku 5.5 is not available to the account.
+- Cohere Embed V4 quotas per profile pool (verified 2026-10-25): 20 requests/min, 300k
+  tokens/min, 16.2M tokens/day, shared by the bulk load and query embeddings.
 
 ### Database schema
 
@@ -139,6 +145,7 @@ aws codebuild start-build --project-name investigation-jobs --profile investigat
 |---|---|
 | `dataset` | HotpotQA -> dedup -> JSONL shards in `bulk/hotpotqa/` (which trigger `ingest`), stats and gold questions in `jobs/dataset/` |
 | `dataset-stats` | the same counts with `--dry-run`, writes nothing |
+| `redrive-ingest` | `scripts/redrive_ingest.py`: for each message in `IngestFailures`, log the condition and error, invoke `ingest` asynchronously with the original S3 event, delete the message once the invoke is accepted; stops at the first empty receive. Safe to run twice: `ingest` skips what is stored |
 
 `acme` and `eval CONFIG=...` arrive with their streams. A build without `TARGET` fails on purpose.
 
@@ -192,6 +199,8 @@ uv from `uv.lock` (`--no-dev`), code copied from `src/engine`. `.dockerignore` i
 Target: inside the $100 credits until the interview. Full table with eu-north-1 prices in
 [PLAN.md](../PLAN.md) (Deployment): ~$20-30 for the five days, ~$2-4 per month of demo. The main
 spend is Claude Haiku in evaluation sweeps; Aurora costs only while awake ($0.14 per ACU-hour).
+Embedding the corpus with Cohere Embed V4 costs ~$1.3 per full load. SQS (`IngestFailures`,
+on the Free plan list) is $0 at this volume (1M requests/month free).
 Rules: no NAT Gateway, no custom CloudWatch metrics, no provisioned concurrency, no always-on
 database.
 

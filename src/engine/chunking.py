@@ -1,7 +1,7 @@
 """Two chunking strategies compared in the evaluation: fixed windows and structure-aware."""
 
 # A "token" here is a whitespace-separated word (`text.split()`): no tokenizer dependency, and
-# Titan's 8k-token input limit is far above 300 words.
+# Cohere Embed V4's input limit (128k tokens) is far above 300 words.
 
 
 def fixed_chunks(text: str, size: int = 300, overlap: int = 50) -> list[str]:

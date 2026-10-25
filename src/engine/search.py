@@ -66,7 +66,7 @@ def search(query: str, k: int = 10, strategy: str = "structured", mode: str = "m
     if not query.strip():
         return []
 
-    vector = _vector_text(embed.embed(query))
+    vector = _vector_text(embed.embed_query(query))
     dense = [
         (row[0], row[1]) for row in db.run(_DENSE_SQL, q=vector, strategy=strategy, n=CANDIDATES)
     ]

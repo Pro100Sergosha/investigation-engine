@@ -1,9 +1,9 @@
 ---
 title: Bedrock Titan Text Embeddings V2, no model inside the Lambda image
-status: accepted
+status: superseded
 date: 2026-10-24
 supersedes: 0009; the embedding-model part of 0003
-superseded_by: none
+superseded_by: 0022 (embedding model only: Titan V2 replaced by Cohere Embed V4; no model inside the Lambda image stays)
 ---
 
 # ADR 0016: Bedrock Titan Text Embeddings V2, no model inside the Lambda image

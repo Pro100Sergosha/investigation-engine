@@ -21,7 +21,7 @@ The author must explain and modify every line live at the interview, without AI.
 ## Stack
 
 Python 3.12, uv, ruff, pytest. Aurora Serverless v2 (PG 17 + pgvector `halfvec(1024)` +
-`tsvector`), express configuration, IAM-token connections with pg8000. Amazon Bedrock: Titan Text Embeddings V2 (1024d), Claude
+`tsvector`), express configuration, IAM-token connections with pg8000. Amazon Bedrock: Cohere Embed V4 (`eu.*` profile, 1024d, batches of 96), Claude
 Haiku 4.5 (agent, `eu.*` profile), gpt-oss-120b (fallback), Qwen3-235B (eval judge). AWS Lambda
 container image, S3, CodeBuild, CDK (Python), project `988277499209`, Region `eu-north-1`.
 Nothing runs on the author's computer except git and `aws login` (ADR 0018).

@@ -50,7 +50,7 @@ whitespace, structured chunks repeat headings, so neither reproduces the documen
 | `ord` | `int` | position within the document for that strategy |
 | `text` | `text` | what is embedded, searched and shown |
 | `tsv` | `tsvector`, generated `to_tsvector('english', text)` stored | keyword search; computed by Postgres, so it can never drift from `text` |
-| `embedding` | `halfvec(1024)` | Titan Text Embeddings V2, 1024 dimensions, half precision: half the storage and index size of `vector`; pgvector's HNSW indexes it directly |
+| `embedding` | `halfvec(1024)` | Cohere Embed V4 (`search_document`, ADR 0022), 1024 dimensions, half precision: half the storage and index size of `vector`; pgvector's HNSW indexes it directly |
 
 `unique (document_id, strategy, ord)`: a document has one chunk per position per strategy.
 
@@ -79,40 +79,51 @@ them over a loaded table inside a deploy would hold the schema custom resource f
 
 ## Write paths
 
-Every document write is `engine.index.upsert(doc) -> (status, id)` or `index.delete(id)`; uploads
-and the bulk load take the same path. `upsert` decides in this order, and the first three steps
-cost no Bedrock call, so rerunning a shard is free:
+Every document write is `engine.index.upsert_many(docs) -> [(status, id)]` or
+`index.delete(id)`; `upsert(doc)` is `upsert_many([doc])[0]`. `ingest` passes a whole file (one
+upload, or a 500-document shard), so uploads and the bulk load take the same path. The result is
+the same as storing the documents one after another, in order. For each document, in order (the
+first three steps cost no Bedrock call, so rerunning a shard is free):
 
 1. Blank text -> `empty`, nothing stored.
 2. `source` known with the same `content_hash` -> `unchanged` (a rerun).
 3. `content_hash` stored under another source -> `duplicate`, with that document's id.
-4. Chunk with both strategies (`fixed`, `structured`, `ord` from 0) and embed. The embedding input
-   is `"<title>\n\n<chunk>"` (a chunk alone often lacks its subject's name); `chunks.text` stores
-   the chunk alone, which is what keyword search and citations see. Each distinct input is
-   embedded once per document: a ~90-word HotpotQA paragraph is the same single chunk under both
-   strategies, so the bulk load makes one Bedrock call per document, not two.
-5. **Insert** (new source): `documents` row + its chunks, in one transaction -> `inserted`.
-   **Update** (known source, new hash): `UPDATE` title, doc_type, text, metadata, content_hash,
-   `version = version + 1`; `DELETE` its chunks; `INSERT` the new ones; one transaction ->
-   `updated`. Embedding happens before `BEGIN`, so a transaction never waits on Bedrock.
+   A document with the same `source` or `content_hash` as an *earlier document of the same
+   batch that is about to be written* skips the checks and waits for a second round, after that
+   one is stored; there the checks above see it (`duplicate`, `unchanged` or `updated`). So two
+   documents of one shard never both insert.
+4. Chunk every remaining document with both strategies (`fixed`, `structured`, `ord` from 0) and
+   embed the distinct inputs of all of them in one `embed.embed_documents` call (96 texts per
+   Bedrock request). The embedding input is `"<title>\n\n<chunk>"` (a chunk alone often lacks
+   its subject's name); `chunks.text` stores the chunk alone, which is what keyword search and
+   citations see. A ~90-word HotpotQA paragraph is the same single chunk under both strategies,
+   so it is embedded once.
+5. Per document, one transaction. **Insert** (new source): `documents` row + its chunks ->
+   `inserted`. **Update** (known source, new hash): `UPDATE` title, doc_type, text, metadata,
+   content_hash, `version = version + 1`; `DELETE` its chunks; `INSERT` the new ones ->
+   `updated`. Embedding happens before any `BEGIN`, so a transaction never waits on Bedrock.
 
 - **Delete**: `DELETE FROM documents WHERE id = :id RETURNING id`; the chunks go with it
   (cascade). `False` if the id is unknown.
-- **Concurrent ingests** (up to 5 Lambdas on different shards): the document `INSERT` has
+- **Concurrent ingests** (up to 2 Lambdas on different shards): the document `INSERT` has
   `ON CONFLICT DO NOTHING`. If another transaction stored the same source or the same text after
-  the checks, Postgres waits for it, inserts nothing, and `upsert` reruns its checks, which now
-  return `unchanged` or `duplicate`. An update that collides on `content_hash` fails with a unique
-  violation, rolls back and raises: loud, nothing half-written.
+  the checks, Postgres waits for it, inserts nothing, and that document goes to the second round,
+  where the checks return `unchanged` or `duplicate`. An update that collides on `content_hash`
+  fails with a unique violation, rolls back and raises: loud, nothing half-written.
 
 All SQL goes through `db.py`, parameterized (`:name`). Vectors are sent as JSON text and cast
 (`CAST(:embedding AS halfvec(1024))`), metadata as `CAST(:metadata AS jsonb)`. Single statements
 use `db.run`: a statement whose connection died is retried once on a new connection, so it must be
 idempotent. Multi-statement writes use `with db.transaction() as conn:` and only `conn.run`
 inside: a dead connection is replaced only before `BEGIN`, nothing inside is retried, success
-commits, any error rolls back and re-raises. A failed `upsert` therefore leaves nothing behind,
-and the Lambda's async retry reruns the shard, where step 2 skips what was already stored.
+commits, any error rolls back and re-raises. A failed `upsert_many` therefore leaves only
+complete documents behind (those written before the error), and the Lambda's async retry reruns
+the shard, where step 2 skips what was already stored. The shard is embedded before its first
+write, so a Bedrock failure re-embeds the whole shard on the retry.
 
 ### Measured (2026-10-25, production Aurora, `test:` rows deleted afterwards)
+
+Writes (with Titan, one embedding request per document; the database part is unchanged):
 
 | | from the laptop (88 ms round trip) | in-region (CodeBuild `investigation-jobs`) |
 |---|---|---|
@@ -122,8 +133,14 @@ and the Lambda's async retry reruns the shard, where step 2 skips what was alrea
 A parameterized `conn.run` measured three round trips (pg8000's extended query protocol) and a
 plain one (`BEGIN`, `COMMIT`) one, so an insert is ~18 round trips; the statements themselves,
 including the HNSW insert, take a few ms. Only the round-trip time differs between the two
-columns (88 ms vs 0.8 ms). A 500-document shard therefore takes ~70 s in-region, a rerun of it ~1 s:
-well inside the 15-minute ingest timeout, so one INSERT per chunk stays.
+columns (88 ms vs 0.8 ms). The database part of a 500-document shard is ~15 s in-region, a rerun
+of it ~1 s: well inside the 15-minute ingest timeout, so one INSERT per chunk stays.
+
+Embedding with Cohere Embed V4: 96 HotpotQA documents per request, 2.2-3.2 s; a shard of 500
+needs ~6 requests, bound by the 20 requests/min of the `eu.*` pool (ADR 0022). From the laptop,
+`upsert_many` of four `test:` documents (A, A's text under another source, B, A's source with new
+text) returned `inserted, duplicate, inserted, updated` with one embedding request per round;
+the rerun took 0.52 s with 0 Bedrock calls.
 
 ## Changing the schema
 

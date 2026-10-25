@@ -101,7 +101,8 @@ shard's line sources are prefixed and cannot overwrite a `hotpotqa:*` or other b
 Only `bulk/` shards (written by the jobs project, not reachable from the page) keep their
 sources as they are.
 
-and calls `index.upsert` for every document, one after another. One JSON log line per object:
+and calls `index.upsert_many` once with all documents of the file (their chunks are embedded 96
+per Bedrock request; llm-wiki/03 Write paths). One JSON log line per object:
 `{"handler": "ingest", "key", "counts": {"inserted": n, "unchanged": n, ...}, "seconds"}`, or
 `"skipped": "<reason>"`.
 
@@ -110,5 +111,9 @@ Error policy:
   suffix, an invalid JSONL line). The other objects of the event still load. `read_jsonl`
   rejects a whole shard on its first bad line, so one bad line skips its shard.
 - Bedrock and database errors propagate: the invocation fails and Lambda's async retry reruns
-  the event (2 retries). `index.upsert` is idempotent, a rerun returns `unchanged` before any
-  embedding, so nothing is duplicated.
+  the event (2 retries). `index.upsert_many` is idempotent, a rerun returns `unchanged` before
+  any embedding, so nothing is duplicated.
+- An event that still fails after the retries (or waited longer than 6 h for a free `ingest`)
+  is not dropped: Lambda sends it to the SQS queue `IngestFailures` (kept 14 days), with the
+  error. `make redrive-ingest` (jobs project) invokes `ingest` again with each stored event and
+  deletes the message once the invoke is accepted (llm-wiki/07).
