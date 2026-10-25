@@ -9,47 +9,62 @@ AI Usage Report. Interview: explain architecture, walk the RAG pipeline, fix bug
 features live **without AI**. Every line here must be explainable — so no LangChain/LlamaIndex,
 own small code instead.
 
+## 0. Status
+
+**Updated 2026-10-25 (day 2 of 6).** Wave 0 and wave 1 merged (PRs #4-#17). Wave 2 not started.
+**Behind:** the day 2 goal (`search()` over >= 50k records) is not met: nothing is indexed yet,
+`ingest` is a stub, `db.py` has no writes, `embed.py`/`search.py`/`llm.py` do not exist.
+Next: wave 2 (`db.py` writes, `embed.py` + `llm.py`, `search.py`, API routes).
+
+How status is kept (every PR that finishes or advances a task updates it in the same PR):
+- this section: date, current day and wave, what is behind, what is next;
+- the wave table in section 5: the row gets `**Done (#PR):**`; the day table: `**Done:**` or
+  `**In progress:**` with what is left;
+- the checklist below: `[x]` only when the requirement works end to end on the deployed system;
+  otherwise `[ ]` with a `partial:` note naming the merged pieces (PR numbers) and what is missing.
+  No note = not started.
+
 ## 1. Requirements checklist (from the task)
 
 Ingestion
-- [ ] >= 3 file formats (plan: PDF, DOCX, Markdown/HTML, JSONL)
-- [ ] text + metadata extraction (source, title, date, doc type, service names)
-- [ ] chunking, >= 2 strategies compared
-- [ ] duplicate handling
-- [ ] add / update / delete documents
+- [ ] >= 3 file formats (plan: PDF, DOCX, Markdown/HTML, JSONL) — partial: `parsers.py` (#16); not wired into `ingest`
+- [ ] text + metadata extraction (source, title, date, doc type, service names) — partial: `ParsedDoc` metadata from parsers (#16); not stored
+- [ ] chunking, >= 2 strategies compared — partial: fixed + structure-aware chunkers (#6); comparison needs the eval
+- [ ] duplicate handling — partial: sha256 of normalized text (#4), HotpotQA deduplicated in the dataset job (#7); upload path not wired
+- [ ] add / update / delete documents — needs `db.py` writes + API routes (wave 2)
 
 Search
-- [ ] vector DB, embeddings, semantic search
-- [ ] hybrid search (semantic + keyword)
-- [ ] >= 1 own ranking/search algorithm (not only library calls)
+- [ ] vector DB, embeddings, semantic search — partial: Aurora + pgvector schema deployed (#8, #10); no `embed.py`, nothing indexed
+- [ ] hybrid search (semantic + keyword) — partial: `tsvector` column in the schema (#8); no `search.py`
+- [ ] >= 1 own ranking/search algorithm (not only library calls) — partial: RRF + MMR with per-document cap (#5); not called by search yet
 
 LLM / RAG
 - [ ] RAG, multi-document synthesis, multi-step handling of complex questions
-- [ ] answers grounded in evidence, sources + citations
-- [ ] contradiction detection attempt
-- [ ] abstain when information is insufficient
-- [ ] LLM error/limit handling (timeouts, 429, malformed output)
-- [ ] >= 1 tool-calling mechanism
+- [ ] answers grounded in evidence, sources + citations — partial: citation validator drops claims citing unretrieved chunks (#14); no agent
+- [ ] contradiction detection attempt — partial: `conflicting` answer status (#14); no detection prompt
+- [ ] abstain when information is insufficient — partial: `insufficient` answer status (#14); no agent
+- [ ] LLM error/limit handling (timeouts, 429, malformed output) — needs `llm.py` (wave 2)
+- [ ] >= 1 tool-calling mechanism — needs `agent.py` (wave 3)
 
 Evaluation
 - [ ] own automated eval, >= 40 questions: simple, multi-hop, multi-doc, unanswerable, contradictory
-- [ ] retrieval + answer metrics: Recall@K, MRR, Answer Correctness, Citation Accuracy
+- [ ] retrieval + answer metrics: Recall@K, MRR, Answer Correctness, Citation Accuracy — partial: pure metric functions (#15); no judge, no runner
 - [ ] >= 2 configurations compared
 - [ ] error analysis: where it fails, why, how to improve
 
 Backend / UI
-- [ ] Python backend, functional UI: upload/manage docs, ask, inspect sources
+- [ ] Python backend, functional UI: upload/manage docs, ask, inspect sources — partial: page served at `GET /` (#17), works only in `?stub` mode; API routes return 404
 
 Dataset
-- [ ] >= 50,000 documents/records, reproducible subset with justification
-- [ ] cross-document linking, source identity preserved, incomplete/contradictory data, repeatable eval
+- [ ] >= 50,000 documents/records, reproducible subset with justification — partial: dataset job, 66,555 unique HotpotQA documents as JSONL shards (#7); not indexed
+- [ ] cross-document linking, source identity preserved, incomplete/contradictory data, repeatable eval — needs the Acme corpus (wave 3)
 
 Deployment
-- [ ] public URL on free tier, DB integrated, data survives restart
-- [ ] secrets protected, deployment architecture + free-tier limits documented
+- [ ] public URL on free tier, DB integrated, data survives restart — partial: Function URL serves `/` and `/health`, Aurora with deletion protection (#10, #13); app does not use the DB yet, persistence not checked
+- [ ] secrets protected, deployment architecture + free-tier limits documented — partial: IAM auth tokens, no stored secrets (ADR 0021), `llm-wiki/07-infrastructure.md`; README DEPLOYMENT section not written
 
 Quality
-- [ ] modular code, error handling, automated tests, safe config, docs, perf + LLM cost notes
+- [ ] modular code, error handling, automated tests, safe config, docs, perf + LLM cost notes — partial: module per stream, tests per module, CI; README, perf and LLM cost notes missing
 
 Bonus (only after core): LLM/embedding comparison, agentic RAG, reranker, prompt-injection tests,
 caching, streaming, observability, load test.
@@ -172,7 +187,7 @@ schedule is compressed and scope is cut (see "Cuts"). Code freeze 2026-10-29 15:
 | Day | Date | Work | Done when |
 |---|---|---|---|
 | 1 | 10-24 | **Done:** repo, uv, Makefile, AWS project + `aws login`, CDK skeleton, CI/CD (GitHub Actions + CodeBuild PR diff/deploy), llm-wiki + ADRs 0001-0018, stack decisions | `/health` live, merges deploy automatically |
-| 2 | 10-25 | Stream A: Aurora + S3 + `ingest` + jobs project in the stack, schema, `dataset` job (HotpotQA shards), dedup, 2 chunkers, Titan embeddings, bulk load, dense + keyword + RRF + MMR | `search("...")` returns fused results over >= 50k records |
+| 2 | 10-25 | **In progress.** Done: Aurora + S3 + `ingest` stub + jobs project (#8, #10, #12, #13), `dataset` job (#7), 2 chunkers (#6), RRF + MMR (#5); pulled forward from days 3-4: citation validator (#14), parsers (#16), UI page (#17), eval metrics (#15). Left: dedup in `ingest`, Titan embeddings, `db.py` writes, bulk load, dense + keyword search. Plan: Stream A: Aurora + S3 + `ingest` + jobs project in the stack, schema, `dataset` job (HotpotQA shards), dedup, 2 chunkers, Titan embeddings, bulk load, dense + keyword + RRF + MMR | `search("...")` returns fused results over >= 50k records |
 | 3 | 10-26 | Stream B: `llm.py` (Bedrock, retry/backoff/fallback/cache), agent loop, JSON answer, citation validator; stream C: start the `acme` job | `ask()` answers a HotpotQA multi-hop question with valid citations |
 | 4 | 10-27 | Streams C + D: Acme corpus + parsers indexed, Lambda router + HTML UI, persistence check; stream E: questions + metrics | public URL answers a question end to end |
 | 5 | 10-28 | Stream E: eval runner in the jobs project, config sweep (cached LLM calls) | `eval/results/*.json` for all configs |
@@ -197,7 +212,7 @@ branch/worktree and merges to `main` when its tests pass.
 | A. Data + search | Aurora + S3 + `ingest` + jobs in the stack, schema, `dataset` job, dedup, 2 chunkers, Titan embeddings, bulk load, dense + keyword, RRF + MMR, CRUD | `db.py`, `chunking.py`, `embed.py`, `index.py`, `search.py`, `handlers.py` (ingest), `cdk/` | Aurora, Bedrock (account verification) | day 2 |
 | B. LLM + agent | Bedrock client (retry/backoff/timeout/fallback/prompt caching/cache), tools, agent loop, JSON answer, citation validator | `llm.py`, `agent.py` | stub `search`, Bedrock | day 3 |
 | C. Acme corpus + parsers | generator (`acme` job), planted contradictions/gaps, `GROUND_TRUTH.md`, PDF/DOCX/HTML/MD parsers | `parsers.py`, `scripts/gen_acme.py`, `data/acme/` | `llm.py`, jobs project | day 3 |
-| D. Infra + API + UI | Done: AWS project, CDK, CI/CD. Left: Lambda router, HTML page, presigned uploads, persistence check | `handlers.py`, `static/`, `cdk/` | stubs `ask`/`search` | day 4 |
+| D. Infra + API + UI | Done: AWS project, CDK, CI/CD, HTML page (#17). Left: Lambda routes, presigned uploads, persistence check | `handlers.py`, `static/`, `cdk/` | stubs `ask`/`search` | day 4 |
 | E. Evaluation | questions, Recall@K/MRR/citation metrics (pure functions), runner (`eval` job), config sweep, EVALUATION.md | `eval/` | real `ask` for runs only | day 4 |
 
 Merge points: A+B on day 3 (real search inside the agent); C into A on day 4 (Acme indexed);
@@ -220,15 +235,15 @@ worktree and branch, each ending in a PR that must pass CI. Rules:
 
 | Wave | Task | Owns files | Needs | Tests |
 |---|---|---|---|---|
-| 0 | **Done:** contracts in `models.py`, signatures for `chunking`, `rank`, `grounding`, `parsers`, `eval/metrics`; dedup hash in `index.py`; API contract (llm-wiki 04); wave-1 dependencies added. `db`/`embed`/`llm`/`search` signatures are left to their wave-2 owners (nobody calls them in wave 1) | `models.py`, module stubs, `pyproject.toml` | - | dedup tests |
-| 1 | Chunkers A (fixed 300/50) and B (structure-aware) | `chunking.py` | wave 0 | pure unit tests |
-| 1 | RRF + MMR with per-document cap | `rank.py` | wave 0 | pure unit tests |
-| 1 | Parsers PDF/DOCX/HTML/MD/JSONL -> `ParsedDoc`, metadata, small fixtures | `parsers.py`, `tests/fixtures/` | wave 0 | fixture tests |
-| 1 | Citation validator + `Answer` assembly, statuses | `grounding.py` | wave 0 | pure unit tests |
-| 1 | Eval metrics: Recall@K, MRR, EM/F1, citation accuracy, abstention P/R, contradiction rate | `eval/metrics.py` | wave 0 | pure unit tests |
-| 1 | Infra: Aurora + secret, S3 bucket + event, `ingest` Lambda, `investigation-jobs` project, schema SQL | `cdk/app.py`, `sql/schema.sql`, `.codebuild/jobs.yml` | - | synth + PR diff |
-| 1 | Dataset job: HotpotQA download, dedup, stats, JSONL shards to S3 | `scripts/dataset.py` | wave 0 | dedup unit tests |
-| 1 | UI page against the API contract (stub responses) | `static/index.html` | wave 0 | manual |
+| 0 | **Done (#4):** contracts in `models.py`, signatures for `chunking`, `rank`, `grounding`, `parsers`, `eval/metrics`; dedup hash in `index.py`; API contract (llm-wiki 04); wave-1 dependencies added. `db`/`embed`/`llm`/`search` signatures are left to their wave-2 owners (nobody calls them in wave 1) | `models.py`, module stubs, `pyproject.toml` | - | dedup tests |
+| 1 | **Done (#6):** Chunkers A (fixed 300/50) and B (structure-aware) | `chunking.py` | wave 0 | pure unit tests |
+| 1 | **Done (#5):** RRF + MMR with per-document cap | `rank.py` | wave 0 | pure unit tests |
+| 1 | **Done (#16):** Parsers PDF/DOCX/HTML/MD/JSONL -> `ParsedDoc`, metadata, small fixtures | `parsers.py`, `tests/fixtures/` | wave 0 | fixture tests |
+| 1 | **Done (#14):** Citation validator + `Answer` assembly, statuses | `grounding.py` | wave 0 | pure unit tests |
+| 1 | **Done (#15):** Eval metrics: Recall@K, MRR, EM/F1, citation accuracy, abstention P/R, contradiction rate | `eval/metrics.py` | wave 0 | pure unit tests |
+| 1 | **Done (#8, #10, #12, #13):** Infra: Aurora (express configuration, IAM auth, no secret: ADR 0021), S3 bucket + event, `ingest` Lambda (stub), `investigation-jobs` project, schema SQL | `cdk/app.py`, `sql/schema.sql`, `.codebuild/jobs.yml` | - | synth + PR diff |
+| 1 | **Done (#7):** Dataset job: HotpotQA download, dedup, stats, JSONL shards to S3 | `scripts/dataset.py` | wave 0 | dedup unit tests |
+| 1 | **Done (#17):** UI page against the API contract (stub responses) | `static/index.html` | wave 0 | manual |
 | 2 | `db.py` insert/update/delete on top of `connect`/`run` (pg8000, IAM token, resume retry: ADR 0021) | `db.py`, `index.py` | infra | against Aurora |
 | 2 | `embed.py` (Titan) + `llm.py` (Bedrock client, retry, fallback, cache) | `embed.py`, `llm.py` | Bedrock verified | unit + one live call |
 | 2 | `search.py`: dense + keyword SQL -> `rank.py` | `search.py` | `db.py`, `rank.py` | against Aurora |

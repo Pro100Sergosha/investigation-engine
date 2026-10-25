@@ -1,7 +1,7 @@
 ---
 title: Investigation Engine Knowledge Base
 status: current
-last_updated: 2026-10-24
+last_updated: 2026-10-25
 owner: Pro100Sergosha
 ---
 
@@ -10,8 +10,9 @@ owner: Pro100Sergosha
 Read this file first. Then read only the documents relevant to your task.
 
 This wiki is written for a reader with no memory of yesterday. It describes the system **as it
-is**, not as it was planned; the plan and schedule live in [PLAN.md](../PLAN.md). If the code changed
-and the document did not, the document is a bug.
+is**, not as it was planned; the plan, schedule and progress (what is done and what is not:
+section 0) live in [PLAN.md](../PLAN.md). If the code changed and the document did not, the
+document is a bug.
 
 Numbering follows binadar's wiki. A document is written when there is something real to describe,
 so gaps in the numbers are deliberate: 03 Data model, 05 Corpora, 09 Evaluation
