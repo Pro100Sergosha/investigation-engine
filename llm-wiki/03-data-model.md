@@ -1,7 +1,7 @@
 ---
 title: Data model
 status: current
-last_updated: 2026-10-24
+last_updated: 2026-10-25
 owner: Pro100Sergosha
 ---
 
@@ -70,25 +70,60 @@ Reruns of the evaluation and repeated demo questions cost nothing.
 | Index | Serves |
 |---|---|
 | `chunks_tsv_idx`, GIN on `tsv` | keyword search (`@@`, `ts_rank_cd`) |
-| `chunks_embedding_idx`, HNSW on `embedding halfvec_cosine_ops` | dense search by cosine distance (`<=>`) |
+| `chunks_embedding_fixed_idx`, `chunks_embedding_structured_idx`: partial HNSW on `embedding halfvec_cosine_ops WHERE strategy = '<strategy>'` | dense search by cosine distance (`<=>`) within one strategy. A shared index returned ~half the rows: pgvector filters after the scan, which yields at most `hnsw.ef_search` (40) rows ([ADR 0024](adr/0024-partial-hnsw-per-strategy-or-keyword-query.md)) |
 | unique `(document_id, strategy, ord)` | chunks of one document, the cascade delete, and the re-insert on update. It starts with `document_id`, so a separate index on `document_id` alone would be redundant |
 | unique `source`, unique `content_hash` | update-by-source and exact dedup |
 
-The HNSW index is created while the table is empty and then maintained on every insert: building
-it over a loaded table inside a deploy would hold the schema custom resource for minutes.
+The HNSW indexes are created while the table is empty and then maintained on every insert: building
+them over a loaded table inside a deploy would hold the schema custom resource for minutes.
 
 ## Write paths
 
-- **Insert**: a new source with an unseen `content_hash` -> one `documents` row + its chunks, in
-  one transaction.
-- **Update**: same `source`, new `content_hash` -> `version + 1`, new `text`/`content_hash`, old
-  chunks deleted and new ones inserted, in one transaction. Same `content_hash` as any existing
-  document -> skipped as a duplicate.
-- **Delete**: `DELETE FROM documents WHERE id = :id`; the chunks go with it (cascade).
+Every document write is `engine.index.upsert(doc) -> (status, id)` or `index.delete(id)`; uploads
+and the bulk load take the same path. `upsert` decides in this order, and the first three steps
+cost no Bedrock call, so rerunning a shard is free:
 
-All SQL goes through `db.py` (`db.run(sql, **params)`), parameterized (`:name`), with vectors
-sent as text and cast (`'[...]'::halfvec`). Writes must be idempotent (upsert by `source`): a
-statement whose connection died is retried once on a new connection.
+1. Blank text -> `empty`, nothing stored.
+2. `source` known with the same `content_hash` -> `unchanged` (a rerun).
+3. `content_hash` stored under another source -> `duplicate`, with that document's id.
+4. Chunk with both strategies (`fixed`, `structured`, `ord` from 0) and embed. The embedding input
+   is `"<title>\n\n<chunk>"` (a chunk alone often lacks its subject's name); `chunks.text` stores
+   the chunk alone, which is what keyword search and citations see. Each distinct input is
+   embedded once per document: a ~90-word HotpotQA paragraph is the same single chunk under both
+   strategies, so the bulk load makes one Bedrock call per document, not two.
+5. **Insert** (new source): `documents` row + its chunks, in one transaction -> `inserted`.
+   **Update** (known source, new hash): `UPDATE` title, doc_type, text, metadata, content_hash,
+   `version = version + 1`; `DELETE` its chunks; `INSERT` the new ones; one transaction ->
+   `updated`. Embedding happens before `BEGIN`, so a transaction never waits on Bedrock.
+
+- **Delete**: `DELETE FROM documents WHERE id = :id RETURNING id`; the chunks go with it
+  (cascade). `False` if the id is unknown.
+- **Concurrent ingests** (up to 5 Lambdas on different shards): the document `INSERT` has
+  `ON CONFLICT DO NOTHING`. If another transaction stored the same source or the same text after
+  the checks, Postgres waits for it, inserts nothing, and `upsert` reruns its checks, which now
+  return `unchanged` or `duplicate`. An update that collides on `content_hash` fails with a unique
+  violation, rolls back and raises: loud, nothing half-written.
+
+All SQL goes through `db.py`, parameterized (`:name`). Vectors are sent as JSON text and cast
+(`CAST(:embedding AS halfvec(1024))`), metadata as `CAST(:metadata AS jsonb)`. Single statements
+use `db.run`: a statement whose connection died is retried once on a new connection, so it must be
+idempotent. Multi-statement writes use `with db.transaction() as conn:` and only `conn.run`
+inside: a dead connection is replaced only before `BEGIN`, nothing inside is retried, success
+commits, any error rolls back and re-raises. A failed `upsert` therefore leaves nothing behind,
+and the Lambda's async retry reruns the shard, where step 2 skips what was already stored.
+
+### Measured (2026-10-25, production Aurora, `test:` rows deleted afterwards)
+
+| | from the laptop (88 ms round trip) | in-region (CodeBuild `investigation-jobs`) |
+|---|---|---|
+| insert, ~90-word doc | 1.94 s (Titan 0.23 s, the rest round trips) | 0.137 s (Titan 0.108 s, database 0.03 s) |
+| rerun (`unchanged`) | 0.26 s, 0 Bedrock calls | 2 ms, 0 Bedrock calls |
+
+A parameterized `conn.run` measured three round trips (pg8000's extended query protocol) and a
+plain one (`BEGIN`, `COMMIT`) one, so an insert is ~18 round trips; the statements themselves,
+including the HNSW insert, take a few ms. Only the round-trip time differs between the two
+columns (88 ms vs 0.8 ms). A 500-document shard therefore takes ~70 s in-region, a rerun of it ~1 s:
+well inside the 15-minute ingest timeout, so one INSERT per chunk stays.
 
 ## Changing the schema
 

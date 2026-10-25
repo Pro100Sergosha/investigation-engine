@@ -2,6 +2,8 @@
 
 import ssl
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 import boto3
 import pg8000.native
@@ -18,7 +20,8 @@ def connect(user: str) -> pg8000.native.Connection:
     valid 15 minutes for opening connections only. There is no stored password anywhere.
     """
     # Created here, not at import: tests import this module without an AWS Region.
-    token = boto3.client("rds").generate_db_auth_token(config.DB_HOST, 5432, user)
+    rds = boto3.client("rds", region_name=config.REGION)  # boto3 ignores AWS_REGION outside AWS
+    token = rds.generate_db_auth_token(config.DB_HOST, 5432, user)
     # A paused cluster (0 ACU) resumes on the first connection, ~15 s; give it a minute.
     for _ in range(5):
         try:
@@ -55,3 +58,32 @@ def run(sql: str, **params) -> list[list]:
     except pg8000.native.InterfaceError:
         _conn = connect(config.DB_USER)
         return _conn.run(sql, **params)
+
+
+@contextmanager
+def transaction() -> Iterator[pg8000.native.Connection]:
+    """Run the statements of a `with` block in one transaction on the shared connection.
+
+    Inside the block use only the yielded connection (`conn.run`), never `run()`: its retry would
+    send the statement on a new connection, outside the transaction. A dead connection is
+    replaced only at BEGIN, where nothing has been sent yet; inside the block nothing is retried.
+    Success commits; any error rolls back and re-raises, so the caller reruns the whole unit
+    (for ingest: the Lambda retry reruns the shard, and `index.upsert` skips what is stored).
+    """
+    global _conn
+    if _conn is None:
+        _conn = connect(config.DB_USER)
+    try:
+        _conn.run("BEGIN")
+    except pg8000.native.InterfaceError:
+        _conn = connect(config.DB_USER)
+        _conn.run("BEGIN")
+    try:
+        yield _conn
+        _conn.run("COMMIT")
+    except BaseException:
+        try:
+            _conn.run("ROLLBACK")
+        except pg8000.native.InterfaceError:
+            _conn = None  # the socket is gone; the server rolls back an orphaned transaction
+        raise
