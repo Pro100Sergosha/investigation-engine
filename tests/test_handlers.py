@@ -199,12 +199,12 @@ def ingest_env(monkeypatch, tmp_path):
             source = FIXTURES / key.rsplit("/", 1)[-1].replace(" ", "")
         shutil.copy(source, filename)
 
-    def upsert(doc):
-        upserts.append(doc)
-        return "inserted", len(upserts)
+    def upsert_many(docs):
+        upserts.extend(docs)
+        return [("inserted", len(upserts) - len(docs) + i + 1) for i in range(len(docs))]
 
     monkeypatch.setattr(handlers._s3, "download_file", download_file)
-    monkeypatch.setattr(index, "upsert", upsert)
+    monkeypatch.setattr(index, "upsert_many", upsert_many)
     return upserts, downloads, tmp_path
 
 
@@ -251,10 +251,10 @@ def test_ingest_ignores_other_objects(ingest_env):
 
 
 def test_ingest_lets_database_errors_propagate(ingest_env, monkeypatch):
-    def down(doc):
+    def down(docs):
         raise pg8000.native.InterfaceError("gone")
 
-    monkeypatch.setattr(index, "upsert", down)
+    monkeypatch.setattr(index, "upsert_many", down)
     with pytest.raises(pg8000.native.InterfaceError):
         ingest(_s3_event("uploads/runbook.md"), None)
 

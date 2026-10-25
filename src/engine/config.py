@@ -18,7 +18,8 @@ STATIC_DIR = Path(os.environ.get("LAMBDA_TASK_ROOT", Path(__file__).parents[2]))
 # Lambda and CodeBuild set AWS_REGION; the default lets tests create boto3 clients at import.
 REGION = os.environ.get("AWS_REGION", "eu-north-1")
 
-EMBED_MODEL = os.environ.get("EMBED_MODEL", "amazon.titan-embed-text-v2:0")
+# Cohere Embed V4 exists in this Region only through the eu.* cross-Region profile (ADR 0022).
+EMBED_MODEL = os.environ.get("EMBED_MODEL", "eu.cohere.embed-v4:0")
 
 # Aurora (express configuration): writer endpoint, database, and the login role. No password:
 # engine.db signs an IAM auth token for DB_USER (ADR 0021).

@@ -1,4 +1,4 @@
-"""Embeddings: Bedrock Titan Text Embeddings V2, one text per request (ADR 0016)."""
+"""Embeddings: Bedrock Cohere Embed V4 through the eu.* profile, 96 texts per request (ADR 0022)."""
 
 import json
 
@@ -8,9 +8,10 @@ from botocore.config import Config
 from engine import config
 
 DIMENSIONS = 1024  # sql/schema.sql: embedding halfvec(1024)
+BATCH = 96  # Cohere's maximum number of texts per request
 
-# Titan's quota is not listed in Service Quotas, so the bulk load must expect throttling:
-# adaptive retry backs off on ThrottlingException and slows the client down instead of failing.
+# The eu.* pool allows 20 requests/min: the bulk load throttles by design. Adaptive retry backs
+# off on ThrottlingException and slows the client down instead of failing.
 _bedrock = boto3.client(
     "bedrock-runtime",
     region_name=config.REGION,
@@ -18,13 +19,34 @@ _bedrock = boto3.client(
 )
 
 
-def embed(text: str) -> list[float]:
-    """1024 floats of unit length (`normalize`), so cosine similarity is the dot product.
+def embed_documents(texts: list[str]) -> list[list[float]]:
+    """One vector per text, in input order, as `search_document`; one request per 96 texts.
 
-    Titan V2 has no separate query and document modes: chunks and questions use the same call.
+    Cohere embeds documents and queries differently (asymmetric search): chunks go through here,
+    questions through `embed_query`. An empty list makes no request.
     """
-    response = _bedrock.invoke_model(
-        modelId=config.EMBED_MODEL,
-        body=json.dumps({"inputText": text, "dimensions": DIMENSIONS, "normalize": True}),
-    )
-    return json.loads(response["body"].read())["embedding"]
+    vectors = []
+    for start in range(0, len(texts), BATCH):
+        vectors += _embed(texts[start : start + BATCH], "search_document")
+    return vectors
+
+
+def embed_query(text: str) -> list[float]:
+    """The vector of a search query (`search_query`), comparable with `embed_documents`."""
+    return _embed([text], "search_query")[0]
+
+
+def _embed(texts: list[str], input_type: str) -> list[list[float]]:
+    """1024 floats per text, unit length as returned by Cohere, so cosine is the dot product.
+
+    `truncate: RIGHT` cuts an over-long input instead of failing the whole batch.
+    """
+    body = {
+        "texts": texts,
+        "input_type": input_type,
+        "embedding_types": ["float"],
+        "output_dimension": DIMENSIONS,
+        "truncate": "RIGHT",
+    }
+    response = _bedrock.invoke_model(modelId=config.EMBED_MODEL, body=json.dumps(body))
+    return json.loads(response["body"].read())["embeddings"]["float"]

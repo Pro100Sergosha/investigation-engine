@@ -13,7 +13,7 @@ def _no_calls(*args, **kwargs):
 
 @pytest.fixture
 def offline(monkeypatch):
-    monkeypatch.setattr(embed, "embed", _no_calls)
+    monkeypatch.setattr(embed, "embed_query", _no_calls)
     monkeypatch.setattr(db, "run", _no_calls)
 
 
@@ -100,7 +100,7 @@ def _fake_db(dense: list[tuple[int, float]], keyword: list[int], vectors: dict[i
 
 @pytest.fixture
 def fused_inputs(monkeypatch):
-    monkeypatch.setattr(embed, "embed", lambda text: [1.0, 0.0])
+    monkeypatch.setattr(embed, "embed_query", lambda text: [1.0, 0.0])
     dense = [(1, 0.9), (2, 0.8), (3, 0.7)]
     keyword = [3, 4]
     # 1 and 3 point the same way, so MMR should push 3 down after picking 1.

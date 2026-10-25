@@ -7,6 +7,7 @@ import re
 import tempfile
 import time
 import traceback
+from collections import Counter
 from pathlib import Path
 from urllib.parse import unquote_plus
 
@@ -52,8 +53,9 @@ def ingest(event, context):
     Error policy: a bad file or shard (the parser's ValueError: corrupt, empty, unsupported
     suffix, a broken JSONL line) is logged and skipped, so one broken upload does not block the
     other objects of the event. Bedrock and database errors propagate: the invocation fails and
-    Lambda's async retry reruns the whole event. `index.upsert` is idempotent (a rerun returns
-    "unchanged" before any embedding), so a retry duplicates nothing.
+    Lambda's async retry reruns the whole event. `index.upsert_many` is idempotent (a rerun
+    returns "unchanged" before any embedding), so a retry duplicates nothing; it embeds a whole
+    file before writing it, so a retry re-embeds only what was not stored.
     """
     for record in event.get("Records", []):
         bucket = record["s3"]["bucket"]["name"]
@@ -72,7 +74,6 @@ def _ingest_object(bucket: str, key: str) -> None:
         print(json.dumps({**log, "skipped": "not an upload or a bulk shard"}))
         return
 
-    counts: dict[str, int] = {}
     # The directory (and the file in it) is removed even if parsing or indexing raises. The
     # file keeps its real name: `parse` takes the doc type from the suffix, the title from the
     # stem.
@@ -92,11 +93,8 @@ def _ingest_object(bucket: str, key: str) -> None:
         except ValueError as error:
             print(json.dumps({**log, "skipped": str(error)}))
             return
-        # ponytail: sequential upserts; a 500-doc shard must fit the 15 min timeout. Threads
-        # only if a measured shard does not.
-        for doc in docs:
-            status, _ = index.upsert(doc)
-            counts[status] = counts.get(status, 0) + 1
+        # The whole file in one call: its chunks are embedded 96 per Bedrock request.
+        counts = dict(Counter(status for status, _ in index.upsert_many(docs)))
     seconds = round(time.monotonic() - started, 1)
     print(json.dumps({**log, "counts": counts, "seconds": seconds}))
 
