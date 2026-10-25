@@ -11,7 +11,8 @@ own small code instead.
 
 ## 0. Status
 
-**Updated 2026-10-25 (day 2 of 6).** Wave 0 and wave 1 merged (PRs #4-#17). Wave 2 not started.
+**Updated 2026-10-25 (day 2 of 6).** Wave 0 and wave 1 merged (PRs #4-#17). Wave 2 in progress:
+contracts and `embed.py` (#19), four parallel tasks running.
 **Behind:** the day 2 goal (`search()` over >= 50k records) is not met: nothing is indexed yet,
 `ingest` is a stub, `db.py` has no writes, `embed.py`/`search.py`/`llm.py` do not exist.
 Next: wave 2 (`db.py` writes, `embed.py` + `llm.py`, `search.py`, API routes).
@@ -244,14 +245,14 @@ worktree and branch, each ending in a PR that must pass CI. Rules:
 | 1 | **Done (#8, #10, #12, #13):** Infra: Aurora (express configuration, IAM auth, no secret: ADR 0021), S3 bucket + event, `ingest` Lambda (stub), `investigation-jobs` project, schema SQL | `cdk/app.py`, `sql/schema.sql`, `.codebuild/jobs.yml` | - | synth + PR diff |
 | 1 | **Done (#7):** Dataset job: HotpotQA download, dedup, stats, JSONL shards to S3 | `scripts/dataset.py` | wave 0 | dedup unit tests |
 | 1 | **Done (#17):** UI page against the API contract (stub responses) | `static/index.html` | wave 0 | manual |
+| 2 | **Done (#19):** contracts for wave 2 (`index.upsert/delete`, `search.*` signatures), `embed.py` (Titan V2) | `embed.py`, `index.py`, `search.py` stubs | wave 1 | one live call |
 | 2 | `db.py` insert/update/delete on top of `connect`/`run` (pg8000, IAM token, resume retry: ADR 0021) | `db.py`, `index.py` | infra | against Aurora |
 | 2 | `embed.py` (Titan) + `llm.py` (Bedrock client, retry, fallback, cache) | `embed.py`, `llm.py` | Bedrock verified | unit + one live call |
 | 2 | `search.py`: dense + keyword SQL -> `rank.py` | `search.py` | `db.py`, `rank.py` | against Aurora |
 | 2 | API routes + ingest handler wiring | `handlers.py` | `db.py`, `parsers.py`, `chunking.py` | router unit tests + smoke |
-| 2 | HotpotQA questions (gold ids) | `eval/questions.jsonl` | dataset stats | schema check |
 | 3 | Agent loop + tools | `agent.py` | `llm.py`, `search.py`, `grounding.py` | one live question |
 | 3 | Acme generator + `GROUND_TRUTH.md` + Acme questions | `scripts/gen_acme.py`, `data/acme/` | `llm.py`, jobs project | ground-truth check |
-| 3 | Eval runner + config sweep in the jobs project | `eval/run.py` | `agent.py` | dry run on 3 questions |
+| 3 | Eval runner + config sweep in the jobs project, HotpotQA questions (moved from wave 2: the runner defines their format) | `eval/run.py`, `eval/questions.jsonl` | `agent.py`, dataset labels | dry run on 3 questions |
 | 4 | EVALUATION.md, README, AI_USAGE.md | docs | results | - |
 
 Wave 1 tasks are pure Python or infra and can all start immediately (Bedrock is not needed);
