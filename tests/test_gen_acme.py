@@ -27,7 +27,7 @@ TINY = {
 BODY = (
     "# Postmortem\n\n## Summary\n\n**Impact began at 14:02 UTC** and hit 1,240 merchants.\n\n"
     "## Root cause\n\n- CHG-1042 changed max_connections from 200 to 20 – the “pool” "
-    "was exhausted.\n"
+    "wasn\u2019t big enough.\n"
 )
 
 
@@ -151,7 +151,8 @@ def test_render_round_trips_through_the_parser(tmp_path, prefix):
     assert parsed.title == "Postmortem: test outage"
     assert parsed.metadata["services"] == ["payments-api", "ledger"]
     assert gen_acme.missing_facts(parsed.text, gen_acme.required_facts(doc)) == []
-    assert '"pool"' in parsed.text  # sanitized, not dropped
+    assert '"pool"' in parsed.text and "wasn't" in parsed.text  # sanitized, not dropped
+    assert parsed.text.isascii()
     if prefix in ("INC", "RB"):  # PDF and DOCX carry the date in their metadata
         assert parsed.metadata["date"].startswith("2026-03-12")
 

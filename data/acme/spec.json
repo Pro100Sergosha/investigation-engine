@@ -113,7 +113,7 @@
       "date": "2026-01-22",
       "services": ["fraud-scorer", "payments-api"],
       "title": "Incident report: false declines after the fraud-scorer v3.4 release",
-      "summary": "SEV2 postmortem: fraud-scorer model v3.4, released by CHG-1011, declined many legitimate card payments until it was rolled back to v3.3. Incident commander Lucas Moreau. The report says v3.4 was deployed at 10:15 UTC. The model-level analysis is an open follow-up.",
+      "summary": "SEV2 postmortem of the incident on January 21, 2026: fraud-scorer model v3.4, released by CHG-1011 that day, declined many legitimate card payments until it was rolled back to v3.3. Incident commander Lucas Moreau. The report says v3.4 was deployed at 10:15 UTC. It gives no reason for the model's behaviour (no thresholds, calibration, features or data): the model-level analysis is an open follow-up.",
       "facts": ["SEV2", "v3.4", "v3.3", "deployed at 10:15 UTC", "from 2.1% to 9.8%", "rolled back at 11:40 UTC", "Lucas Moreau"],
       "refs": ["CHG-1011", "RB-06", "STS-101"]
     },
@@ -347,8 +347,8 @@
       "date": "2026-03-13",
       "services": ["notifications"],
       "title": "Incident report: webhook backlog after the 2026-03-12 outage",
-      "summary": "Merchant Experience team report by Hannah Kim: during and after the March 12 outage payment webhooks queued up; CHG-1045 scaled notification workers and the backlog was cleared. Gives the number of delayed webhooks.",
-      "facts": ["26,900 webhooks", "from 8 to 24", "cleared by 16:30 UTC", "Hannah Kim"],
+      "summary": "Merchant Experience team report by Hannah Kim: during and after the March 12 outage payment webhooks queued up; CHG-1045 scaled notification workers at 15:05 UTC and the backlog was cleared. Gives the number of delayed webhooks. It does not say when the outage itself began (that is in INC-301); its timeline has only the two times given.",
+      "facts": ["26,900 webhooks", "from 8 to 24", "at 15:05 UTC", "cleared by 16:30 UTC", "Hannah Kim"],
       "refs": ["INC-301", "CHG-1045", "RB-07"]
     },
     {
@@ -509,8 +509,8 @@
       "date": "2026-04-07",
       "services": ["merchant-portal"],
       "title": "Status: merchant portal login issues",
-      "summary": "Public status entry: merchants were unable to log in to the merchant portal; the API and payments were not affected; later Resolved.",
-      "facts": ["unable to log in", "about 45 minutes", "API and payments were not affected", "Resolved"],
+      "summary": "Public status entry for April 7, 2026: merchants were unable to log in to the merchant portal; Investigating posted at 08:10 UTC; the API and payments were not affected; Resolved posted at 08:50 UTC. Only these two times.",
+      "facts": ["unable to log in", "08:10 UTC", "08:50 UTC", "about 45 minutes", "API and payments were not affected", "Resolved"],
       "refs": []
     },
     {

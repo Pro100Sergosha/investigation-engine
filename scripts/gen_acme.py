@@ -369,6 +369,7 @@ def _docx(doc: dict, content: list[tuple[str, str]], path: Path) -> None:
 
 # A4 in points; 10 pt Helvetica averages ~5 pt per character, so ~95 characters fill a line.
 _PAGE_W, _PAGE_H, _MARGIN = 595, 842, 56
+_ENCODING = "/Encoding /WinAnsiEncoding"
 _STYLE = {"h1": ("F2", 16, 60), "li": ("F1", 10, 92), "p": ("F1", 10, 95)}  # font, size, chars
 
 
@@ -401,8 +402,9 @@ def _pdf(doc: dict, content: list[tuple[str, str]]) -> bytes:
         "<< /Type /Pages /Kids [{}] /Count {} >>".format(
             " ".join(f"{6 + 2 * i} 0 R" for i in range(len(pages))), len(pages)
         ),
-        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>",
+        # WinAnsi, not the default StandardEncoding, where byte ' is a curly quote on extraction.
+        f"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica {_ENCODING} >>",
+        f"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold {_ENCODING} >>",
         f"<< /Title ({_pdf_text(doc['title'])}) /Author (Acme Payments) "
         f"/CreationDate (D:{created}000000+00'00') >>",
     ]
