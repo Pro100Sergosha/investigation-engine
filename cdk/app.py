@@ -11,10 +11,12 @@ import aws_cdk as cdk
 from aws_cdk import aws_codebuild as codebuild
 from aws_cdk import aws_iam as iam
 from aws_cdk import aws_lambda as lambda_
+from aws_cdk import aws_lambda_destinations as destinations
 from aws_cdk import aws_logs as logs
 from aws_cdk import aws_rds as rds
 from aws_cdk import aws_s3 as s3
 from aws_cdk import aws_s3_notifications as s3n
+from aws_cdk import aws_sqs as sqs
 from aws_cdk import custom_resources as cr
 from constructs import Construct
 
@@ -258,6 +260,15 @@ class AppStack(cdk.Stack):
         url = api.add_function_url(auth_type=lambda_.FunctionUrlAuthType.NONE)
         cdk.CfnOutput(self, "ApiUrl", value=url.url)
 
+        # Events Lambda gave up on (2 retries failed, or too old) land here instead of being
+        # dropped; `make redrive-ingest` reruns them. Depth is visible in the console, no alarm.
+        failures = sqs.Queue(
+            self,
+            "IngestFailures",
+            encryption=sqs.QueueEncryption.SQS_MANAGED,
+            enforce_ssl=True,
+            retention_period=cdk.Duration.days(14),
+        )
         ingest = lambda_.DockerImageFunction(
             self,
             "Ingest",
@@ -265,9 +276,16 @@ class AppStack(cdk.Stack):
             architecture=lambda_.Architecture.X86_64,
             memory_size=1024,
             timeout=cdk.Duration.minutes(15),
-            # Caps parallel Bedrock calls and database connections during the bulk load;
-            # throttled S3 events wait in Lambda's async queue (up to 6 h) instead of failing.
-            reserved_concurrent_executions=5,
+            # Caps parallel Bedrock calls and database connections during the bulk load: the
+            # eu.* Cohere pool allows ~20 requests/min, and two workers (each a 96-text request
+            # every 2-3 s while embedding a shard, then its writes) fill it. Throttled S3 events
+            # wait in Lambda's async queue instead of failing.
+            reserved_concurrent_executions=2,
+            # 6 h is Lambda's maximum (and default), set so the queue wait is visible here: a
+            # full bulk load (134 shards on two workers) must start within it.
+            max_event_age=cdk.Duration.hours(6),
+            retry_attempts=2,
+            on_failure=destinations.SqsDestination(failures),
             environment=data_env,
         )
         for prefix in ("uploads/", "bulk/"):
@@ -291,7 +309,16 @@ class AppStack(cdk.Stack):
             )
         )
 
-        jobs = self._jobs_project(data_env)
+        jobs = self._jobs_project(
+            {
+                **data_env,
+                "INGEST_FAILURES_QUEUE": failures.queue_url,
+                "INGEST_FUNCTION": ingest.function_name,
+            }
+        )
+        # redrive-ingest: read and delete failure records, invoke ingest again.
+        failures.grant_consume_messages(jobs)
+        ingest.grant_invoke(jobs)
         # Jobs write shards (bulk/), the Acme corpus and evaluation results, and read them back.
         jobs.add_to_role_policy(
             iam.PolicyStatement(
@@ -321,37 +348,40 @@ class AppStack(cdk.Stack):
 
         self._schema(image, db_env, db_user("postgres"))
 
+    # Converse and ConverseStream are authorized by these two actions; there is no separate
+    # bedrock:Converse action.
+    _INVOKE = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"]
+
     def _allow_bedrock(self, grantee: iam.IGrantable, llm: bool) -> None:
-        # Converse and ConverseStream are authorized by these two actions; there is no
-        # separate bedrock:Converse action.
-        invoke = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"]
-        in_region = f"arn:aws:bedrock:{self.region}::foundation-model"
-        models = [f"{in_region}/amazon.titan-embed-text-v2:0"]
-        if llm:
-            models += [
-                f"{in_region}/openai.gpt-oss-120b*",
-                f"{in_region}/qwen.qwen3-235b-a22b-2507*",
-            ]
-        grantee.grant_principal.add_to_principal_policy(
-            iam.PolicyStatement(actions=invoke, resources=models)
-        )
+        # Every caller embeds (chunks or queries) with Cohere Embed V4 (ADR 0022).
+        self._allow_eu_profile(grantee, "cohere.embed-v4:0")
         if not llm:
             return
-        # Claude Haiku 4.5 exists here only through the eu.* cross-Region profile. A call needs the
-        # profile and the model in every EU Region the profile may route to; the condition allows
-        # the model only when the call comes through that profile.
-        haiku = (
-            f"arn:aws:bedrock:{self.region}:{self.account}"
-            ":inference-profile/eu.anthropic.claude-haiku-4-5-*"
-        )
+        in_region = f"arn:aws:bedrock:{self.region}::foundation-model"
         grantee.grant_principal.add_to_principal_policy(
-            iam.PolicyStatement(actions=invoke, resources=[haiku])
+            iam.PolicyStatement(
+                actions=self._INVOKE,
+                resources=[
+                    f"{in_region}/openai.gpt-oss-120b*",
+                    f"{in_region}/qwen.qwen3-235b-a22b-2507*",
+                ],
+            )
+        )
+        self._allow_eu_profile(grantee, "anthropic.claude-haiku-4-5-*")
+
+    def _allow_eu_profile(self, grantee: iam.IGrantable, model: str) -> None:
+        # Cohere Embed V4 and Claude Haiku 4.5 exist here only through eu.* cross-Region
+        # profiles. A call needs the profile and the model in every EU Region the profile may
+        # route to; the condition allows the model only when the call comes through the profile.
+        profile = f"arn:aws:bedrock:{self.region}:{self.account}:inference-profile/eu.{model}"
+        grantee.grant_principal.add_to_principal_policy(
+            iam.PolicyStatement(actions=self._INVOKE, resources=[profile])
         )
         grantee.grant_principal.add_to_principal_policy(
             iam.PolicyStatement(
-                actions=invoke,
-                resources=["arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-*"],
-                conditions={"StringLike": {"bedrock:InferenceProfileArn": haiku}},
+                actions=self._INVOKE,
+                resources=[f"arn:aws:bedrock:*::foundation-model/{model}"],
+                conditions={"StringLike": {"bedrock:InferenceProfileArn": profile}},
             )
         )
 

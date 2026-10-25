@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install lint fmt test check synth diff diff-pr deploy verify smoke dataset dataset-stats diff-cicd deploy-cicd bootstrap
+.PHONY: help install lint fmt test check synth diff diff-pr deploy verify smoke dataset dataset-stats redrive-ingest diff-cicd deploy-cicd bootstrap
 
 # CLI pinned here, library pinned in uv.lock. npx downloads it once and caches it.
 CDK := npx --yes aws-cdk@2.1146.1
@@ -60,13 +60,17 @@ smoke:  ## Smoke-check /health and the database path (/documents) on the deploye
 	curl --fail --silent --show-error --max-time 100 --retry 3 --retry-delay 15 \
 	  "$${url}documents?limit=1" && echo
 
-# Jobs: run in CodeBuild investigation-jobs (TARGET=<target>), which sets BUCKET, DB_HOST and
-# DB_NAME. They read only shell variables, so they also run anywhere those are set.
+# Jobs: run in CodeBuild investigation-jobs (TARGET=<target>), which sets BUCKET, DB_HOST,
+# DB_NAME, INGEST_FAILURES_QUEUE and INGEST_FUNCTION. They read only shell variables, so they
+# also run anywhere those are set.
 dataset:  ## Job: HotpotQA -> dedup -> JSONL shards in s3://$BUCKET/bulk/ (ingest loads them)
 	uv run python scripts/dataset.py --bucket $$BUCKET
 
 dataset-stats:  ## Job: dataset counts and dedup stats only, writes nothing
 	uv run python scripts/dataset.py --bucket $$BUCKET --dry-run
+
+redrive-ingest:  ## Job: rerun the ingest events in the IngestFailures queue (Lambda gave up)
+	uv run python scripts/redrive_ingest.py --queue-url $$INGEST_FAILURES_QUEUE --function $$INGEST_FUNCTION
 
 diff-cicd:  ## Show what deploy-cicd would change
 	cd cdk && $(CDK) diff Investigation-Cicd-prod
