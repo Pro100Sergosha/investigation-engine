@@ -1,7 +1,7 @@
 ---
 title: Architecture
 status: current
-last_updated: 2026-10-24
+last_updated: 2026-10-25
 owner: Pro100Sergosha
 ---
 
@@ -17,7 +17,7 @@ Update this section as streams land.
 
 The shared types are in `src/engine/models.py`; the HTTP interface is in
 [04 API contract](04-api-contract.md). Pure-logic modules exist as signatures whose docstrings are
-the specification, with `NotImplementedError` bodies until their wave-1 owners implement them:
+the specification, with `NotImplementedError` bodies until their wave owners implement them:
 
 | Function | Module | Notes |
 |---|---|---|
@@ -28,6 +28,11 @@ the specification, with `NotImplementedError` bodies until their wave-1 owners i
 | `build_answer(raw, retrieved) -> Answer` | `grounding.py` | the citation validator and the status rules |
 | recall@k, reciprocal rank, EM, F1, citation precision, abstention P/R, contradiction P/R | `eval/metrics.py` | gold labels are document sources, not database ids |
 | `normalize`, `content_hash` | `index.py` | implemented: the dataset job and `ingest` must dedup identically |
+| `embed(text) -> list[float]` | `embed.py` | implemented: Titan V2, 1024 floats of unit length, adaptive retry on throttling |
+| `upsert(doc) -> (status, id)`, `delete(id)` | `index.py` | wave 2: dedup checks before any embedding; chunks embedded as `<title>
+
+<chunk>` |
+| `search(query, k, strategy, mode)`, `get_document`, `list_documents`, `document_detail`, `get_chunks` | `search.py` | wave 2: `mode` is `dense`, `hybrid` (RRF) or `mmr` (RRF + MMR), the evaluated configurations |
 
 `ParsedDoc.text` has one shape for every format: paragraphs separated by a blank line, headings
 on their own line starting with `#`. The structure-aware chunker depends on it.

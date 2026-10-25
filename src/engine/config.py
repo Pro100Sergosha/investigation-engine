@@ -15,6 +15,9 @@ load_dotenv()
 # repository it sits at the root, two levels above this file.
 STATIC_DIR = Path(os.environ.get("LAMBDA_TASK_ROOT", Path(__file__).parents[2])) / "static"
 
+# Lambda and CodeBuild set AWS_REGION; the default lets tests create boto3 clients at import.
+REGION = os.environ.get("AWS_REGION", "eu-north-1")
+
 EMBED_MODEL = os.environ.get("EMBED_MODEL", "amazon.titan-embed-text-v2:0")
 
 # Aurora (express configuration): writer endpoint, database, and the login role. No password:
