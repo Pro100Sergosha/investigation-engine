@@ -21,6 +21,24 @@ def test_happy_path_answered():
     assert answer.status == "answered"
     assert answer.claims == [Claim(text="Paris is the capital.", citations=[1, 2])]
     assert answer.contradictions == []
+    assert answer.answer == ""  # "answer" may be absent
+
+
+def test_short_answer_is_kept_stripped():
+    raw = {"status": "answered", "answer": " Paris \n", "claims": [_claim("A", [1])]}
+    assert build_answer(raw, RETRIEVED).answer == "Paris"
+
+
+def test_short_answer_blank_when_insufficient():
+    # The model said "answered", but its only claim cites nothing retrieved.
+    raw = {"status": "answered", "answer": "Paris", "claims": [_claim("A", [99])]}
+    answer = build_answer(raw, RETRIEVED)
+    assert answer.status == "insufficient" and answer.answer == ""
+
+
+def test_short_answer_not_a_string_raises():
+    with pytest.raises(ValueError):
+        build_answer({"answer": 5, "claims": []}, RETRIEVED)
 
 
 def test_citation_not_retrieved_is_removed():

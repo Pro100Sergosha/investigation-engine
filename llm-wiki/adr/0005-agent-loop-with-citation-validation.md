@@ -35,3 +35,13 @@ to keep robust against malformed output.
 **Single-shot RAG**: one call, cheaper, kept as the baseline configuration in the eval.
 
 **Framework agents (LangGraph etc.)**: rejected by ADR 0001.
+
+## Update 2026-10-26
+
+Built in `agent.py`; the details are in [ADR 0025](0025-agent-loop-seeded-forced-deadline.md).
+Two points refine the text above without changing the decision:
+- "Returned by a tool call in this run" also covers the search the server runs on the question
+  before the first LLM call (the seed), and `get_document` returns chunk ids, so its passages
+  are citable too.
+- The "token budget per question" is not a token counter: it is the step cap (6), k <= 40 per
+  search and an 8,000-character cap on `get_document`.

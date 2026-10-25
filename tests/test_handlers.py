@@ -8,8 +8,9 @@ import boto3
 import pg8000.native
 import pytest
 
-from engine import handlers, index, search
+from engine import agent, handlers, index, search
 from engine.handlers import api, ingest, schema
+from engine.models import Answer, Claim
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -47,7 +48,7 @@ def test_root_serves_the_ui_page():
     ("method", "path"),
     [
         ("GET", "/nope"),
-        ("POST", "/ask"),  # wave 3
+        ("GET", "/ask"),
         ("POST", "/documents"),
         ("GET", "/documents/abc"),
         ("GET", "/documents/0"),
@@ -99,6 +100,49 @@ def test_chunk_and_404(monkeypatch):
     monkeypatch.setattr(search, "get_chunks", lambda ids: [chunk] if ids == [9] else [])
     assert _call(_event("GET", "/chunks/9")) == (200, chunk)
     assert _call(_event("GET", "/chunks/10"))[0] == 404
+
+
+@pytest.mark.parametrize(
+    "body",
+    ["{}", '{"question": "   "}', '{"question": 5}', json.dumps({"question": "a" * 1001}), "[]"],
+)
+def test_ask_rejects_bad_questions(monkeypatch, body):
+    monkeypatch.setattr(agent, "ask", lambda question: pytest.fail("agent must not run"))
+    status, response = _call(_event("POST", "/ask", body=body))
+    assert status == 400 and "error" in response
+
+
+def test_ask_returns_answer_with_cited_sources_and_logs_llm_usage(monkeypatch, capsys):
+    usage = {"inputTokens": 100, "outputTokens": 20, "cacheReadInputTokens": 50}
+    answer = Answer(
+        status="conflicting",
+        answer="14:02",
+        claims=[Claim("Started 14:02.", [5])],
+        contradictions=[Claim("14:02 vs 14:30.", [5, 9])],
+        trace=[
+            {"step": "llm", "model": "haiku", "cached": True, "usage": usage},
+            {"step": "search", "query": "q"},
+            {"step": "llm", "model": "gpt-oss", "cached": False, "usage": usage},
+        ],
+    )
+    questions, asked_ids = [], []
+    monkeypatch.setattr(agent, "ask", lambda q: questions.append(q) or answer)
+
+    def get_chunks(ids):
+        asked_ids.append(ids)
+        return [{"chunk_id": i} for i in dict.fromkeys(ids)]
+
+    monkeypatch.setattr(search, "get_chunks", get_chunks)
+    status, body = _call(_event("POST", "/ask", body='{"question": "  When?  "}'))
+    assert status == 200 and questions == ["When?"]
+    assert body["answer"] == "14:02" and body["status"] == "conflicting"
+    assert body["claims"] == [{"text": "Started 14:02.", "citations": [5]}]
+    assert asked_ids == [[5, 5, 9]] and body["sources"] == [{"chunk_id": 5}, {"chunk_id": 9}]
+    line = json.loads(capsys.readouterr().out)
+    assert line["route"] == "/ask" and line["status"] == 200
+    assert line["llm_steps"] == 2 and line["models"] == ["gpt-oss", "haiku"]
+    assert (line["input_tokens"], line["output_tokens"]) == (200, 40)
+    assert line["prompt_cache_read_tokens"] == 100 and line["llm_cache_hits"] == 1
 
 
 @pytest.fixture

@@ -1,3 +1,4 @@
+import hashlib
 import json
 
 import pytest
@@ -116,6 +117,49 @@ def test_cache_key_ignores_dict_order_and_sees_every_parameter():
     }
     for name, value in changes.items():
         assert llm.cache_key(**base) != llm.cache_key(**{**base, name: value}), name
+
+
+def test_tool_choice_changes_the_cache_key_and_none_keeps_the_old_key():
+    base = dict(model=llm.HAIKU, system=SYSTEM, messages=MESSAGES, tools=TOOLS, max_tokens=100)
+    # The key as computed before tool_choice existed: rows already in llm_cache stay valid.
+    before = {**base, "temperature": llm.TEMPERATURE}
+    canonical = json.dumps(before, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    assert llm.cache_key(**base) == hashlib.sha256(canonical.encode()).hexdigest()
+    forced = llm.cache_key(**base, tool_choice={"tool": {"name": "search"}})
+    assert forced != llm.cache_key(**base)
+
+
+def test_tool_choice_goes_into_tool_config(fake):
+    fake.script = [_response()]
+    _ask(tools=TOOLS, tool_choice={"tool": {"name": "search"}})
+    assert fake.requests[0]["toolConfig"] == {
+        "tools": TOOLS,
+        "toolChoice": {"tool": {"name": "search"}},
+    }
+
+
+def test_history_cache_point_for_claude_only_on_a_copy(fake):
+    fake.script = [_response(), _response()]
+    _ask(cache_history=True)
+    _ask(cache_history=True, model=llm.GPT_OSS)
+    claude, gpt_oss = fake.requests
+    assert claude["messages"][-1]["content"][-1] == {"cachePoint": {"type": "default"}}
+    assert gpt_oss["messages"] == MESSAGES
+    assert MESSAGES[0]["content"] == [{"text": "Who founded Acme?"}]  # the caller's list
+
+
+def test_deadline_stops_retries_and_fallback(fake, monkeypatch):
+    clock = [0.0]
+    monkeypatch.setattr(llm.time, "monotonic", lambda: clock[0])
+    fake.script = [_error("ThrottlingException")]
+    # The first attempt is the caller's decision; after it no whole attempt fits any more, so
+    # neither a retry nor the fallback starts.
+    with pytest.raises(ClientError):
+        _ask(deadline=llm.ATTEMPT_SECONDS - 1)
+    assert len(fake.requests) == 1
+
+    fake.script = [_error("ThrottlingException")] * 4 + [_response()]
+    assert _ask(deadline=1000)["model"] == llm.GPT_OSS  # plenty of time: retries + fallback
 
 
 def test_cache_hit_skips_the_model_and_fallback_is_not_cached(fake, monkeypatch):

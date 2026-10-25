@@ -184,6 +184,21 @@ def get_chunks(chunk_ids: list[int]) -> list[dict]:
     return _sources_in_order(chunk_ids, rows)
 
 
+def document_chunks(document_id: int, strategy: str) -> list[dict]:
+    """The chunks of one document for one chunking `strategy`, in document order (`ord`), as
+    `Source` dicts plus "ord"; [] for an unknown document. The agent's `get_document` tool reads
+    a document this way so that every passage it shows has a citable chunk id.
+    """
+    rows = db.run(
+        "SELECT c.id, c.document_id, d.title, d.source, c.text, c.ord "
+        "FROM chunks c JOIN documents d ON d.id = c.document_id "
+        "WHERE c.document_id = :id AND c.strategy = :strategy ORDER BY c.ord",
+        id=document_id,
+        strategy=strategy,
+    )
+    return _sources_in_order([row[0] for row in rows], rows)
+
+
 def _sources_in_order(chunk_ids: list[int], rows: list[list]) -> list[dict]:
     """Rows as `Source` dicts in the order of `chunk_ids`; unknown ids left out, repeats once."""
     by_id = {row[0]: row for row in rows}
