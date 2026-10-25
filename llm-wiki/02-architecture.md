@@ -29,7 +29,7 @@ the specification, with `NotImplementedError` bodies until their wave owners imp
 | recall@k, reciprocal rank, EM, F1, citation precision, abstention P/R, contradiction P/R | `eval/metrics.py` | gold labels are document sources, not database ids |
 | `normalize`, `content_hash` | `index.py` | implemented: the dataset job and `ingest` must dedup identically |
 | `embed(text) -> list[float]` | `embed.py` | implemented: Titan V2, 1024 floats of unit length, adaptive retry on throttling |
-| `upsert(doc) -> (status, id)`, `delete(id)` | `index.py` | wave 2: dedup checks before any embedding; chunks embedded as `<title>
+| `upsert(doc) -> (status, id)`, `delete(id)` | `index.py` | implemented: dedup checks before any embedding; chunks embedded as `<title>
 
 <chunk>` |
 | `search(query, k, strategy, mode)`, `get_document`, `list_documents`, `document_detail`, `get_chunks` | `search.py` | wave 2: `mode` is `dense`, `hybrid` (RRF) or `mmr` (RRF + MMR), the evaluated configurations |
