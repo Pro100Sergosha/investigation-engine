@@ -93,7 +93,7 @@ contradictions and the trace.
 | Database | Aurora Serverless v2 express configuration (PG 17.9 + pgvector), IAM-token connections (pg8000) | [ADR 0002](adr/0002-postgres-pgvector-single-store.md), [ADR 0015](adr/0015-aurora-serverless-data-api.md), [ADR 0021](adr/0021-aurora-express-iam-auth.md) |
 | Search | dense + `tsvector`, own RRF + MMR | [ADR 0003](adr/0003-hybrid-search-own-rrf-mmr.md) |
 | Embeddings | Bedrock Titan Text Embeddings V2, 1024d | [ADR 0016](adr/0016-titan-embeddings-no-model-in-lambda.md) |
-| LLM | Bedrock: Claude Haiku 4.5 (agent), gpt-oss-120b (fallback), Qwen3-235B (judge); Postgres cache | [ADR 0017](adr/0017-bedrock-claude-haiku-llm.md) |
+| LLM | Bedrock: Claude Haiku 4.5 (agent), gpt-oss-120b (fallback), Qwen3-235B (judge); `llm.converse`: own retry loop, Haiku-only fallback, `cachePoint` for Claude only, Postgres cache | [ADR 0017](adr/0017-bedrock-claude-haiku-llm.md), [ADR 0023](adr/0023-llm-client-own-retry-fallback-cache.md) |
 | Ingestion | presigned S3 PUT or bulk shard, S3 event -> `ingest` | [ADR 0008](adr/0008-function-url-not-api-gateway.md), [ADR 0018](adr/0018-cloud-only-ingestion-and-jobs.md) |
 | Jobs | CodeBuild `investigation-jobs`: dataset, acme, eval | [ADR 0018](adr/0018-cloud-only-ingestion-and-jobs.md) |
 | Config and secrets | no database password (IAM auth tokens), GitHub token in SSM; no LLM keys (IAM) | not in code, image or env vars |
