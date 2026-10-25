@@ -1,0 +1,74 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [6 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+5 0 obj
+<< /Title (Incident report: webhook deliveries failed after a certificate expiry) /Author (Acme Payments) /CreationDate (D:20260210000000+00'00') >>
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 2918 >>
+stream
+BT /F2 16 Tf 56 766 Td (Incident report: webhook deliveries failed after a) Tj ET
+BT /F2 16 Tf 56 746 Td (certificate expiry) Tj ET
+BT /F1 10 Tf 56 726 Td (Document: INC-202) Tj ET
+BT /F1 10 Tf 56 706 Td (Date: 2026-02-10) Tj ET
+BT /F1 10 Tf 56 686 Td (Services: notifications) Tj ET
+BT /F2 12 Tf 56 664 Td (Summary) Tj ET
+BT /F1 10 Tf 56 644 Td (SEV2 incident: the TLS client certificate used by the notifications service to deliver webhooks) Tj ET
+BT /F1 10 Tf 56 630 Td (expired at 06:00 UTC on February 9, 2026. The expiry was detected at 08:47 UTC. The certificate) Tj ET
+BT /F1 10 Tf 56 616 Td (was renewed at 09:10 UTC. Incident commander: Elena Petrova. The outage lasted 3 hours 10) Tj ET
+BT /F1 10 Tf 56 602 Td (minutes.) Tj ET
+BT /F2 12 Tf 56 580 Td (Impact) Tj ET
+BT /F1 10 Tf 56 560 Td (Webhook deliveries to merchants failed during the outage window. A total of 42,300 webhooks) Tj ET
+BT /F1 10 Tf 56 546 Td (were unable to be delivered while the certificate was expired. After certificate renewal, the) Tj ET
+BT /F1 10 Tf 56 532 Td (notifications service successfully redelivered all failed webhooks to merchants.) Tj ET
+BT /F2 12 Tf 56 510 Td (Timeline) Tj ET
+BT /F1 10 Tf 56 490 Td (- 06:00 UTC: TLS client certificate expired) Tj ET
+BT /F1 10 Tf 56 470 Td (- 08:47 UTC: certificate expiry detected) Tj ET
+BT /F1 10 Tf 56 450 Td (- 09:10 UTC: certificate renewed) Tj ET
+BT /F1 10 Tf 56 430 Td (- Webhooks redelivered after renewal) Tj ET
+BT /F2 12 Tf 56 408 Td (Root cause) Tj ET
+BT /F1 10 Tf 56 388 Td (The webhook delivery certificate was not renewed before its expiration. The certificate had) Tj ET
+BT /F1 10 Tf 56 374 Td (been valid for 365 days from issuance. Monitoring and alerting for certificate expiry did not) Tj ET
+BT /F1 10 Tf 56 360 Td (prevent this incident.) Tj ET
+BT /F2 12 Tf 56 338 Td (Resolution) Tj ET
+BT /F1 10 Tf 56 318 Td (The expired certificate was renewed at 09:10 UTC, restoring the ability of the notifications) Tj ET
+BT /F1 10 Tf 56 304 Td (service to authenticate with merchant endpoints. The notifications service automatically) Tj ET
+BT /F1 10 Tf 56 290 Td (redelivered all 42,300 failed webhooks after certificate renewal completed.) Tj ET
+BT /F2 12 Tf 56 268 Td (Follow-up actions) Tj ET
+BT /F1 10 Tf 56 248 Td (- Implement automated certificate renewal procedures per RB-09 \(Runbook: rotating) Tj ET
+BT /F1 10 Tf 56 234 Td (  notifications TLS certificates\)) Tj ET
+BT /F1 10 Tf 56 214 Td (- Review the status of CHG-1019 \(Change CHG-1019: certificate expiry alert for webhook) Tj ET
+BT /F1 10 Tf 56 200 Td (  delivery\) to ensure alerting is active and effective) Tj ET
+BT /F1 10 Tf 56 180 Td (- Establish a process to monitor certificate expiry dates and trigger renewal well before) Tj ET
+BT /F1 10 Tf 56 166 Td (  expiration) Tj ET
+BT /F1 10 Tf 56 146 Td (- Refer to STS-102 \(Status: delayed webhook notifications\) for merchant communication details) Tj ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000185 00000 n 
+0000000260 00000 n 
+0000000424 00000 n 
+0000000560 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R /Info 5 0 R >>
+startxref
+3530
+%%EOF

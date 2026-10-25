@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Status: slower payment approvals</title>
+</head>
+<body>
+<h1>Status: slower payment approvals</h1>
+<p>Document: STS-403</p>
+<p>Date: 2026-04-22</p>
+<p>Services: payments-api</p>
+<h2>Investigating</h2>
+<p>We identified slower payment approvals on the payments-api service starting at 2026-04-22. Merchants reported longer response times when submitting payment requests. Our team began investigating the cause immediately.</p>
+<h2>Identified</h2>
+<p>We determined that increased latency in our payment processing pipeline was causing the delays. Payments were still processed and completed successfully, but approvals took longer than our normal service levels.</p>
+<h2>Monitoring</h2>
+<p>We implemented additional monitoring and began working on optimizations to restore normal approval speeds. All payments continued to be processed throughout this period, and no payments were lost or declined due to the slower approvals.</p>
+<h2>Resolved</h2>
+<p>We have resolved the slower payment approvals issue. The payments-api service is now operating at normal performance levels. Merchants should see approval times return to expected response times.</p>
+<p>If you continue to experience slower payment approvals, please contact our support team.</p>
+</body>
+</html>

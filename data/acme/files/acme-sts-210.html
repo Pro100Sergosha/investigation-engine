@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Status: scheduled maintenance of the ledger database</title>
+</head>
+<body>
+<h1>Status: scheduled maintenance of the ledger database</h1>
+<p>Document: STS-210</p>
+<p>Date: 2026-02-28</p>
+<p>Services: ledger, payments-api</p>
+<h2>Scheduled Maintenance</h2>
+<p>We will perform a scheduled upgrade to the ledger database on 2026-03-02 from 02:00 to 03:00 UTC.</p>
+<p>During this maintenance window, the payments-api service will remain available and you will be able to submit payments normally. However, payment confirmations may be delayed by up to 2 minutes as the ledger processes transactions during the upgrade.</p>
+<p>We recommend scheduling any time-sensitive payment operations outside this window if possible. Webhooks and payment status updates will resume normal latency once the maintenance is complete.</p>
+<h2>Completed</h2>
+<p>The ledger database upgrade has been completed successfully.</p>
+</body>
+</html>

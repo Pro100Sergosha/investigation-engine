@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Status: scheduled ledger database failover test</title>
+</head>
+<body>
+<h1>Status: scheduled ledger database failover test</h1>
+<p>Document: STS-306</p>
+<p>Date: 2026-04-03</p>
+<p>Services: ledger, payments-api</p>
+<h2>Scheduled</h2>
+<p>We will perform a planned failover test of the ledger database on 2026-04-06 at 01:00 UTC. This test is part of our regular maintenance to ensure our systems can handle database failovers smoothly.</p>
+<p>During this test, the ledger service will briefly become unavailable. Payment confirmations may pause for under one minute while the database switches to its backup instance. The payments-api will queue requests during this time and process them once the ledger comes back online.</p>
+<p>We expect minimal impact to merchants, but we recommend avoiding large payment batches during this maintenance window if possible.</p>
+<h2>Completed</h2>
+<p>The ledger database failover test completed successfully on 2026-04-06 at 01:00 UTC. The database switched to its backup instance and returned to normal operation in under one minute as planned. All queued payment confirmations were processed without data loss.</p>
+<p>Thank you for your patience during this maintenance.</p>
+</body>
+</html>

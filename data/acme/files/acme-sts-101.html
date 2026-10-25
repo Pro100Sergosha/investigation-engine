@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Status: elevated card declines</title>
+</head>
+<body>
+<h1>Status: elevated card declines</h1>
+<p>Document: STS-101</p>
+<p>Date: 2026-01-21</p>
+<p>Services: payments-api, fraud-scorer</p>
+<h2>Investigating</h2>
+<p>At 10:32 UTC on January 21, 2026, we identified an elevated rate of card payment declines affecting the payments-api and fraud-scorer services. Legitimate customer payments were being declined at higher than normal rates. Our teams began immediate investigation to identify the cause and restore normal service.</p>
+<h2>Identified</h2>
+<p>We identified a faulty risk model update in the fraud-scorer service that was incorrectly flagging legitimate transactions as high-risk. The decline rate peaked at 6.5% during the incident window. Once identified, we began rolling back the problematic update to restore normal fraud scoring behavior.</p>
+<h2>Resolved</h2>
+<p>At 11:45 UTC, we completed the rollback and confirmed that card payment declines had returned to baseline rates. The payments-api and fraud-scorer services are operating normally. All legitimate payment requests are being processed without the elevated decline rates experienced during the incident.</p>
+<p>We apologize for the disruption to your payment processing. If you have questions about payments declined during this window, please contact our support team.</p>
+</body>
+</html>

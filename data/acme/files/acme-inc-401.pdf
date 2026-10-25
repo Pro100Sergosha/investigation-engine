@@ -1,0 +1,74 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [6 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+5 0 obj
+<< /Title (Incident report: merchant portal login failures) /Author (Acme Payments) /CreationDate (D:20260408000000+00'00') >>
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 3108 >>
+stream
+BT /F2 16 Tf 56 766 Td (Incident report: merchant portal login failures) Tj ET
+BT /F1 10 Tf 56 746 Td (Document: INC-401) Tj ET
+BT /F1 10 Tf 56 726 Td (Date: 2026-04-08) Tj ET
+BT /F1 10 Tf 56 706 Td (Services: merchant-portal) Tj ET
+BT /F2 12 Tf 56 684 Td (Summary) Tj ET
+BT /F1 10 Tf 56 664 Td (SEV2 incident affecting merchant portal login on April 7, 2026. Merchants could not log in to) Tj ET
+BT /F1 10 Tf 56 650 Td (the merchant portal because the redirect URI set by CHG-1068 was not registered at Sentinel ID.) Tj ET
+BT /F1 10 Tf 56 636 Td (The incident lasted 45 minutes and was resolved by registering the new redirect URI. Incident) Tj ET
+BT /F1 10 Tf 56 622 Td (commander: Lucas Moreau. CHG-1068 was deployed at 07:55 UTC.) Tj ET
+BT /F2 12 Tf 56 600 Td (Impact) Tj ET
+BT /F1 10 Tf 56 580 Td (Merchants were unable to access the merchant portal during the incident window. This prevented) Tj ET
+BT /F1 10 Tf 56 566 Td (merchants from viewing payments, reports and settings. The outage affected login functionality) Tj ET
+BT /F1 10 Tf 56 552 Td (across all merchant accounts using Sentinel ID for authentication. See STS-401 for status) Tj ET
+BT /F1 10 Tf 56 538 Td (updates provided to merchants during the incident.) Tj ET
+BT /F2 12 Tf 56 516 Td (Timeline) Tj ET
+BT /F1 10 Tf 56 496 Td (- 07:55 UTC: CHG-1068 deployed to production) Tj ET
+BT /F1 10 Tf 56 476 Td (- 08:00 UTC: Merchants report login failures; alerts triggered) Tj ET
+BT /F1 10 Tf 56 456 Td (- 08:15 UTC: Incident commander engaged; RB-08 consulted) Tj ET
+BT /F1 10 Tf 56 436 Td (- 08:25 UTC: Root cause identified as unregistered redirect URI) Tj ET
+BT /F1 10 Tf 56 416 Td (- 08:40 UTC: New redirect URI registered at Sentinel ID) Tj ET
+BT /F1 10 Tf 56 396 Td (- 08:45 UTC: Login functionality restored; merchants able to access portal) Tj ET
+BT /F2 12 Tf 56 374 Td (Root cause) Tj ET
+BT /F1 10 Tf 56 354 Td (CHG-1068 introduced a new Sentinel ID redirect URI for the merchant portal SSO integration. The) Tj ET
+BT /F1 10 Tf 56 340 Td (deployment proceeded without the corresponding redirect URI being registered in the Sentinel ID) Tj ET
+BT /F1 10 Tf 56 326 Td (configuration. This mismatch caused authentication redirects to fail, blocking all merchant) Tj ET
+BT /F1 10 Tf 56 312 Td (login attempts.) Tj ET
+BT /F2 12 Tf 56 290 Td (Resolution) Tj ET
+BT /F1 10 Tf 56 270 Td (The Merchant Experience team registered the new redirect URI at Sentinel ID. Once the) Tj ET
+BT /F1 10 Tf 56 256 Td (configuration was updated, the SSO flow completed successfully and merchants regained access to) Tj ET
+BT /F1 10 Tf 56 242 Td (the portal.) Tj ET
+BT /F2 12 Tf 56 220 Td (Follow-up actions) Tj ET
+BT /F1 10 Tf 56 200 Td (- Review deployment procedures for SSO configuration changes to ensure external provider) Tj ET
+BT /F1 10 Tf 56 186 Td (  registrations are completed before production deployments) Tj ET
+BT /F1 10 Tf 56 166 Td (- Update RB-08 to include verification steps for Sentinel ID redirect URI registration) Tj ET
+BT /F1 10 Tf 56 146 Td (- Audit other integrations with external SSO providers for similar misconfigurations) Tj ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000185 00000 n 
+0000000260 00000 n 
+0000000402 00000 n 
+0000000538 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R /Info 5 0 R >>
+startxref
+3698
+%%EOF

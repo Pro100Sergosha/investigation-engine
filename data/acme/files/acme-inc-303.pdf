@@ -1,0 +1,72 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [6 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+5 0 obj
+<< /Title (Incident report: 3-D Secure challenge failures for Visa cards) /Author (Acme Payments) /CreationDate (D:20260327000000+00'00') >>
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 2970 >>
+stream
+BT /F2 16 Tf 56 766 Td (Incident report: 3-D Secure challenge failures for Visa) Tj ET
+BT /F2 16 Tf 56 746 Td (cards) Tj ET
+BT /F1 10 Tf 56 726 Td (Document: INC-303) Tj ET
+BT /F1 10 Tf 56 706 Td (Date: 2026-03-27) Tj ET
+BT /F1 10 Tf 56 686 Td (Services: card-gateway) Tj ET
+BT /F2 12 Tf 56 664 Td (Summary) Tj ET
+BT /F1 10 Tf 56 644 Td (A SEV2 incident affected 3-D Secure challenge processing for Visa cards on March 26, 2026. The) Tj ET
+BT /F1 10 Tf 56 630 Td (card-gateway service experienced failures between 09:12 and 11:03 UTC. Investigation confirmed) Tj ET
+BT /F1 10 Tf 56 616 Td (a fault on the NorthBank side. NorthBank identified and resolved the issue. CHG-1055 was) Tj ET
+BT /F1 10 Tf 56 602 Td (investigated as a potential cause and ruled out; CHG-1055 was not rolled back.) Tj ET
+BT /F2 12 Tf 56 580 Td (Impact) Tj ET
+BT /F1 10 Tf 56 560 Td (Approximately 2.3% of card payments were affected during the incident window. These payments) Tj ET
+BT /F1 10 Tf 56 546 Td (required 3-D Secure verification for Visa cards but encountered failures in the challenge) Tj ET
+BT /F1 10 Tf 56 532 Td (process. Merchants experienced payment declines for affected transactions. The incident was) Tj ET
+BT /F1 10 Tf 56 518 Td (classified as SEV2 due to the scope of payment processing disruption.) Tj ET
+BT /F2 12 Tf 56 496 Td (Timeline) Tj ET
+BT /F1 10 Tf 56 476 Td (- 09:12 UTC: Elevated error rates detected in 3-D Secure challenge responses for Visa cards) Tj ET
+BT /F1 10 Tf 56 456 Td (- 09:45 UTC: Incident declared; card-gateway team engaged) Tj ET
+BT /F1 10 Tf 56 436 Td (- 10:15 UTC: Investigation began into CHG-1055, deployed the previous day) Tj ET
+BT /F1 10 Tf 56 416 Td (- 10:40 UTC: NorthBank contacted; preliminary investigation indicated fault on NorthBank side) Tj ET
+BT /F1 10 Tf 56 396 Td (- 11:03 UTC: NorthBank confirmed resolution of their fault; error rates returned to normal) Tj ET
+BT /F1 10 Tf 56 376 Td (- 11:30 UTC: All-clear confirmed; incident closed) Tj ET
+BT /F2 12 Tf 56 354 Td (Root Cause) Tj ET
+BT /F1 10 Tf 56 334 Td (NorthBank confirmed a fault on the NorthBank side affecting 3-D Secure verification processing.) Tj ET
+BT /F1 10 Tf 56 320 Td (The fault was not related to recent changes in card-gateway. CHG-1055 was investigated and) Tj ET
+BT /F1 10 Tf 56 306 Td (ruled out as a contributing factor.) Tj ET
+BT /F2 12 Tf 56 284 Td (Resolution) Tj ET
+BT /F1 10 Tf 56 264 Td (NorthBank resolved the fault on their infrastructure. No changes to card-gateway were required.) Tj ET
+BT /F1 10 Tf 56 250 Td (The service recovered automatically once NorthBank's systems returned to normal operation.) Tj ET
+BT /F2 12 Tf 56 228 Td (Follow-up Actions) Tj ET
+BT /F1 10 Tf 56 208 Td (- Review incident response procedures with reference to RB-05) Tj ET
+BT /F1 10 Tf 56 188 Td (- Coordinate with NorthBank on advance notification protocols for their maintenance windows) Tj ET
+BT /F1 10 Tf 56 168 Td (- Document lessons learned in STS-303) Tj ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000185 00000 n 
+0000000260 00000 n 
+0000000416 00000 n 
+0000000552 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R /Info 5 0 R >>
+startxref
+3574
+%%EOF

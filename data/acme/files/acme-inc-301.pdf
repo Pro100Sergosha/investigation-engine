@@ -1,0 +1,72 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [6 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+5 0 obj
+<< /Title (Postmortem: card payment outage on 2026-03-12) /Author (Acme Payments) /CreationDate (D:20260314000000+00'00') >>
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 3008 >>
+stream
+BT /F2 16 Tf 56 766 Td (Postmortem: card payment outage on 2026-03-12) Tj ET
+BT /F1 10 Tf 56 746 Td (Document: INC-301) Tj ET
+BT /F1 10 Tf 56 726 Td (Date: 2026-03-14) Tj ET
+BT /F1 10 Tf 56 706 Td (Services: payments-api, ledger, card-gateway, notifications) Tj ET
+BT /F2 12 Tf 56 684 Td (Summary) Tj ET
+BT /F1 10 Tf 56 664 Td (SEV1 postmortem of the March 12, 2026 outage affecting card payment processing. Change CHG-1042) Tj ET
+BT /F1 10 Tf 56 650 Td (reduced the ledger connection pool max_connections from 200 to 20, causing ledger connection) Tj ET
+BT /F1 10 Tf 56 636 Td (pool exhaustion. This cascaded across payments-api, card-gateway, and notifications services.) Tj ET
+BT /F1 10 Tf 56 622 Td (Incident commander Elena Petrova. Report author Maya Chen, Payments Platform team lead.) Tj ET
+BT /F2 12 Tf 56 600 Td (Impact) Tj ET
+BT /F1 10 Tf 56 580 Td (Card payments failed for 1,240 merchants over 56 minutes. payments-api returned errors to) Tj ET
+BT /F1 10 Tf 56 566 Td (merchants attempting to create payments. card-gateway experienced timeouts while waiting for) Tj ET
+BT /F1 10 Tf 56 552 Td (ledger writes to complete. notifications service delayed 18,400 webhooks to merchants about) Tj ET
+BT /F1 10 Tf 56 538 Td (payment events. See STS-301 for status updates during the incident.) Tj ET
+BT /F2 12 Tf 56 516 Td (Timeline) Tj ET
+BT /F1 10 Tf 56 496 Td (- 14:02 UTC: impact began at 14:02 UTC; ledger connection pool exhaustion detected) Tj ET
+BT /F1 10 Tf 56 476 Td (- 14:15 UTC: Incident declared SEV1) Tj ET
+BT /F1 10 Tf 56 456 Td (- 14:41 UTC: CHG-1042 rolled back) Tj ET
+BT /F1 10 Tf 56 436 Td (- 14:58 UTC: recovered at 14:58 UTC; all payments processing normally) Tj ET
+BT /F2 12 Tf 56 414 Td (Root cause) Tj ET
+BT /F1 10 Tf 56 394 Td (CHG-1042 was approved by Ravi Patel and deployed to reduce ledger connection pool size as a) Tj ET
+BT /F1 10 Tf 56 380 Td (cost optimization. The change set max_connections from 200 to 20 without accounting for peak) Tj ET
+BT /F1 10 Tf 56 366 Td (payment throughput. Under normal load, the reduced pool became exhausted, causing connection) Tj ET
+BT /F1 10 Tf 56 352 Td (timeouts across all services that depend on ledger writes. See INC-302 for card-gateway team's) Tj ET
+BT /F1 10 Tf 56 338 Td (preliminary report on authorization timeouts.) Tj ET
+BT /F2 12 Tf 56 316 Td (Resolution) Tj ET
+BT /F1 10 Tf 56 296 Td (CHG-1042 was rolled back at 14:41 UTC, restoring the connection pool to its previous size.) Tj ET
+BT /F1 10 Tf 56 282 Td (CHG-1047 subsequently restored the ledger pool size and added a configuration check to prevent) Tj ET
+BT /F1 10 Tf 56 268 Td (similar reductions in the future.) Tj ET
+BT /F2 12 Tf 56 246 Td (Follow-up actions) Tj ET
+BT /F1 10 Tf 56 226 Td (- Review RB-03 for ledger connection pool saturation procedures) Tj ET
+BT /F1 10 Tf 56 206 Td (- Implement capacity planning review for all service dependencies) Tj ET
+BT /F1 10 Tf 56 186 Td (- Add monitoring alerts for connection pool saturation across all services) Tj ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000185 00000 n 
+0000000260 00000 n 
+0000000400 00000 n 
+0000000536 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R /Info 5 0 R >>
+startxref
+3596
+%%EOF

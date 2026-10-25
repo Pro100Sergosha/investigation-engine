@@ -347,8 +347,8 @@
       "date": "2026-03-13",
       "services": ["notifications"],
       "title": "Incident report: webhook backlog after the 2026-03-12 outage",
-      "summary": "Merchant Experience team report by Hannah Kim: during and after the March 12 outage payment webhooks queued up; CHG-1045 scaled notification workers at 15:05 UTC and the backlog was cleared. Gives the number of delayed webhooks. It does not say when the outage itself began (that is in INC-301); its timeline has only the two times given.",
-      "facts": ["26,900 webhooks", "from 8 to 24", "at 15:05 UTC", "cleared by 16:30 UTC", "Hannah Kim"],
+      "summary": "Merchant Experience team report by Hannah Kim: during and after the March 12 outage payment webhooks queued up; CHG-1045 scaled notification workers at 15:05 UTC and the backlog was cleared by 16:30 UTC. Gives the number of delayed webhooks. It does not say when the outage itself began (that is in INC-301); its timeline has only the two times given.",
+      "facts": ["26,900 webhooks", "from 8 to 24", "at 15:05 UTC", "16:30 UTC", "Hannah Kim"],
       "refs": ["INC-301", "CHG-1045", "RB-07"]
     },
     {

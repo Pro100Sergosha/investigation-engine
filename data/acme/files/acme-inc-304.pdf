@@ -1,0 +1,75 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [6 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+5 0 obj
+<< /Title (Incident report: payments-api latency from one merchant's retry loop) /Author (Acme Payments) /CreationDate (D:20260303000000+00'00') >>
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 3218 >>
+stream
+BT /F2 16 Tf 56 766 Td (Incident report: payments-api latency from one merchant's) Tj ET
+BT /F2 16 Tf 56 746 Td (retry loop) Tj ET
+BT /F1 10 Tf 56 726 Td (Document: INC-304) Tj ET
+BT /F1 10 Tf 56 706 Td (Date: 2026-03-03) Tj ET
+BT /F1 10 Tf 56 686 Td (Services: payments-api) Tj ET
+BT /F2 12 Tf 56 664 Td (Summary) Tj ET
+BT /F1 10 Tf 56 644 Td (On March 3, 2026, merchant m_77812 experienced integration issues that caused their client to) Tj ET
+BT /F1 10 Tf 56 630 Td (retry failed requests in a tight loop. This retry behavior generated excessive load on) Tj ET
+BT /F1 10 Tf 56 616 Td (payments-api, raising p99 latency to 4.2 seconds across all merchants. The incident was) Tj ET
+BT /F1 10 Tf 56 602 Td (classified as SEV3. Mitigation was achieved through manual rate-limit override. A permanent) Tj ET
+BT /F1 10 Tf 56 588 Td (solution was implemented via CHG-1036.) Tj ET
+BT /F2 12 Tf 56 566 Td (Impact) Tj ET
+BT /F1 10 Tf 56 546 Td (All merchants using payments-api experienced elevated latency during the incident window. The) Tj ET
+BT /F1 10 Tf 56 532 Td (p99 latency of 4.2 seconds degraded the payment experience for legitimate transactions.) Tj ET
+BT /F1 10 Tf 56 518 Td (Merchant m_77812's integration remained unable to process payments successfully due to their) Tj ET
+BT /F1 10 Tf 56 504 Td (underlying client-side issue.) Tj ET
+BT /F2 12 Tf 56 482 Td (Timeline) Tj ET
+BT /F1 10 Tf 56 462 Td (- 14:23 UTC: Elevated latency detected on payments-api) Tj ET
+BT /F1 10 Tf 56 442 Td (- 14:31 UTC: On-call engineer identified merchant m_77812 as source of excessive request) Tj ET
+BT /F1 10 Tf 56 428 Td (  volume) Tj ET
+BT /F1 10 Tf 56 408 Td (- 14:45 UTC: Rate-limit override applied to merchant m_77812) Tj ET
+BT /F1 10 Tf 56 388 Td (- 14:52 UTC: p99 latency returned to normal levels) Tj ET
+BT /F1 10 Tf 56 368 Td (- 15:10 UTC: Merchant m_77812 contacted and advised to investigate their retry logic) Tj ET
+BT /F2 12 Tf 56 346 Td (Root Cause) Tj ET
+BT /F1 10 Tf 56 326 Td (Merchant m_77812's integration was configured to retry failed requests without exponential) Tj ET
+BT /F1 10 Tf 56 312 Td (backoff or jitter. When their client encountered transient errors, the retry loop generated) Tj ET
+BT /F1 10 Tf 56 298 Td (requests at a rate that consumed disproportionate API capacity, impacting latency for all other) Tj ET
+BT /F1 10 Tf 56 284 Td (merchants on the shared payments-api infrastructure.) Tj ET
+BT /F2 12 Tf 56 262 Td (Resolution) Tj ET
+BT /F1 10 Tf 56 242 Td (The on-call engineer applied a rate-limit override to throttle requests from merchant m_77812,) Tj ET
+BT /F1 10 Tf 56 228 Td (immediately reducing their request volume and restoring normal latency for all merchants. This) Tj ET
+BT /F1 10 Tf 56 214 Td (mitigation followed procedures documented in RB-02.) Tj ET
+BT /F2 12 Tf 56 192 Td (Follow-up Actions) Tj ET
+BT /F1 10 Tf 56 172 Td (CHG-1036 implemented a permanent per-merchant rate limit on payments-api to prevent similar) Tj ET
+BT /F1 10 Tf 56 158 Td (incidents. This change ensures that any single merchant's traffic spike cannot degrade service) Tj ET
+BT /F1 10 Tf 56 144 Td (for others. Merchant m_77812 was advised to implement exponential backoff in their retry logic.) Tj ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000185 00000 n 
+0000000260 00000 n 
+0000000423 00000 n 
+0000000559 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R /Info 5 0 R >>
+startxref
+3829
+%%EOF
