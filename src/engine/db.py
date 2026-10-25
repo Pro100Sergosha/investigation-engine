@@ -20,7 +20,8 @@ def connect(user: str) -> pg8000.native.Connection:
     valid 15 minutes for opening connections only. There is no stored password anywhere.
     """
     # Created here, not at import: tests import this module without an AWS Region.
-    token = boto3.client("rds").generate_db_auth_token(config.DB_HOST, 5432, user)
+    rds = boto3.client("rds", region_name=config.REGION)  # boto3 ignores AWS_REGION outside AWS
+    token = rds.generate_db_auth_token(config.DB_HOST, 5432, user)
     # A paused cluster (0 ACU) resumes on the first connection, ~15 s; give it a minute.
     for _ in range(5):
         try:
