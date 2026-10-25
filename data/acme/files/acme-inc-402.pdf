@@ -6,10 +6,10 @@ endobj
 << /Type /Pages /Kids [6 0 R] /Count 1 >>
 endobj
 3 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
 endobj
 4 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
 endobj
 5 0 obj
 << /Title (Incident report: ledger reconciliation mismatch) /Author (Acme Payments) /CreationDate (D:20260416000000+00'00') >>
@@ -63,12 +63,12 @@ xref
 0000000009 00000 n 
 0000000058 00000 n 
 0000000115 00000 n 
-0000000185 00000 n 
-0000000260 00000 n 
-0000000402 00000 n 
-0000000538 00000 n 
+0000000212 00000 n 
+0000000314 00000 n 
+0000000456 00000 n 
+0000000592 00000 n 
 trailer
 << /Size 8 /Root 1 0 R /Info 5 0 R >>
 startxref
-3843
+3897
 %%EOF

@@ -1,0 +1,3 @@
+# The corpus is checked byte for byte: no line-ending conversion. The PDFs are pure ASCII, so git
+# would take them for text, and CRLF on a Windows checkout breaks their xref byte offsets.
+files/** -text

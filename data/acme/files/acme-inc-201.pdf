@@ -6,10 +6,10 @@ endobj
 << /Type /Pages /Kids [6 0 R] /Count 1 >>
 endobj
 3 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
 endobj
 4 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
 endobj
 5 0 obj
 << /Title (Incident report: false declines after the fraud-scorer v3.4 release) /Author (Acme Payments) /CreationDate (D:20260122000000+00'00') >>
@@ -18,7 +18,7 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 7 0 R >>
 endobj
 7 0 obj
-<< /Length 3034 >>
+<< /Length 3036 >>
 stream
 BT /F2 16 Tf 56 766 Td (Incident report: false declines after the fraud-scorer v3.4) Tj ET
 BT /F2 16 Tf 56 746 Td (release) Tj ET
@@ -26,36 +26,36 @@ BT /F1 10 Tf 56 726 Td (Document: INC-201) Tj ET
 BT /F1 10 Tf 56 706 Td (Date: 2026-01-22) Tj ET
 BT /F1 10 Tf 56 686 Td (Services: fraud-scorer, payments-api) Tj ET
 BT /F2 12 Tf 56 664 Td (Summary) Tj ET
-BT /F1 10 Tf 56 644 Td (On 2026-01-22, fraud-scorer model v3.4 was deployed at 10:15 UTC as part of CHG-1011. The new) Tj ET
-BT /F1 10 Tf 56 630 Td (model exhibited significantly elevated decline rates on legitimate card payments, triggering a) Tj ET
-BT /F1 10 Tf 56 616 Td (SEV2 incident. The model was rolled back at 11:40 UTC to v3.3. Incident commander Lucas Moreau) Tj ET
-BT /F1 10 Tf 56 602 Td (led the response.) Tj ET
-BT /F2 12 Tf 56 580 Td (Impact) Tj ET
-BT /F1 10 Tf 56 560 Td (The elevated decline rate increased from 2.1% to 9.8% during the incident window. Legitimate) Tj ET
-BT /F1 10 Tf 56 546 Td (merchants experienced payment failures, reducing transaction success rates and creating) Tj ET
-BT /F1 10 Tf 56 532 Td (customer friction. The fraud-scorer service remained operational but was miscalibrated, causing) Tj ET
-BT /F1 10 Tf 56 518 Td (unnecessary payment rejections.) Tj ET
-BT /F2 12 Tf 56 496 Td (Timeline) Tj ET
-BT /F1 10 Tf 56 476 Td (- 10:15 UTC: fraud-scorer model v3.4 deployed) Tj ET
-BT /F1 10 Tf 56 456 Td (- 10:28 UTC: monitoring alerts triggered for elevated decline rates) Tj ET
-BT /F1 10 Tf 56 436 Td (- 10:35 UTC: incident declared; STS-101 status page updated) Tj ET
-BT /F1 10 Tf 56 416 Td (- 10:42 UTC: root cause identified as v3.4 model behavior) Tj ET
-BT /F1 10 Tf 56 396 Td (- 11:40 UTC: rolled back at 11:40 UTC to v3.3 using RB-06) Tj ET
-BT /F1 10 Tf 56 376 Td (- 11:52 UTC: decline rates returned to baseline; incident resolved) Tj ET
-BT /F2 12 Tf 56 354 Td (Root Cause) Tj ET
-BT /F1 10 Tf 56 334 Td (fraud-scorer model v3.4 applied overly aggressive scoring thresholds that rejected legitimate) Tj ET
-BT /F1 10 Tf 56 320 Td (payment patterns. The model-level analysis to determine why v3.4 declined legitimate payments) Tj ET
-BT /F1 10 Tf 56 306 Td (remains an open follow-up item.) Tj ET
-BT /F2 12 Tf 56 284 Td (Resolution) Tj ET
-BT /F1 10 Tf 56 264 Td (The incident was resolved by rolling back fraud-scorer to model v3.3 following RB-06. Decline) Tj ET
-BT /F1 10 Tf 56 250 Td (rates normalized within minutes of rollback completion. No data loss or ledger inconsistencies) Tj ET
-BT /F1 10 Tf 56 236 Td (occurred.) Tj ET
-BT /F2 12 Tf 56 214 Td (Follow-up Actions) Tj ET
-BT /F1 10 Tf 56 194 Td (- Complete model-level analysis of v3.4 behavior before any re-release attempt) Tj ET
-BT /F1 10 Tf 56 174 Td (- Review CHG-1011 change controls and pre-deployment validation procedures) Tj ET
-BT /F1 10 Tf 56 154 Td (- Implement canary deployment for future fraud-scorer model releases to catch calibration) Tj ET
-BT /F1 10 Tf 56 140 Td (  issues earlier) Tj ET
-BT /F1 10 Tf 56 120 Td (- Establish tighter alerting thresholds for decline rate anomalies) Tj ET
+BT /F1 10 Tf 56 644 Td (On January 21, 2026, fraud-scorer model v3.4 was deployed at 10:15 UTC via CHG-1011. The new) Tj ET
+BT /F1 10 Tf 56 630 Td (model began declining a significantly elevated volume of legitimate card payments. Incident) Tj ET
+BT /F1 10 Tf 56 616 Td (commander Lucas Moreau initiated a SEV2 incident response. The model was rolled back at 11:40) Tj ET
+BT /F1 10 Tf 56 602 Td (UTC to v3.3, restoring normal decline rates. This postmortem documents the incident and) Tj ET
+BT /F1 10 Tf 56 588 Td (outlines follow-up actions.) Tj ET
+BT /F2 12 Tf 56 566 Td (Impact) Tj ET
+BT /F1 10 Tf 56 546 Td (The elevated decline rate caused legitimate merchants and cardholders to experience payment) Tj ET
+BT /F1 10 Tf 56 532 Td (failures. The fraud-scorer decline rate increased from 2.1% to 9.8% during the incident window.) Tj ET
+BT /F1 10 Tf 56 518 Td (Affected merchants received decline notifications through the notifications service. The) Tj ET
+BT /F1 10 Tf 56 504 Td (incident was tracked under STS-101.) Tj ET
+BT /F2 12 Tf 56 482 Td (Timeline) Tj ET
+BT /F1 10 Tf 56 462 Td (- 10:15 UTC: v3.4 deployed via CHG-1011) Tj ET
+BT /F1 10 Tf 56 442 Td (- 10:45 UTC: Monitoring alerts triggered for elevated decline rate) Tj ET
+BT /F1 10 Tf 56 422 Td (- 10:50 UTC: SEV2 incident declared) Tj ET
+BT /F1 10 Tf 56 402 Td (- 11:05 UTC: Root cause identified as v3.4 model behavior) Tj ET
+BT /F1 10 Tf 56 382 Td (- 11:40 UTC: Rolled back at 11:40 UTC to v3.3 using RB-06) Tj ET
+BT /F1 10 Tf 56 362 Td (- 11:50 UTC: Decline rate returned to baseline of 2.1%) Tj ET
+BT /F2 12 Tf 56 340 Td (Root cause) Tj ET
+BT /F1 10 Tf 56 320 Td (fraud-scorer model v3.4 exhibited unexpected behavior that caused legitimate payments to be) Tj ET
+BT /F1 10 Tf 56 306 Td (scored as high-risk and declined. The specific model-level factors driving this behavior remain) Tj ET
+BT /F1 10 Tf 56 292 Td (under investigation.) Tj ET
+BT /F2 12 Tf 56 270 Td (Resolution) Tj ET
+BT /F1 10 Tf 56 250 Td (The incident was resolved by rolling back fraud-scorer to model v3.3 following RB-06. Decline) Tj ET
+BT /F1 10 Tf 56 236 Td (rates normalized immediately after rollback.) Tj ET
+BT /F2 12 Tf 56 214 Td (Follow-up actions) Tj ET
+BT /F1 10 Tf 56 194 Td (- Conduct detailed analysis of v3.4 model behavior before any re-release attempt) Tj ET
+BT /F1 10 Tf 56 174 Td (- Review CHG-1011 change process and pre-deployment validation procedures) Tj ET
+BT /F1 10 Tf 56 154 Td (- Implement additional monitoring and canary deployment safeguards for future model releases) Tj ET
+BT /F1 10 Tf 56 134 Td (- Coordinate with the Risk team to establish model performance baselines and alerting) Tj ET
+BT /F1 10 Tf 56 120 Td (  thresholds) Tj ET
 endstream
 endobj
 xref
@@ -64,12 +64,12 @@ xref
 0000000009 00000 n 
 0000000058 00000 n 
 0000000115 00000 n 
-0000000185 00000 n 
-0000000260 00000 n 
-0000000422 00000 n 
-0000000558 00000 n 
+0000000212 00000 n 
+0000000314 00000 n 
+0000000476 00000 n 
+0000000612 00000 n 
 trailer
 << /Size 8 /Root 1 0 R /Info 5 0 R >>
 startxref
-3644
+3700
 %%EOF
