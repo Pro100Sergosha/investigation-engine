@@ -12,10 +12,9 @@ own small code instead.
 ## 0. Status
 
 **Updated 2026-10-25 (day 2 of 6).** Wave 0 and wave 1 merged (PRs #4-#17). Wave 2 in progress:
-contracts and `embed.py` (#19), document writes (#22), search (#23), LLM client (#20) merged; API routes in review.
-**Behind:** the day 2 goal (`search()` over >= 50k records) is not met: nothing is indexed yet,
-`ingest` is a stub.
-Next: merge API routes + ingest (#21), then the bulk load.
+contracts and `embed.py` (#19), document writes (#22), search (#23), LLM client (#20), API routes + `ingest` (#21) merged: wave 2 code is complete.
+**Behind:** the day 2 goal (`search()` over >= 50k records) is not met: nothing is indexed yet.
+Next: bulk load (`dataset` job -> shards -> `ingest`), UI check of upload/update/delete, then wave 3.
 
 How status is kept (every PR that finishes or advances a task updates it in the same PR):
 - this section: date, current day and wave, what is behind, what is next;
@@ -28,11 +27,11 @@ How status is kept (every PR that finishes or advances a task updates it in the 
 ## 1. Requirements checklist (from the task)
 
 Ingestion
-- [ ] >= 3 file formats (plan: PDF, DOCX, Markdown/HTML, JSONL) — partial: `parsers.py` (#16); not wired into `ingest`
-- [ ] text + metadata extraction (source, title, date, doc type, service names) — partial: `ParsedDoc` metadata from parsers (#16); not stored
+- [ ] >= 3 file formats (plan: PDF, DOCX, Markdown/HTML, JSONL) — partial: `parsers.py` (#16), wired into `ingest` (#21); not checked on the deployed system
+- [ ] text + metadata extraction (source, title, date, doc type, service names) — partial: `ParsedDoc` metadata from parsers (#16), stored by `index.upsert` (#22) via `ingest` (#21); not checked on the deployed system
 - [ ] chunking, >= 2 strategies compared — partial: fixed + structure-aware chunkers (#6); comparison needs the eval
-- [ ] duplicate handling — partial: sha256 of normalized text (#4), HotpotQA deduplicated in the dataset job (#7), `index.upsert` skips same-hash documents (#22); `ingest` not wired
-- [ ] add / update / delete documents — partial: `index.upsert/delete` (#22), checked live on Aurora; needs the API routes and `ingest` wiring
+- [ ] duplicate handling — partial: sha256 of normalized text (#4), HotpotQA deduplicated in the dataset job (#7), `index.upsert` skips same-hash documents (#22), `ingest` calls it (#21); not checked on the deployed system
+- [ ] add / update / delete documents — partial: `index.upsert/delete` (#22), checked live on Aurora, API routes + `ingest` (#21); not checked through the UI
 
 Search
 - [ ] vector DB, embeddings, semantic search — partial: Aurora + pgvector (#8, #10), Titan `embed.py` (#19), writes (#22), dense search (#23); nothing indexed
@@ -54,14 +53,14 @@ Evaluation
 - [ ] error analysis: where it fails, why, how to improve
 
 Backend / UI
-- [ ] Python backend, functional UI: upload/manage docs, ask, inspect sources — partial: page served at `GET /` (#17), works only in `?stub` mode; API routes return 404
+- [ ] Python backend, functional UI: upload/manage docs, ask, inspect sources — partial: page served at `GET /` (#17), document routes (#21); `POST /ask` arrives with the agent (wave 3)
 
 Dataset
 - [ ] >= 50,000 documents/records, reproducible subset with justification — partial: dataset job, 66,555 unique HotpotQA documents as JSONL shards (#7); not indexed
 - [ ] cross-document linking, source identity preserved, incomplete/contradictory data, repeatable eval — needs the Acme corpus (wave 3)
 
 Deployment
-- [ ] public URL on free tier, DB integrated, data survives restart — partial: Function URL serves `/` and `/health`, Aurora with deletion protection (#10, #13); app does not use the DB yet, persistence not checked
+- [ ] public URL on free tier, DB integrated, data survives restart — partial: Function URL serves `/`, `/health` and the document routes (#21), smoke checks `GET /documents` on every deploy, Aurora with deletion protection (#10, #13); persistence across a redeploy not checked
 - [ ] secrets protected, deployment architecture + free-tier limits documented — partial: IAM auth tokens, no stored secrets (ADR 0021), `llm-wiki/07-infrastructure.md`; README DEPLOYMENT section not written
 
 Quality
@@ -188,7 +187,7 @@ schedule is compressed and scope is cut (see "Cuts"). Code freeze 2026-10-29 15:
 | Day | Date | Work | Done when |
 |---|---|---|---|
 | 1 | 10-24 | **Done:** repo, uv, Makefile, AWS project + `aws login`, CDK skeleton, CI/CD (GitHub Actions + CodeBuild PR diff/deploy), llm-wiki + ADRs 0001-0018, stack decisions | `/health` live, merges deploy automatically |
-| 2 | 10-25 | **In progress.** Done: Aurora + S3 + `ingest` stub + jobs project (#8, #10, #12, #13), `dataset` job (#7), 2 chunkers (#6), RRF + MMR (#5); pulled forward from days 3-4: citation validator (#14), parsers (#16), UI page (#17), eval metrics (#15). Wave 2: Titan embeddings (#19), writes with dedup (#22), dense + keyword search (#23). Left: `ingest` wiring, bulk load. Plan: Stream A: Aurora + S3 + `ingest` + jobs project in the stack, schema, `dataset` job (HotpotQA shards), dedup, 2 chunkers, Titan embeddings, bulk load, dense + keyword + RRF + MMR | `search("...")` returns fused results over >= 50k records |
+| 2 | 10-25 | **In progress.** Done: Aurora + S3 + `ingest` stub + jobs project (#8, #10, #12, #13), `dataset` job (#7), 2 chunkers (#6), RRF + MMR (#5); pulled forward from days 3-4: citation validator (#14), parsers (#16), UI page (#17), eval metrics (#15). Wave 2: Titan embeddings (#19), writes with dedup (#22), dense + keyword search (#23). `ingest` wiring (#21). Left: bulk load. Plan: Stream A: Aurora + S3 + `ingest` + jobs project in the stack, schema, `dataset` job (HotpotQA shards), dedup, 2 chunkers, Titan embeddings, bulk load, dense + keyword + RRF + MMR | `search("...")` returns fused results over >= 50k records |
 | 3 | 10-26 | Stream B: `llm.py` (Bedrock, retry/backoff/fallback/cache), agent loop, JSON answer, citation validator; stream C: start the `acme` job | `ask()` answers a HotpotQA multi-hop question with valid citations |
 | 4 | 10-27 | Streams C + D: Acme corpus + parsers indexed, Lambda router + HTML UI, persistence check; stream E: questions + metrics | public URL answers a question end to end |
 | 5 | 10-28 | Stream E: eval runner in the jobs project, config sweep (cached LLM calls) | `eval/results/*.json` for all configs |
@@ -249,7 +248,7 @@ worktree and branch, each ending in a PR that must pass CI. Rules:
 | 2 | **Done (#22):** `db.transaction()` + `index.upsert/delete`: dedup checks before embedding, one Titan call per distinct chunk, insert/update in one transaction; 137 ms per document in Region | `db.py`, `index.py` | infra | against Aurora |
 | 2 | **Done (#19, #20):** `embed.py` (Titan) + `llm.py` (Bedrock client, retry, fallback, cache; ADR 0023) | `embed.py`, `llm.py` | Bedrock verified | unit + one live call |
 | 2 | **Done (#23):** `search.py`: dense (partial HNSW per strategy) + OR keyword -> RRF -> MMR, modes `dense`/`hybrid`/`mmr`; document and chunk reads (ADR 0024) | `search.py`, `sql/schema.sql` | `db.py`, `rank.py` | against Aurora |
-| 2 | API routes + ingest handler wiring | `handlers.py` | `db.py`, `parsers.py`, `chunking.py` | router unit tests + smoke |
+| 2 | **Done (#21):** API routes (documents, upload URL, delete, chunks) + ingest handler wiring | `handlers.py` | `db.py`, `parsers.py`, `chunking.py` | router unit tests + smoke |
 | 3 | Agent loop + tools | `agent.py` | `llm.py`, `search.py`, `grounding.py` | one live question |
 | 3 | Acme generator + `GROUND_TRUTH.md` + Acme questions | `scripts/gen_acme.py`, `data/acme/` | `llm.py`, jobs project | ground-truth check |
 | 3 | Eval runner + config sweep in the jobs project, HotpotQA questions (moved from wave 2: the runner defines their format) | `eval/run.py`, `eval/questions.jsonl` | `agent.py`, dataset labels | dry run on 3 questions |

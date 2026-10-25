@@ -32,7 +32,7 @@ Check the plan any time:
 | `CDKToolkit` | CDK bootstrap (S3 assets bucket, ECR repo, `cdk-hnb659fds-*` roles), qualifier `hnb659fds` | `make bootstrap`, once | **deployed** 2026-10-24 |
 | `Investigation-Cicd-prod` | CodeBuild projects `investigation-pr-diff` and `investigation-deploy`, their roles and log groups (1 month) | `make deploy-cicd`, by hand only | **deployed** 2026-10-24 |
 | `Investigation-Data-prod` | the Aurora cluster: stateful, rarely changes, see [below](#data-stack) | CodeBuild on push to `main`, before `Investigation-prod` | **deployed** 2026-10-24 (express configuration, ADR 0021) |
-| `Investigation-prod` | the application, see [below](#application-stack) | CodeBuild on push to `main` | **deployed** 2026-10-24 with the data path; `ingest` is still a stub |
+| `Investigation-prod` | the application, see [below](#application-stack) | CodeBuild on push to `main` | **deployed** 2026-10-24 with the data path; document API and `ingest` indexing since 2026-10-25 (#21) |
 
 Outside CloudFormation, created once with the CLI:
 - CodeConnections connection `investigation-github`
@@ -151,7 +151,7 @@ aws codebuild start-build --project-name investigation-jobs --profile investigat
 |---|---|---|
 | PR to `main` | GitHub Actions `ci.yml` | `make check` (ruff lint + format check, pytest, `cdk synth`) |
 | PR to `main` (owner only) | CodeBuild `investigation-pr-diff`, `.codebuild/pr-diff.yml` | `make diff-pr` (template diff, lookup role only), posted as one PR comment (edited on each push) by `scripts/comment_pr.py`; status check on the PR |
-| Push to `main` (owner only) | CodeBuild `investigation-deploy`, `.codebuild/deploy.yml` (one build at a time, `concurrent_build_limit=1`: later pushes queue in order) | `make test`, `make deploy` (data stack, then app stack), `make verify` (`cdk diff --fail` on both), `make smoke` (`/health`); status on the commit |
+| Push to `main` (owner only) | CodeBuild `investigation-deploy`, `.codebuild/deploy.yml` (one build at a time, `concurrent_build_limit=1`: later pushes queue in order) | `make test`, `make deploy` (data stack, then app stack), `make verify` (`cdk diff --fail` on both), `make smoke` (`/health` and `/documents?limit=1`); status on the commit |
 
 - **Why CodeBuild and not GitHub OIDC:** the Free-plan SCP denies `iam:*Provider*`; creating the
   OIDC provider failed with an explicit deny (2026-10-24).
@@ -173,7 +173,7 @@ aws codebuild start-build --project-name investigation-jobs --profile investigat
 make diff      # both stacks; read it, every time
 make deploy    # Investigation-Data-prod, then Investigation-prod; normally CodeBuild does this on merge
 make verify    # fails if either stack in production differs from the code
-make smoke     # GET /health on the live URL
+make smoke     # GET /health and GET /documents?limit=1 (the database path) on the live URL
 ```
 
 `make bootstrap`, `make diff-cicd` + `make deploy-cicd` are by hand. `deploy` and `deploy-cicd` pass

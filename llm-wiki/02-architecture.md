@@ -9,9 +9,11 @@ owner: Pro100Sergosha
 
 ## Built so far
 
-Only the skeleton: the `api` Lambda answers `GET /health`, and the contracts the parallel waves code
-against exist (see below). Everything marked *(planned)* is decided (see the ADRs) but not built.
-Update this section as streams land.
+Wave 2 (2026-10-25): the `api` Lambda serves the page and the document routes (llm-wiki/04);
+`ingest` parses, dedups, chunks, embeds (Titan) and stores every object put under `uploads/` or
+`bulk/`; `search.py` runs dense + keyword -> RRF -> MMR; `llm.py` is the Bedrock client. Not built:
+the agent loop and `POST /ask` (wave 3), the Acme corpus, the evaluation runner. Everything marked
+*(planned)* is decided (see the ADRs) but not built.
 
 ## Contracts
 
@@ -59,17 +61,17 @@ on their own line starting with `#`. The structure-aware chunker depends on it.
 ## Component map
 
 ```
-browser ──HTTPS──> Lambda Function URL ──> api Lambda (container image)        [built: /, /health]
+browser ──HTTPS──> Lambda Function URL ──> api Lambda (container image)        [built: all but /ask]
    │                                         GET  /                 -> index.html
    │                                         GET  /documents        POST /documents/upload-url
    │                                         DELETE /documents/{id} GET  /chunks/{id}
-   │                                         POST /ask  (agent loop, timeout 90 s)
-   │                                             ├──IAM──> Bedrock: Claude Haiku, gpt-oss-120b, Titan V2 (planned)
-   │                                             └──IAM token, TLS 5432──> Aurora (express)  (planned)
-   └──PUT (presigned)──> S3 uploads/ ──event──> ingest Lambda (same image)              (planned)
+   │                                         POST /ask  (agent loop, timeout 90 s)    (planned)
+   │                                             ├──IAM──> Bedrock: Claude Haiku, gpt-oss-120b, Titan V2
+   │                                             └──IAM token, TLS 5432──> Aurora (express)
+   └──PUT (presigned)──> S3 uploads/ ──event──> ingest Lambda (same image)
                                                   parse -> dedup -> chunk -> Titan V2 -> Aurora
 
-CodeBuild investigation-jobs: dataset (HotpotQA shards -> S3 -> ingest) | acme | eval     (planned)
+CodeBuild investigation-jobs: dataset (HotpotQA shards -> S3 -> ingest) | acme, eval (planned)
 ```
 
 ## Data flow
