@@ -91,6 +91,14 @@ def test_contradiction_with_one_distinct_valid_citation_dropped(citations):
     assert answer.status == "answered"
 
 
+def test_blank_text_contradiction_dropped():
+    blank = _claim(" ", [2, 3])
+    raw = {"status": "conflicting", "claims": [_claim("A", [1])], "contradictions": [blank]}
+    answer = build_answer(raw, RETRIEVED)
+    assert answer.contradictions == []
+    assert answer.trace[0]["dropped_contradictions"] == [blank]
+
+
 def test_contradiction_with_two_valid_citations_is_conflicting():
     raw = {
         "status": "answered",

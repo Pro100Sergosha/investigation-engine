@@ -13,7 +13,8 @@ def build_answer(raw: dict, retrieved: set[int]) -> Answer:
        "citations") -> ValueError, so the agent can ask the model again.
     2. A citation is valid if it is an int (not bool) in `retrieved`; others are removed,
        duplicates are removed keeping first order. A claim with blank text or no valid citation
-       is dropped; a contradiction with fewer than 2 distinct valid citations is dropped.
+       is dropped; a contradiction with blank text or fewer than 2 distinct valid citations
+       is dropped.
     3. Status: "conflicting" if any contradiction survives; else "insufficient" if no claim
        survives or the model said "insufficient" (surviving claims are kept as partial facts);
        else "answered". An unknown model status is treated as "answered".
@@ -47,7 +48,7 @@ def build_answer(raw: dict, retrieved: set[int]) -> Answer:
     for item in contradictions:
         citations = _valid_citations(item["citations"], retrieved)
         # A contradiction is between sources, so one chunk cannot contradict itself.
-        if len(citations) < 2:
+        if item["text"].strip() == "" or len(citations) < 2:
             dropped_contradictions.append(item)
         else:
             kept_contradictions.append(Claim(text=item["text"], citations=citations))
