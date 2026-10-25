@@ -5,10 +5,15 @@ tests import the package without any AWS resources.
 """
 
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# The UI page: the image copies static/ next to the engine package (/var/task/static); in the
+# repository it sits at the root, two levels above this file.
+STATIC_DIR = Path(os.environ.get("LAMBDA_TASK_ROOT", Path(__file__).parents[2])) / "static"
 
 EMBED_MODEL = os.environ.get("EMBED_MODEL", "amazon.titan-embed-text-v2:0")
 

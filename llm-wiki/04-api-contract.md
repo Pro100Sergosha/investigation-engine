@@ -8,8 +8,9 @@ owner: Pro100Sergosha
 # 04 API contract
 
 The HTTP interface of the `api` Lambda (Function URL) that the UI (`static/index.html`) and the
-smoke check code against. Built so far: `GET /health` only; the rest is the agreed contract the
-UI is written against with stub responses until `handlers.py` serves it.
+smoke check code against. Built so far: `GET /` (the page) and `GET /health`; the rest is the
+agreed contract the UI is written against with stub responses (`/?stub`) until `handlers.py`
+serves it.
 
 ## Conventions
 
