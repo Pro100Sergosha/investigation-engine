@@ -41,8 +41,8 @@
       "date": "2026-02-02",
       "services": ["payments-api", "merchant-portal"],
       "title": "Status: January 2026 availability report",
-      "summary": "Monthly public availability report for January 2026, one section per service, mentioning the one public incident of the month (elevated card declines on January 21).",
-      "facts": ["payments-api 99.96%", "merchant-portal 99.99%", "1 public incident"],
+      "summary": "Monthly public availability report for January 2026, with one bullet per service in the form 'service-name: NN.NN%', mentioning the one public incident of the month (elevated card declines on January 21).",
+      "facts": ["payments-api: 99.96%", "merchant-portal: 99.99%", "1 public incident"],
       "refs": []
     },
     {
@@ -257,8 +257,8 @@
       "date": "2026-03-02",
       "services": ["payments-api", "merchant-portal"],
       "title": "Status: February 2026 availability report",
-      "summary": "Monthly public availability report for February 2026, one section per service, mentioning the public incidents of the month (delayed webhooks on February 9, slow report exports on February 24).",
-      "facts": ["payments-api 99.99%", "merchant-portal 99.97%", "2 public incidents"],
+      "summary": "Monthly public availability report for February 2026, with one bullet per service in the form 'service-name: NN.NN%', mentioning the public incidents of the month (delayed webhooks on February 9, slow report exports on February 24).",
+      "facts": ["payments-api: 99.99%", "merchant-portal: 99.97%", "2 public incidents"],
       "refs": []
     },
     {
@@ -464,8 +464,8 @@
       "date": "2026-04-01",
       "services": ["payments-api", "merchant-portal"],
       "title": "Status: March 2026 availability report",
-      "summary": "Monthly public availability report for March 2026, one section per service, mentioning the public incidents of the month (card payments failing on March 12, 3-D Secure failures on March 26).",
-      "facts": ["payments-api 99.82%", "merchant-portal 99.98%", "2 public incidents"],
+      "summary": "Monthly public availability report for March 2026, with one bullet per service in the form 'service-name: NN.NN%', mentioning the public incidents of the month (card payments failing on March 12, 3-D Secure failures on March 26).",
+      "facts": ["payments-api: 99.82%", "merchant-portal: 99.98%", "2 public incidents"],
       "refs": []
     },
     {

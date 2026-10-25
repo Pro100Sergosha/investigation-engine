@@ -70,7 +70,7 @@ dataset-stats:  ## Job: dataset counts and dedup stats only, writes nothing
 	uv run python scripts/dataset.py --bucket $$BUCKET --dry-run
 
 acme:  ## Job: Acme corpus from data/acme/spec.json (Haiku), checked, to s3://$BUCKET/jobs/acme/
-	uv run python scripts/gen_acme.py --bucket $$BUCKET
+	uv run python -u scripts/gen_acme.py --bucket $$BUCKET
 
 # Fake keys as in `test`: importing engine.llm creates a boto3 client, and no call is made.
 acme-labels: export AWS_ACCESS_KEY_ID := test
