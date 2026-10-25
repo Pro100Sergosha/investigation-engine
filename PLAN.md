@@ -16,7 +16,7 @@ contracts and `embed.py` (#19), document writes (#22), search (#23), LLM client 
 **Behind:** the day 2 goal (`search()` over >= 50k records) is not met. The first bulk load
 stalled at 1,853 of 66,555 documents: Titan throttled beyond ~1 request/s (~18 h for the corpus)
 and Lambda dropped the failed shards. Embeddings switch to Cohere Embed V4, 96 texts per request,
-whole shards per call, failed events kept in SQS (#PR, ADR 0022).
+whole shards per call, failed events kept in SQS (#24, ADR 0022).
 Next: after that deploy, delete the 1,853 Titan-embedded documents and rerun `dataset` (~35-40
 min), then the UI check of upload/update/delete, then wave 3.
 
@@ -38,7 +38,7 @@ Ingestion
 - [ ] add / update / delete documents — partial: `index.upsert/delete` (#22), checked live on Aurora, API routes + `ingest` (#21); not checked through the UI
 
 Search
-- [ ] vector DB, embeddings, semantic search — partial: Aurora + pgvector (#8, #10), `embed.py` (#19, Cohere Embed V4 since #PR), writes (#22, batched since #PR), dense search (#23); 1,853 Titan-embedded documents to be replaced by the Cohere reload
+- [ ] vector DB, embeddings, semantic search — partial: Aurora + pgvector (#8, #10), `embed.py` (#19, Cohere Embed V4 since #24), writes (#22, batched since #24), dense search (#23); 1,853 Titan-embedded documents to be replaced by the Cohere reload
 - [ ] hybrid search (semantic + keyword) — partial: dense + OR keyword + RRF in `search.py` (#23), checked live on 10 test documents; not run over the loaded corpus
 - [ ] >= 1 own ranking/search algorithm (not only library calls) — partial: RRF + MMR with per-document cap (#5), called by `search.py` (#23); not run over the loaded corpus
 
@@ -192,7 +192,7 @@ schedule is compressed and scope is cut (see "Cuts"). Code freeze 2026-10-29 15:
 | Day | Date | Work | Done when |
 |---|---|---|---|
 | 1 | 10-24 | **Done:** repo, uv, Makefile, AWS project + `aws login`, CDK skeleton, CI/CD (GitHub Actions + CodeBuild PR diff/deploy), llm-wiki + ADRs 0001-0018, stack decisions | `/health` live, merges deploy automatically |
-| 2 | 10-25 | **In progress.** Done: Aurora + S3 + `ingest` stub + jobs project (#8, #10, #12, #13), `dataset` job (#7), 2 chunkers (#6), RRF + MMR (#5); pulled forward from days 3-4: citation validator (#14), parsers (#16), UI page (#17), eval metrics (#15). Wave 2: embeddings (#19, Titan; Cohere V4 since #PR), writes with dedup (#22), dense + keyword search (#23). `ingest` wiring (#21). Left: bulk load (the Titan load stalled at 1,853 documents; redone with Cohere after #PR). Plan: Stream A: Aurora + S3 + `ingest` + jobs project in the stack, schema, `dataset` job (HotpotQA shards), dedup, 2 chunkers, embeddings, bulk load, dense + keyword + RRF + MMR | `search("...")` returns fused results over >= 50k records |
+| 2 | 10-25 | **In progress.** Done: Aurora + S3 + `ingest` stub + jobs project (#8, #10, #12, #13), `dataset` job (#7), 2 chunkers (#6), RRF + MMR (#5); pulled forward from days 3-4: citation validator (#14), parsers (#16), UI page (#17), eval metrics (#15). Wave 2: embeddings (#19, Titan; Cohere V4 since #24), writes with dedup (#22), dense + keyword search (#23). `ingest` wiring (#21). Left: bulk load (the Titan load stalled at 1,853 documents; redone with Cohere after #24). Plan: Stream A: Aurora + S3 + `ingest` + jobs project in the stack, schema, `dataset` job (HotpotQA shards), dedup, 2 chunkers, embeddings, bulk load, dense + keyword + RRF + MMR | `search("...")` returns fused results over >= 50k records |
 | 3 | 10-26 | Stream B: `llm.py` (Bedrock, retry/backoff/fallback/cache), agent loop, JSON answer, citation validator; stream C: start the `acme` job | `ask()` answers a HotpotQA multi-hop question with valid citations |
 | 4 | 10-27 | Streams C + D: Acme corpus + parsers indexed, Lambda router + HTML UI, persistence check; stream E: questions + metrics | public URL answers a question end to end |
 | 5 | 10-28 | Stream E: eval runner in the jobs project, config sweep (cached LLM calls) | `eval/results/*.json` for all configs |
@@ -254,7 +254,7 @@ worktree and branch, each ending in a PR that must pass CI. Rules:
 | 2 | **Done (#19, #20):** `embed.py` (Titan) + `llm.py` (Bedrock client, retry, fallback, cache; ADR 0023) | `embed.py`, `llm.py` | Bedrock verified | unit + one live call |
 | 2 | **Done (#23):** `search.py`: dense (partial HNSW per strategy) + OR keyword -> RRF -> MMR, modes `dense`/`hybrid`/`mmr`; document and chunk reads (ADR 0024) | `search.py`, `sql/schema.sql` | `db.py`, `rank.py` | against Aurora |
 | 2 | **Done (#21):** API routes (documents, upload URL, delete, chunks) + ingest handler wiring | `handlers.py` | `db.py`, `parsers.py`, `chunking.py` | router unit tests + smoke |
-| 2 | **Done (#PR):** Cohere Embed V4 instead of Titan (ADR 0022): `embed_documents` (96 per request) / `embed_query`, `index.upsert_many` per shard, `ingest` capped at 2, IAM through the `eu.*` profile, failed ingest events in SQS + `make redrive-ingest` | `embed.py`, `index.py`, `handlers.py`, `cdk/app.py`, `scripts/redrive_ingest.py` | Bedrock (Cohere quota) | unit + live calls, `upsert_many` against Aurora |
+| 2 | **Done (#24):** Cohere Embed V4 instead of Titan (ADR 0022): `embed_documents` (96 per request) / `embed_query`, `index.upsert_many` per shard, `ingest` capped at 2, IAM through the `eu.*` profile, failed ingest events in SQS + `make redrive-ingest` | `embed.py`, `index.py`, `handlers.py`, `cdk/app.py`, `scripts/redrive_ingest.py` | Bedrock (Cohere quota) | unit + live calls, `upsert_many` against Aurora |
 | 3 | Agent loop + tools | `agent.py` | `llm.py`, `search.py`, `grounding.py` | one live question |
 | 3 | Acme generator + `GROUND_TRUTH.md` + Acme questions | `scripts/gen_acme.py`, `data/acme/` | `llm.py`, jobs project | ground-truth check |
 | 3 | Eval runner + config sweep in the jobs project, HotpotQA questions (moved from wave 2: the runner defines their format) | `eval/run.py`, `eval/questions.jsonl` | `agent.py`, dataset labels | dry run on 3 questions |
@@ -306,4 +306,4 @@ Closed on 2026-10-24: Bedrock blocked during account verification (quotas opened
 cross-Region inference denied by the Free-plan SCP (it is not); corpus below 50k (66,555 unique
 HotpotQA documents, PR #7).
 Closed on 2026-10-25: Titan throttling during the bulk load (it happened: the load stalled at
-1,853 documents; replaced by Cohere Embed V4, ADR 0022, #PR).
+1,853 documents; replaced by Cohere Embed V4, ADR 0022, #24).
