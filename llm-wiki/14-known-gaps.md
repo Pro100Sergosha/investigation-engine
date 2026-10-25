@@ -23,3 +23,4 @@ that closes it.
 | The database endpoint is public (internet access gateway) | the Free plan creates Aurora only with express configuration ([ADR 0021](adr/0021-aurora-express-iam-auth.md)) | accepted: IAM-only auth, TLS, no password exists |
 | Old paid account `788607671121` still exists, no budget on it | abandoned in favour of the Free-plan project ([ADR 0011](adr/0011-free-plan-aws-project.md)) | closed in the console, or a budget alert added |
 | No SSE streaming of answers | not supported on Python Lambda Function URLs ([ADR 0008](adr/0008-function-url-not-api-gateway.md)) | accepted, listed as future work |
+| The UI page is served at `GET /`, but the routes it calls (`/documents`, `/ask`, `/chunks`) return 404: only `/?stub` works | wave 1 built the page against the API contract with a stub mode | the wave-2 API routes task adds the routes |

@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self' https://*.amazonaws.com; img-src 'self'; base-uri 'none'; form-action 'none'">
+<title>Investigation Engine</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font: 16px/1.5 system-ui, sans-serif; margin: 0 auto; max-width: 960px; padding: 12px; color: #1b1b1b; background: #fafafa; }
+  h1 { font-size: 1.4rem; } h2 { font-size: 1.15rem; margin-top: 0; }
+  section { background: #fff; border: 1px solid #ccc; border-radius: 6px; padding: 12px; margin-bottom: 16px; }
+  :focus-visible { outline: 3px solid #1a56db; outline-offset: 2px; }
+  textarea, input[type=file] { width: 100%; font: inherit; }
+  textarea { min-height: 5em; padding: 6px; }
+  button { font: inherit; padding: 4px 12px; border: 1px solid #555; border-radius: 4px; background: #eee; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.primary { background: #1a56db; color: #fff; border-color: #1a56db; }
+  button.danger { border-color: #b00020; color: #b00020; }
+  button.danger.armed { background: #b00020; color: #fff; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 6px 0; }
+  .muted { color: #555; font-size: .9rem; }
+  .error { color: #b00020; font-weight: 600; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-weight: 700; border: 2px solid; }
+  .badge.answered { color: #0b6b2b; background: #e3f6e8; border-color: #0b6b2b; }
+  .badge.insufficient { color: #7a5200; background: #fff3d6; border-color: #7a5200; }
+  .badge.conflicting { color: #8a1030; background: #fde6ec; border-color: #8a1030; }
+  .chip { padding: 0 6px; margin: 0 2px; border-color: #1a56db; color: #1a56db; background: #eef3ff; }
+  .chip[aria-pressed=true] { background: #1a56db; color: #fff; }
+  .contradictions { border: 2px solid #8a1030; background: #fff5f7; padding: 8px; border-radius: 6px; margin: 12px 0; }
+  .source { border: 1px solid #1a56db; border-radius: 6px; padding: 8px; margin-top: 12px; }
+  pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #f0f0f0; padding: 8px; border-radius: 4px; max-height: 24em; overflow: auto; }
+  .tablewrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+  th, td { border-bottom: 1px solid #ddd; padding: 4px 6px; text-align: left; vertical-align: top; }
+  td.title button { border: 0; background: none; text-decoration: underline; color: #1a56db; padding: 0; text-align: left; }
+</style>
+</head>
+<body>
+<h1>Investigation Engine</h1>
+<p id="net" class="muted" aria-live="polite"></p>
+
+<section aria-labelledby="ask-h">
+  <h2 id="ask-h">Ask</h2>
+  <label for="question">Question (1-1000 characters)</label>
+  <textarea id="question" maxlength="1000"></textarea>
+  <div class="row">
+    <button id="ask-btn" class="primary" type="button">Ask</button>
+    <span id="counter" class="muted">0 / 1000</span>
+    <span id="ask-status" aria-live="polite"></span>
+  </div>
+  <div id="answer"></div>
+</section>
+
+<section aria-labelledby="docs-h">
+  <h2 id="docs-h">Documents</h2>
+  <div class="row">
+    <label for="file">Upload a file (.pdf .docx .html .htm .md .jsonl)</label>
+    <input id="file" type="file">
+    <button id="upload-btn" type="button">Upload</button>
+  </div>
+  <div id="upload-status" aria-live="polite"></div>
+  <div id="docs-status" aria-live="polite"></div>
+  <div class="tablewrap"><table id="docs-table"></table></div>
+  <div class="row">
+    <button id="prev" type="button">Prev</button>
+    <button id="next" type="button">Next</button>
+    <span id="page-info" class="muted"></span>
+  </div>
+  <div id="doc-view" aria-live="polite"></div>
+</section>
+
+<script>
+"use strict";
+// No innerHTML anywhere: all server data goes through textContent (see 04-api-contract.md).
+
+const STUB = location.protocol === "file:" || new URLSearchParams(location.search).has("stub");
+const PAGE = 50;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// ---------- DOM helper ----------
+function el(tag, props = {}, ...children) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === "text") node.textContent = v;
+    else if (k === "onclick") node.addEventListener("click", v);
+    else node.setAttribute(k, v);
+  }
+  node.append(...children);
+  return node;
+}
+const $ = (id) => document.getElementById(id);
+const clear = (node) => node.replaceChildren();
+
+// ---------- the only place that calls fetch ----------
+async function api(method, path, body, retried = false) {
+  if (STUB) {
+    await sleep(400);
+    return stubApi(method, path, body);
+  }
+  const isS3 = path.startsWith("https://"); // presigned PUT: raw body, no custom headers
+  const opts = { method };
+  if (isS3) opts.body = body;
+  else if (body !== undefined) {
+    opts.body = JSON.stringify(body);
+    opts.headers = { "content-type": "application/json" };
+  }
+  let res;
+  try {
+    res = await fetch(path, opts);
+  } catch (e) {
+    throw new Error("Network error. Check the connection and try again.");
+  }
+  if (isS3) {
+    if (!res.ok) throw new Error("Upload to storage failed (HTTP " + res.status + ").");
+    return {};
+  }
+  let data = null;
+  try { data = await res.json(); } catch (e) { /* not JSON */ }
+  if (res.status === 503 && !retried) {
+    $("net").textContent = "Database is resuming from pause, retrying in 15 s";
+    await sleep(15000);
+    $("net").textContent = "";
+    return api(method, path, body, true);
+  }
+  if (!res.ok) {
+    throw new Error(data && typeof data.error === "string" ? data.error : "Unexpected response (HTTP " + res.status + ").");
+  }
+  if (data === null) throw new Error("Unexpected response from the server.");
+  return data;
+}
+
+function showError(node, e) {
+  node.replaceChildren(el("span", { class: "error", text: e.message }));
+}
+
+// ---------- Ask ----------
+let askTimer = null;
+
+function updateCounter() {
+  const n = $("question").value.length;
+  $("counter").textContent = n + " / 1000";
+}
+
+async function onAsk() {
+  const question = $("question").value.trim();
+  const status = $("ask-status");
+  if (question.length < 1 || question.length > 1000) {
+    showError(status, new Error("The question must be 1-1000 characters."));
+    return;
+  }
+  $("ask-btn").disabled = true;
+  clear($("answer"));
+  const started = Date.now();
+  status.textContent = "Thinking... 0 s";
+  askTimer = setInterval(() => {
+    status.textContent = "Thinking... " + Math.floor((Date.now() - started) / 1000) + " s (up to 90 s)";
+  }, 1000);
+  try {
+    const answer = await api("POST", "/ask", { question });
+    status.textContent = "";
+    renderAnswer(answer);
+  } catch (e) {
+    showError(status, e);
+  } finally {
+    clearInterval(askTimer);
+    $("ask-btn").disabled = false;
+  }
+}
+
+const STATUS_TEXT = {
+  answered: "Answered",
+  insufficient: "Insufficient evidence",
+  conflicting: "Conflicting sources",
+};
+
+function renderAnswer(answer) {
+  const root = $("answer");
+  const sources = new Map((answer.sources || []).map((s) => [s.chunk_id, s]));
+  const panel = el("div", { "aria-live": "polite" });
+  const claims = answer.claims || [];
+  const contradictions = answer.contradictions || [];
+
+  root.append(el("p", {}, el("span", { class: "badge " + answer.status, text: STATUS_TEXT[answer.status] || answer.status })));
+  if (answer.status === "insufficient") {
+    root.append(el("p", { text: "The corpus does not contain enough evidence to answer this question." }));
+    if (claims.length) root.append(el("p", { class: "muted", text: "Partial findings:" }));
+  }
+  if (claims.length) {
+    const list = el("ul");
+    for (const c of claims) list.append(el("li", {}, c.text + " ", ...chips(c.citations, sources, panel)));
+    root.append(list);
+  }
+  if (contradictions.length) {
+    const box = el("div", { class: "contradictions" }, el("strong", { text: "Contradictions" }));
+    const list = el("ul");
+    for (const c of contradictions) list.append(el("li", {}, c.text + " ", ...chips(c.citations, sources, panel)));
+    box.append(list);
+    root.append(box);
+  }
+  root.append(panel);
+  const trace = el("pre", { text: JSON.stringify(answer.trace || [], null, 2) });
+  root.append(el("details", {}, el("summary", { text: "Trace" }), trace));
+}
+
+function chips(ids, sources, panel) {
+  return (ids || []).map((id) => {
+    const chip = el("button", { type: "button", class: "chip", "aria-pressed": "false", "aria-label": "Show source " + id, text: "[" + id + "]" });
+    chip.addEventListener("click", () => showSource(id, sources, panel, chip));
+    return chip;
+  });
+}
+
+async function showSource(id, sources, panel, chip) {
+  for (const b of document.querySelectorAll(".chip")) b.setAttribute("aria-pressed", "false");
+  chip.setAttribute("aria-pressed", "true");
+  clear(panel);
+  let src = sources.get(id);
+  if (!src) {
+    panel.textContent = "Loading source " + id + "...";
+    try {
+      src = await api("GET", "/chunks/" + encodeURIComponent(id));
+      sources.set(id, src);
+    } catch (e) {
+      showError(panel, e);
+      return;
+    }
+  }
+  panel.replaceChildren(el("div", { class: "source" },
+    el("strong", { text: src.title }),
+    el("div", { class: "muted", text: "Source: " + src.source + " (chunk " + src.chunk_id + ", document " + src.document_id + ")" }),
+    el("pre", { text: src.text })));
+}
+
+// ---------- Documents ----------
+let offset = 0;
+let total = 0;
+
+async function loadDocuments() {
+  const status = $("docs-status");
+  status.textContent = "Loading...";
+  try {
+    const data = await api("GET", "/documents?limit=" + PAGE + "&offset=" + offset);
+    total = data.total;
+    status.textContent = "";
+    renderDocuments(data.documents);
+  } catch (e) {
+    showError(status, e);
+  }
+}
+
+function renderDocuments(docs) {
+  const table = $("docs-table");
+  clear(table);
+  const head = ["Title", "Source", "Type", "Version", "Chunks", "Created", ""];
+  table.append(el("thead", {}, el("tr", {}, ...head.map((h) => el("th", { scope: "col", text: h })))));
+  const body = el("tbody");
+  for (const d of docs) {
+    const open = el("button", { type: "button", text: d.title, onclick: () => openDocument(d.id) });
+    body.append(el("tr", {},
+      el("td", { class: "title" }, open),
+      el("td", { text: d.source }),
+      el("td", { text: d.doc_type }),
+      el("td", { text: String(d.version) }),
+      el("td", { text: String(d.chunks) }),
+      el("td", { text: d.created_at }),
+      el("td", {}, deleteButton(d.id))));
+  }
+  table.append(body);
+  const last = Math.min(offset + PAGE, total);
+  $("page-info").textContent = total ? (offset + 1) + "-" + last + " of " + total : "No documents";
+  $("prev").disabled = offset === 0;
+  $("next").disabled = offset + PAGE >= total;
+}
+
+// Two-step delete without confirm(): first click arms the button for 3 s.
+function deleteButton(id) {
+  const btn = el("button", { type: "button", class: "danger", text: "Delete" });
+  let timer = null;
+  btn.addEventListener("click", async () => {
+    if (!timer) {
+      btn.textContent = "Confirm delete?";
+      btn.classList.add("armed");
+      timer = setTimeout(() => { timer = null; btn.textContent = "Delete"; btn.classList.remove("armed"); }, 3000);
+      return;
+    }
+    clearTimeout(timer);
+    btn.disabled = true;
+    try {
+      await api("DELETE", "/documents/" + id);
+      clear($("doc-view"));
+      await loadDocuments();
+    } catch (e) {
+      showError($("docs-status"), e);
+      btn.disabled = false;
+      timer = null;
+      btn.textContent = "Delete";
+      btn.classList.remove("armed");
+    }
+  });
+  return btn;
+}
+
+async function openDocument(id) {
+  const view = $("doc-view");
+  view.textContent = "Loading document...";
+  try {
+    const d = await api("GET", "/documents/" + id);
+    view.replaceChildren(el("h3", { text: d.title }),
+      el("div", { class: "muted", text: "Source: " + d.source + " | type: " + d.doc_type + " | version " + d.version + " | " + d.chunks + " chunks | " + d.created_at }),
+      el("div", { class: "muted", text: "Metadata: " + JSON.stringify(d.metadata || {}) }),
+      el("pre", { text: d.text }));
+  } catch (e) {
+    showError(view, e);
+  }
+}
+
+// ---------- Upload ----------
+const FILENAME_RE = /^[A-Za-z0-9._-]{1,100}$/;
+const SUFFIXES = [".pdf", ".docx", ".html", ".htm", ".md", ".jsonl"];
+
+async function onUpload() {
+  const status = $("upload-status");
+  const file = $("file").files[0];
+  if (!file) return showError(status, new Error("Choose a file first."));
+  const name = file.name;
+  if (!FILENAME_RE.test(name)) return showError(status, new Error("File name may contain only letters, digits, dot, underscore and dash (max 100)."));
+  if (!SUFFIXES.some((s) => name.toLowerCase().endsWith(s))) return showError(status, new Error("Unsupported type. Allowed: " + SUFFIXES.join(" ")));
+
+  $("upload-btn").disabled = true;
+  try {
+    const before = await findUpload(name); // to detect an update: version must grow
+    status.textContent = "Requesting upload URL...";
+    const { url } = await api("POST", "/documents/upload-url", { filename: name });
+    status.textContent = "Uploading...";
+    await api("PUT", url, file);
+    await waitForIngest(name, before ? before.version : 0, status);
+  } catch (e) {
+    showError(status, e);
+  } finally {
+    $("upload-btn").disabled = false;
+  }
+}
+
+// ponytail: looks only at the newest 200 documents (API maximum); older sources are not found.
+async function findUpload(name) {
+  const data = await api("GET", "/documents?limit=200&offset=0");
+  return data.documents.find((d) => d.source === "upload:" + name) || null;
+}
+
+async function waitForIngest(name, oldVersion, status) {
+  const started = Date.now();
+  while (Date.now() - started < 120000) {
+    const secs = Math.floor((Date.now() - started) / 1000);
+    status.textContent = "Uploaded. Waiting for ingestion... " + secs + " s";
+    await sleep(3000);
+    const doc = await findUpload(name);
+    if (doc && doc.version > oldVersion) {
+      status.textContent = "Done: " + doc.title + " (version " + doc.version + ", " + doc.chunks + " chunks).";
+      offset = 0;
+      loadDocuments();
+      return;
+    }
+  }
+  status.textContent = "Timed out after 2 minutes. The file may still be processing, or it was skipped as a duplicate of an existing document (same content). Refresh the list later.";
+}
+
+// ---------- Stub backend (file: or ?stub), contract shapes from 04-api-contract.md ----------
+const stubDocs = [
+  { id: 3, source: "upload:evil.md", title: "<img src=x onerror=alert(1)>", doc_type: "md", version: 1, created_at: "2026-10-24T12:00:00Z", chunks: 1,
+    text: "<script>alert(1)<\/script>\n<img src=x onerror=alert(1)>\nThis must show as literal text.", metadata: { note: "xss check" } },
+  { id: 2, source: "upload:report-b.pdf", title: "Incident report B", doc_type: "pdf", version: 2, created_at: "2026-10-23T09:30:00Z", chunks: 4,
+    text: "Report B.\n\nThe outage began at 14:30.", metadata: {} },
+  { id: 1, source: "upload:report-a.md", title: "Incident report A", doc_type: "md", version: 1, created_at: "2026-10-22T08:00:00Z", chunks: 3,
+    text: "# Report A\n\nThe outage began at 14:02.", metadata: { author: "ops" } },
+];
+const stubSources = [
+  { chunk_id: 101, document_id: 1, title: "Incident report A", source: "upload:report-a.md", text: "The outage began at 14:02." },
+  { chunk_id: 205, document_id: 2, title: "Incident report B", source: "upload:report-b.pdf", text: "Service was restored after 40 minutes." },
+  { chunk_id: 307, document_id: 2, title: "Incident report B", source: "upload:report-b.pdf", text: "The outage began at 14:30." },
+];
+const pick = (...ids) => stubSources.filter((s) => ids.includes(s.chunk_id));
+let stubPending = null; // { name, polls }
+
+function stubAnswer(question) {
+  const q = question.toLowerCase();
+  const trace = [{ step: "search", query: question, hits: 3 }, { step: "answer", note: "<b>stub</b>" }];
+  if (q.includes("conflict")) {
+    return { status: "conflicting", trace, sources: pick(101, 205, 307),
+      claims: [{ text: "Service was restored after 40 minutes.", citations: [205] }],
+      contradictions: [{ text: "Report A says 14:02, report B says 14:30.", citations: [101, 307] }] };
+  }
+  if (q.includes("unknown")) {
+    return { status: "insufficient", trace, sources: pick(101), claims: [{ text: "Only report A mentions the start time (14:02).", citations: [101] }], contradictions: [] };
+  }
+  return { status: "answered", trace, sources: pick(101, 205), contradictions: [],
+    claims: [{ text: "The outage began at 14:02.", citations: [101] }, { text: "Service was restored after 40 minutes.", citations: [205] }] };
+}
+
+function stubApi(method, path, body) {
+  const [route, query = ""] = path.split("?");
+  const params = new URLSearchParams(query);
+  let m;
+  if (method === "POST" && route === "/ask") return stubAnswer(body.question);
+  if (method === "GET" && route === "/documents") {
+    if (stubPending && ++stubPending.polls >= 2) {
+      const existing = stubDocs.find((d) => d.source === "upload:" + stubPending.name);
+      if (existing) existing.version += 1;
+      else stubDocs.unshift({ id: 100 + stubDocs.length, source: "upload:" + stubPending.name, title: stubPending.name, doc_type: "md", version: 1, created_at: new Date().toISOString(), chunks: 2, text: "Uploaded in stub mode.", metadata: {} });
+      stubPending = null;
+    }
+    const off = Number(params.get("offset")), lim = Number(params.get("limit"));
+    return { documents: stubDocs.slice(off, off + lim).map(({ text, metadata, ...d }) => d), total: stubDocs.length };
+  }
+  if (method === "POST" && route === "/documents/upload-url") return { url: "https://stub.amazonaws.com/put", key: "uploads/" + body.filename };
+  if (method === "PUT") { stubPending = { name: body.name, polls: 0 }; return {}; } // body is the File
+  if ((m = route.match(/^\/documents\/(\d+)$/))) {
+    const i = stubDocs.findIndex((d) => d.id === Number(m[1]));
+    if (i < 0) throw new Error("Document not found.");
+    if (method === "DELETE") { stubDocs.splice(i, 1); return { deleted: Number(m[1]) }; }
+    return stubDocs[i];
+  }
+  if ((m = route.match(/^\/chunks\/(\d+)$/))) return { ...stubSources[0], chunk_id: Number(m[1]), ord: 0 };
+  throw new Error("Not found.");
+}
+
+// ---------- wiring ----------
+$("question").addEventListener("input", updateCounter);
+$("ask-btn").addEventListener("click", onAsk);
+$("upload-btn").addEventListener("click", onUpload);
+$("prev").addEventListener("click", () => { offset = Math.max(0, offset - PAGE); loadDocuments(); });
+$("next").addEventListener("click", () => { offset += PAGE; loadDocuments(); });
+if (STUB) $("net").textContent = "Stub mode: canned responses, no backend. Try questions with 'conflict' or 'unknown'.";
+loadDocuments();
+</script>
+</body>
+</html>

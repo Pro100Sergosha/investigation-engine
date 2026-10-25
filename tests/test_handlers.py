@@ -13,6 +13,13 @@ def test_health():
     assert json.loads(response["body"]) == {"status": "ok"}
 
 
+def test_root_serves_the_ui_page():
+    response = api(_event("GET", "/"), None)
+    assert response["statusCode"] == 200
+    assert response["headers"]["content-type"].startswith("text/html")
+    assert "<title>Investigation Engine</title>" in response["body"]
+
+
 def test_unknown_route():
     assert api(_event("GET", "/nope"), None)["statusCode"] == 404
 

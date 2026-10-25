@@ -4,7 +4,7 @@
 import json
 from urllib.parse import unquote_plus
 
-from engine import db
+from engine import config, db
 
 # The cluster's master user (IAM auth only, created by express configuration). Only `schema`
 # connects as it: it owns the tables and creates the `app` role everything else uses.
@@ -33,6 +33,14 @@ def schema(event, context):
 
 def api(event, context):
     route = (event["requestContext"]["http"]["method"], event["rawPath"])
+    if route == ("GET", "/"):
+        # Same origin as the API, so the page needs no CORS (ADR 0008).
+        page = (config.STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        return {
+            "statusCode": 200,
+            "headers": {"content-type": "text/html; charset=utf-8"},
+            "body": page,
+        }
     if route == ("GET", "/health"):
         return _json(200, {"status": "ok"})
     return _json(404, {"error": "not found"})

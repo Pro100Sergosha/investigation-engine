@@ -7,5 +7,6 @@ RUN uv export --frozen --no-dev --no-emit-project --no-hashes -o requirements.tx
     && uv pip install --system --no-cache -r requirements.txt
 
 COPY src/engine ${LAMBDA_TASK_ROOT}/engine
+COPY static ${LAMBDA_TASK_ROOT}/static
 
 CMD ["engine.handlers.api"]

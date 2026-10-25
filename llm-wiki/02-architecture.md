@@ -54,8 +54,8 @@ on their own line starting with `#`. The structure-aware chunker depends on it.
 ## Component map
 
 ```
-browser ──HTTPS──> Lambda Function URL ──> api Lambda (container image)        [built: /health]
-   │                                         GET  /                 -> index.html        (planned)
+browser ──HTTPS──> Lambda Function URL ──> api Lambda (container image)        [built: /, /health]
+   │                                         GET  /                 -> index.html
    │                                         GET  /documents        POST /documents/upload-url
    │                                         DELETE /documents/{id} GET  /chunks/{id}
    │                                         POST /ask  (agent loop, timeout 90 s)

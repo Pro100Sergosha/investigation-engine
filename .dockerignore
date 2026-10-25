@@ -2,4 +2,5 @@
 !pyproject.toml
 !uv.lock
 !src/
+!static/
 src/**/__pycache__
