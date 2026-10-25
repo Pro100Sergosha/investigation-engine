@@ -1,0 +1,3 @@
+{"source": "hotpotqa:Alpha", "title": "Alpha", "doc_type": "jsonl", "text": "Alpha is a letter.", "metadata": {"dataset": "hotpotqa"}}
+
+{"source": "hotpotqa:Beta", "title": "Beta", "doc_type": "jsonl", "text": "Beta follows alpha."}

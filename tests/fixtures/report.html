@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Ignored &amp; Overridden</title>
+  <style>body { color: red; }</style>
+  <script>var secret = "do not index";</script>
+</head>
+<body>
+  <h1>Outage   Report</h1>
+  <p>Payments failed
+     for 20 minutes &mdash; see <a href="http://evil.example/x">the log</a>.</p>
+  <h2>Timeline</h2>
+  <ul><li>09:00 alert</li><li>09:20 fixed</li></ul>
+  <script>document.write("injected")</script>
+  <p>Services: payments, auth</p>
+  <img src="http://evil.example/track.png">
+  <table><tr><td>cause</td><td>bad deploy</td></tr></table>
+</body>
+</html>
