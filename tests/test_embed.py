@@ -23,6 +23,7 @@ class FakeBedrock:
 def fake(monkeypatch):
     client = FakeBedrock()
     monkeypatch.setattr(embed, "_bedrock", client)
+    embed.embed_query.cache_clear()  # a vector cached by another test would skip the request
     return client
 
 
@@ -53,3 +54,11 @@ def test_query_uses_search_query(fake):
             "truncate": "RIGHT",
         }
     ]
+
+
+def test_query_is_embedded_once_per_text(fake):
+    first = embed.embed_query("who founded acme")
+    assert embed.embed_query("who founded acme") is first
+    assert len(fake.bodies) == 1
+    embed.embed_query("another question")
+    assert len(fake.bodies) == 2

@@ -146,8 +146,9 @@ aws codebuild start-build --project-name investigation-jobs --profile investigat
 | `dataset` | HotpotQA -> dedup -> JSONL shards in `bulk/hotpotqa/` (which trigger `ingest`), stats and gold questions in `jobs/dataset/` |
 | `dataset-stats` | the same counts with `--dry-run`, writes nothing |
 | `redrive-ingest` | `scripts/redrive_ingest.py`: for each message in `IngestFailures`, log the condition and error, invoke `ingest` asynchronously with the original S3 event, delete the message once the invoke is accepted; stops at the first empty receive. Safe to run twice: `ingest` skips what is stored |
+| `eval CONFIG=<name> [LIMIT=N]` | `eval/run.py`: the question set through `retrieval` (no LLM), `agent`, `agent-fixed` or `single-shot`; results to `jobs/eval/<config>.json` ([09 Evaluation](09-evaluation.md)). The whole value goes in one variable: `"name=TARGET,value=eval CONFIG=agent LIMIT=3"` |
 
-`acme` and `eval CONFIG=...` arrive with their streams. A build without `TARGET` fails on purpose.
+`acme` arrives with its stream. A build without `TARGET` fails on purpose.
 
 ## CI/CD
 

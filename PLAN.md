@@ -51,9 +51,9 @@ LLM / RAG
 - [ ] >= 1 tool-calling mechanism — needs `agent.py` (wave 3)
 
 Evaluation
-- [ ] own automated eval, >= 40 questions: simple, multi-hop, multi-doc, unanswerable, contradictory
-- [ ] retrieval + answer metrics: Recall@K, MRR, Answer Correctness, Citation Accuracy — partial: pure metric functions (#15); no judge, no runner
-- [ ] >= 2 configurations compared
+- [ ] own automated eval, >= 40 questions: simple, multi-hop, multi-doc, unanswerable, contradictory — partial: runner `eval/run.py` and 30 HotpotQA questions (20 multi-hop, 5 simple, 5 unanswerable) (#PR); Acme multi-doc/contradictory questions missing; not run
+- [ ] retrieval + answer metrics: Recall@K, MRR, Answer Correctness, Citation Accuracy — partial: pure metric functions (#15), runner with Qwen3 judge, citation precision, abstention/contradiction P/R (#PR); not run
+- [ ] >= 2 configurations compared — partial: runner configs `retrieval` (fixed/structured x dense/hybrid/mmr), `agent`, `agent-fixed`, `single-shot` (#PR); not run
 - [ ] error analysis: where it fails, why, how to improve
 
 Backend / UI
@@ -258,7 +258,7 @@ worktree and branch, each ending in a PR that must pass CI. Rules:
 | 3 | **Done (#25):** contracts for wave 3: `Answer.answer` (short answer for EM/F1), `agent.ask(question, strategy, mode, max_steps)` stub with the trace contract | `models.py`, `agent.py` stub | wave 2 | - |
 | 3 | Agent loop + tools | `agent.py` | `llm.py`, `search.py`, `grounding.py` | one live question |
 | 3 | Acme generator + `GROUND_TRUTH.md` + Acme questions | `scripts/gen_acme.py`, `data/acme/` | `llm.py`, jobs project | ground-truth check |
-| 3 | Eval runner + config sweep in the jobs project, HotpotQA questions (moved from wave 2: the runner defines their format) | `eval/run.py`, `eval/questions.jsonl` | `agent.py`, dataset labels | dry run on 3 questions |
+| 3 | **Done (#PR):** Eval runner + config sweep in the jobs project, HotpotQA questions (moved from wave 2: the runner defines their format): `make eval CONFIG=retrieval\|agent\|agent-fixed\|single-shot`, 30 questions, Qwen3 judge, Haiku pacing, memoized query embeddings (ADR 0027). Left: dry run on 3 questions after the agent merges | `eval/run.py`, `eval/questions.jsonl` | `agent.py`, dataset labels | dry run on 3 questions |
 | 4 | EVALUATION.md, README, AI_USAGE.md | docs | results | - |
 
 Wave 1 tasks are pure Python or infra and can all start immediately (Bedrock is not needed);

@@ -33,4 +33,5 @@ that closes it.
 | `POST /ask` is not served: the page's question box gets 404 | the agent loop is wave 3 | `agent.py` and the route land |
 | One bad line in a JSONL shard skips the whole shard | `parsers.read_jsonl` raises on the first bad line, `ingest` skips the file ([04](04-api-contract.md#ingest)) | a shard fails in practice; then skip per line in `read_jsonl` |
 | The Function URL has no auth: anyone with the URL can upload and `DELETE` documents | `auth_type=NONE` ([ADR 0008](adr/0008-function-url-not-api-gateway.md)) | the custom domain with a secret header (planned 2026-10-28) |
+| Judge correctness is one model's opinion (Qwen3-235B); its agreement with a human is unmeasured | LLM-as-judge ([ADR 0027](adr/0027-eval-runner-retrieval-sweep-qwen-judge.md)) | ~10 verdicts are checked by hand and the agreement is reported in EVALUATION.md |
 | A cold first request can get 502 instead of 503: `db.connect` may wait longer than the api Lambda's 90 s | resume retries in `db.connect` ([ADR 0021](adr/0021-aurora-express-iam-auth.md)) | warm the database before a demo; accepted |

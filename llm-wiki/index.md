@@ -29,6 +29,7 @@ and 10 Runbook appear with the streams that build them.
 | Datasets, Acme corpus, ingestion, jobs | [05 Corpora](05-corpora.md), [ADR 0006](adr/0006-hotpotqa-plus-synthetic-acme-corpus.md), [ADR 0018](adr/0018-cloud-only-ingestion-and-jobs.md), [ADR 0022](adr/0022-cohere-embed-v4-batched.md) |
 | Shared types or stream interfaces | [02 Architecture](02-architecture.md#contracts), [ADR 0014](adr/0014-shared-contracts-parallel-streams.md), `src/engine/models.py` |
 | The UI, HTTP routes | [04 API contract](04-api-contract.md) |
+| Evaluation: questions, metrics, the runner, results | [09 Evaluation](09-evaluation.md), [ADR 0027](adr/0027-eval-runner-retrieval-sweep-qwen-judge.md), `eval/metrics.py` |
 | Something does not work yet or is temporary | [14 Known gaps](14-known-gaps.md) |
 
 ## Document index
@@ -38,6 +39,7 @@ and 10 Runbook appear with the streams that build them.
 - [04 API contract](04-api-contract.md): HTTP routes, JSON shapes, upload/update/delete flow
 - [05 Corpora](05-corpora.md): HotpotQA source, dedup rules, real counts, S3 shard layout
 - [07 Infrastructure](07-infrastructure.md): AWS project, CDK stacks, CI/CD, deploying, cost
+- [09 Evaluation](09-evaluation.md): question set and format, metrics, configurations, how to run, cost
 - [14 Known gaps](14-known-gaps.md): what does not work yet, or works on a temporary arrangement
 
 ## Architecture decisions
@@ -72,3 +74,4 @@ old one, and the old one gets `status: superseded` and `superseded_by: 00XX`. Te
 | [0022](adr/0022-cohere-embed-v4-batched.md) | Cohere Embed V4 on Bedrock (`eu.*` profile), 96 texts per request and whole shards per call, instead of Titan; failed ingest events kept in an SQS queue |
 | [0023](adr/0023-llm-client-own-retry-fallback-cache.md) | One LLM client with its own retry loop, Haiku-only fallback and a Postgres cache |
 | [0024](adr/0024-partial-hnsw-per-strategy-or-keyword-query.md) | A partial HNSW index per chunking strategy, and OR semantics for keyword search |
+| [0027](adr/0027-eval-runner-retrieval-sweep-qwen-judge.md) | Own eval runner: retrieval sweep without an LLM, Qwen3 judge, Haiku pacing, results via S3 |

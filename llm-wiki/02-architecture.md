@@ -12,7 +12,8 @@ owner: Pro100Sergosha
 Wave 2 (2026-10-25): the `api` Lambda serves the page and the document routes (llm-wiki/04);
 `ingest` parses, dedups, chunks, embeds (Cohere Embed V4, 96 texts per request) and stores every
 object put under `uploads/` or `bulk/`, and keeps the events it gave up on in an SQS queue; `search.py` runs dense + keyword -> RRF -> MMR; `llm.py` is the Bedrock client. Not built:
-the agent loop and `POST /ask` (wave 3), the Acme corpus, the evaluation runner. Everything marked
+the agent loop and `POST /ask` (wave 3), the Acme corpus. The evaluation runner (`eval/run.py`,
+[09 Evaluation](09-evaluation.md)) is built but has not run yet. Everything marked
 *(planned)* is decided (see the ADRs) but not built.
 
 ## Contracts
@@ -30,7 +31,7 @@ the specification, with `NotImplementedError` bodies until their wave owners imp
 | `build_answer(raw, retrieved) -> Answer` | `grounding.py` | the citation validator and the status rules |
 | recall@k, reciprocal rank, EM, F1, citation precision, abstention P/R, contradiction P/R | `eval/metrics.py` | gold labels are document sources, not database ids |
 | `normalize`, `content_hash` | `index.py` | implemented: the dataset job and `ingest` must dedup identically |
-| `embed_documents(texts) -> list[list[float]]`, `embed_query(text) -> list[float]` | `embed.py` | implemented: Cohere Embed V4 (`eu.*` profile), 1024 floats of unit length, 96 texts per request (`search_document`), queries as `search_query`, adaptive retry on throttling |
+| `embed_documents(texts) -> list[list[float]]`, `embed_query(text) -> list[float]` | `embed.py` | implemented: Cohere Embed V4 (`eu.*` profile), 1024 floats of unit length, 96 texts per request (`search_document`), queries as `search_query` (memoized, 256 texts: the shared list must not be mutated), adaptive retry on throttling |
 | `upsert_many(docs) -> [(status, id)]`, `upsert(doc)`, `delete(id)` | `index.py` | implemented: dedup checks of the whole batch before any embedding (also within the batch), the distinct inputs of all docs to write embedded in one go, one transaction per doc; `upsert(doc)` is `upsert_many([doc])[0]`; chunks embedded as `<title>\n\n<chunk>` |
 | `search(query, k, strategy, mode)`, `get_document`, `list_documents`, `document_detail`, `get_chunks` | `search.py` | implemented, `k` 1-40: `mode` is `dense`, `hybrid` (RRF) or `mmr` (RRF + MMR), the evaluated configurations |
 | `ask(question, strategy, mode, max_steps) -> Answer` | `agent.py` | wave 3: `max_steps=1` is single-shot RAG; `trace` entries with `"step": "llm"` carry `model`, `cached`, `usage` (the eval runner paces and costs from them); never raises for model errors or timeouts, abstains instead. `Answer.answer` is the short direct answer EM/F1 compare |
@@ -72,7 +73,7 @@ browser ──HTTPS──> Lambda Function URL ──> api Lambda (container ima
                                                   gave up after 2 retries -> SQS IngestFailures
 
 CodeBuild investigation-jobs: dataset (HotpotQA shards -> S3 -> ingest) | redrive-ingest
-                              (IngestFailures -> ingest) | acme, eval (planned)
+                              (IngestFailures -> ingest) | eval CONFIG=... (llm-wiki/09) | acme (planned)
 ```
 
 ## Data flow
