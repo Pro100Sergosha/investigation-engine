@@ -28,8 +28,11 @@ of the evaluation is [llm-wiki/09](llm-wiki/09-evaluation.md).
   questions are answered from one document, although in three of them the other document was in
   the first search's hits.
 - **The measurement has its own problems.** The judge is a single model and gives different
-  verdicts to answers with the same content. The cost column leaves out prompt-cache tokens. The
-  set is small (one question moves a type's score by 0.04-0.09) and was used for tuning.
+  verdicts to answers with the same content. The set is small (one question moves a type's score
+  by 0.04-0.09) and was used for tuning. The cost column used to leave out prompt-cache tokens;
+  that was found while writing this report and fixed in
+  [#37](https://github.com/Pro100Sergosha/investigation-engine/pull/37) (section 4.10). Repriced,
+  the loop costs about 3x as much as single-shot ($0.016 vs $0.005 per question).
 
 ## 1. Methodology
 
@@ -146,8 +149,9 @@ That makes it cheap, but it is not an exact replay, for three reasons:
 - Near-tied search hits can swap places between runs. That changes the prompt, misses the cache
   and can change the answer (seen on `hp-5a7e36815542995ed0d166d4` and `hp-simple-4`, ADR 0027
   update).
-- A cached rerun's cost and latency are not the system's. This is why the "prompt of #31" row
-  shows $0.05 and a p50 of 0.7 s.
+- A cached rerun's cost and latency are not the system's. The committed "prompt of #31" file
+  records $0.05 and a p50 of 0.7 s; the tables below quote that prompt's first, uncached run
+  instead.
 - Uncached calls are not deterministic either. Between the #31 and #32 runs,
   `hp-5a8c493e554299653c1aa020` flipped from correct to abstained because the model picked
   different sub-queries (section 4.4).
@@ -168,7 +172,7 @@ and left out of every score. All four answer runs had 0 errors.
 | Citation precision | `metrics.citation_precision`: distinct sources of the cited chunks (claims and contradictions) that are gold, divided by all distinct cited sources. `None` when nothing is cited | answerable questions that cite something (57-61 per run) |
 | Abstention P/R | predicted = status `insufficient`, actual = type `unanswerable` | all 72 |
 | Contradiction P/R | predicted = status `conflicting`, actual = type `contradictory` | all 72 |
-| Cost | uncached LLM calls only: `inputTokens` x input price + `outputTokens` x output price (Haiku `eu.*` $1.10/$5.50, `global.*` $1.00/$5.00, gpt-oss $0.15/$0.60, Qwen $0.22/$0.88 per 1M), judge included. **It leaves out prompt-cache tokens** (section 4.10) | answer runs |
+| Cost | uncached LLM calls only: (`inputTokens` + 1.25 x `cacheWriteInputTokens` + 0.1 x `cacheReadInputTokens`) x input price + `outputTokens` x output price (Haiku `eu.*` $1.10/$5.50, `global.*` $1.00/$5.00, gpt-oss $0.15/$0.60, Qwen $0.22/$0.88 per 1M), judge included. The cache terms were added in [#37](https://github.com/Pro100Sergosha/investigation-engine/pull/37) (section 4.10) | answer runs |
 | Latency p50/p95 | seconds of `agent.ask` per question (without the runner's pause), nearest-rank percentile | answer runs |
 | Fallback share | share of answers with at least one LLM call not answered by Haiku (`eu.*` or `global.*`) | answer runs |
 
@@ -234,9 +238,9 @@ Reading these tables:
 
 | config | prompt | EM | F1 | judge | citation P | abstain P/R | conflict P/R | fallback | cost | p50/p95 s |
 |---|---|---|---|---|---|---|---|---|---|---|
-| `agent` (fixed, 6 steps) | #32 | 0.52 | 0.73 | 0.82 | 0.94 | 0.77/0.91 | 1.00/0.67 | 0.03 | $0.38 | 10.3/45.6 |
-| `agent` | #31 | 0.48 | 0.73 | 0.74 | 0.94 | 0.77/0.91 | 0.75/0.25 | 0.00 | $0.05 (cached rerun) | 0.7/12.9 (cached rerun) |
-| `agent-structured` | #31 | 0.52 | 0.73 | 0.70 | 0.93 | 0.83/0.91 | 0.80/0.33 | 0.00 | $0.56 | 6.7/22.8 |
+| `agent` (fixed, 6 steps) | #32 | 0.52 | 0.73 | 0.82 | 0.94 | 0.77/0.91 | 1.00/0.67 | 0.03 | $1.16 | 10.3/45.6 |
+| `agent` | #31 | 0.48 | 0.73 | 0.74 | 0.94 | 0.77/0.91 | 0.75/0.25 | 0.00 | > $0.41 (old pricing, cache tokens missing) | 13.4/40.0 (first run) |
+| `agent-structured` | #31 | 0.52 | 0.73 | 0.70 | 0.93 | 0.83/0.91 | 0.80/0.33 | 0.00 | $1.08 | 6.7/22.8 |
 | `single-shot` (1 step) | #31 | 0.32 | 0.53 | 0.62 | 0.94 | 0.48/0.91 | 0.75/0.25 | 0.00 | $0.37 | 5.8/11.4 |
 
 The same scores as counts:
@@ -250,14 +254,16 @@ The same scores as counts:
 
 Notes on the table:
 - **The `agent` (#31) row.** Its quality columns come from the committed file, which is a rerun
-  mostly served by the cache. Its first, uncached run is not in a committed file. llm-wiki/09
-  quotes that run at $0.41 and 13.4/40.0 s, during the `eu.*` outage
-  ([ADR 0028](llm-wiki/adr/0028-haiku-global-pool-before-gpt-oss.md)). Use those figures, not
-  $0.05 and 0.7/12.9 s, when comparing cost or latency with this prompt.
+  mostly served by the cache ($0.05 and 0.7/12.9 s in the file; not the system's). Its cost and
+  latency columns are from the first, uncached run, during the `eu.*` outage
+  ([ADR 0028](llm-wiki/adr/0028-haiku-global-pool-before-gpt-oss.md)), as quoted in
+  llm-wiki/09. That run's records are not committed, so its cost cannot be repriced: $0.41 was
+  computed without the prompt-cache tokens, and the real cost was higher by an unknown amount.
 - **The `agent` fallback share of 0.03.** It comes from `acme-010` and `acme-012`, which got one
   gpt-oss call each and were still judged correct.
-- **The cost column is a lower bound for the two loop configurations**, and it cannot be used to
-  compare them with `single-shot` (section 4.10).
+- **Cost per question:** `agent` ~$0.016, `agent-structured` ~$0.015, `single-shot` ~$0.005.
+  The `agent` and `agent-structured` costs were repriced from their traces in
+  [#37](https://github.com/Pro100Sergosha/investigation-engine/pull/37) (section 4.10).
 
 ### Judge correctness by type
 
@@ -460,8 +466,9 @@ and simple questions (11 of 11 in both). There the seed search usually returns e
 needed.
 
 The price of the loop for `agent`: 2.3 LLM calls and 2.1 searches per question on average (vs 1
-and 1), p50 10.3 s vs 5.8 s, p95 45.6 s vs 11.4 s. The cost column suggests the two cost the same
-($0.38 vs $0.37). That is an artefact of the cost metric (section 4.10).
+and 1), p50 10.3 s vs 5.8 s, p95 45.6 s vs 11.4 s, and about 3x the cost ($1.16 vs $0.37 for
+72 questions, ~$0.016 vs ~$0.005 per question). Before the fix in section 4.10 the cost column
+showed the two as equal ($0.38 vs $0.37).
 
 ### 4.6 Malformed `final_answer`
 
@@ -607,30 +614,47 @@ against 1 missed abstention.
 Two of the three are true conflicts in the corpus, so the precision of 0.75-0.80 understates
 detection quality.
 
-### 4.10 Measurement flaw: the cost column leaves out prompt-cache tokens
+### 4.10 Found and fixed: the cost column left out prompt-cache tokens
 
-`run.cost` prices `usage.inputTokens` and `usage.outputTokens`. Bedrock reports prompt-cache
-tokens in separate fields, and `totalTokens` is the sum of all four. One record from `agent.json`:
-`inputTokens` 5, `cacheWriteInputTokens` 4,930, `outputTokens` 348, `totalTokens` 5,283. A
-call with a 4,935-token prompt was priced as 5 input tokens.
+**What was wrong.** `run.cost` priced only `usage.inputTokens` and `usage.outputTokens`. Bedrock
+Converse reports prompt-cache tokens in separate fields (`cacheWriteInputTokens`,
+`cacheReadInputTokens`), and `totalTokens` is the sum of all four. One record from `agent.json`:
+`inputTokens` 5, `cacheWriteInputTokens` 4,930, `outputTokens` 348, `totalTokens` 5,283. A call
+with a 4,935-token prompt was priced as 5 input tokens. In the agent loop, cache tokens are most of
+the input:
 
-| config | `inputTokens` (priced) | `cacheWriteInputTokens` (not priced) | `cacheReadInputTokens` (not priced) |
+| config | `inputTokens` | `cacheWriteInputTokens` (were not priced) | `cacheReadInputTokens` (were not priced) |
 |---|---|---|---|
 | `agent` | 219,081 | 545,726 | 455,645 |
 | `agent-structured` | 360,005 | 363,603 | 305,101 |
 | `single-shot` | 306,813 | 0 | 0 |
 
-`single-shot` makes one forced call with no history cache point (ADR 0025), so its cost is
-complete. The two loop configurations are undercounted, because cache writes are billed at more
-than the normal input price, not less. Three consequences:
-- "The loop costs the same as single-shot" ($0.38 vs $0.37) is wrong.
-- The `agent` per-question cost (about $0.005) disagrees with ADR 0025's live measurement of about
-  $0.041 for one six-call bridge question.
-- llm-wiki/09's cost figures inherit the same flaw.
+**How it was found.** While writing this report, three things did not fit together:
+- the cost column showed the six-step loop as costing the same as single-shot ($0.38 vs $0.37);
+- the column implied about $0.005 per `agent` question, while ADR 0025 had measured about $0.041
+  live for one six-call bridge question;
+- summing the `usage` fields over the traces showed the unpriced cache tokens above.
 
-**Fix:** price `cacheWriteInputTokens` and `cacheReadInputTokens` at their Bedrock rates in
-`run.cost`, a few lines of code. No rerun is needed: every call's `usage` is in the committed
-traces, so the cost can be recomputed from the files.
+**Fix**, in [#37](https://github.com/Pro100Sergosha/investigation-engine/pull/37):
+- `run.cost` now prices cache writes at 1.25x and cache reads at 0.1x the input price.
+- `agent.json` and `agent-structured.json` were repriced from their committed traces, without a
+  rerun.
+- `single-shot` makes one forced call with no history cache point (ADR 0025) and has no cache
+  tokens, so its cost was already right.
+
+**Effect:**
+
+| config | old cost | repriced | per question |
+|---|---|---|---|
+| `agent` | $0.38 | $1.16 | ~$0.016 |
+| `agent-structured` | $0.56 | $1.08 | ~$0.015 |
+| `single-shot` | $0.37 | $0.37 | ~$0.005 |
+
+- The loop costs about 3x as much as single-shot, not the same.
+- The ordering of the two loop configurations flipped: structured chunks looked more expensive and
+  are in fact slightly cheaper.
+- The first uncached run with the #31 prompt ($0.41) cannot be repriced, because its records are
+  not committed. Its real cost was higher than quoted.
 
 ### 4.11 Small-set noise
 
@@ -658,13 +682,11 @@ hybrid and MMR. What clears the noise:
 In the order of what they fix per unit of work:
 1. **Repair the two malformed-claims shapes on the server** (4.6). No extra calls. It removes
    reprompts in 5-16 answers per run and the one-sided rewrite in `acme-020`.
-2. **Count tokens correctly** (4.10): price the cache tokens and recompute from the committed
-   traces. Without this, no cost comparison between configurations is valid.
-3. **Separate infrastructure errors from abstentions in the runner** (4.4). It is a measurement
+2. **Separate infrastructure errors from abstentions in the runner** (4.4). It is a measurement
    fix that changes the reported abstention precision without changing the system.
-4. **A second, exclusion search before a contradiction-prone answer is accepted** (4.1). It
+3. **A second, exclusion search before a contradiction-prone answer is accepted** (4.1). It
    targets the four remaining contradiction misses, for about one Haiku call more per question.
-5. **Hold out part of the set** before any further tuning (section 6).
+4. **Hold out part of the set** before any further tuning (section 6).
 
 ## 5. Judge spot-check
 
@@ -718,9 +740,10 @@ gives the same short answer, and the judge accepted it there because its claims 
   rows run #31. Only rows with the same prompt can be compared: `agent` (#31), `agent-structured`
   and `single-shot`.
 - **Cached reruns.** The `agent` (#31) row is a rerun served mostly by `llm_cache`. Its quality
-  columns are close to the first run's but not identical, and its cost and latency are not the
-  system's.
-- **Cost is undercounted** for the loop configurations (4.10).
+  columns are close to the first run's but not identical. Its cost and latency come from the
+  first run, and that cost ($0.41) predates the cache-token fix, so it is a lower bound (4.10).
+- **Cost assumes the cache multipliers** (1.25x write, 0.1x read, #37) and Haiku `eu.*`/`global.*`
+  list prices; it is computed from token counts, not read from a bill.
 - **HotpotQA label noise.** Fused or over-long gold answers and a wrong supporting title
   (4.7) lower EM, citation precision and Recall for answers that are right.
 - **The synthetic corpus and the generator share a family.** Haiku wrote all 64 Acme documents
