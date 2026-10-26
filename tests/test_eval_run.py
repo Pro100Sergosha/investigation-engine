@@ -97,10 +97,12 @@ def test_retrieval_sweep_scores_sources_of_every_strategy_and_mode(monkeypatch):
         return [hit("hotpotqa:X"), hit("hotpotqa:X")]  # one of two gold docs, twice
 
     monkeypatch.setattr(search, "search", fake_search)
+    monkeypatch.setattr(run.time, "sleep", lambda seconds: None)
     records = run.run_retrieval(GOOD)
 
     assert [r["id"] for r in records] == ["hp-1", "acme-1"]  # unanswerable skipped
-    assert len(calls) == 2 * 6 and {c[1] for c in calls} == {10}
+    # 2 questions x 6 searches, plus 2 retries of each failing hybrid search (2 x 2 of them).
+    assert len(calls) == 2 * 6 + 2 * 2 * 2 and {c[1] for c in calls} == {10}
     dense = records[0]["runs"]["structured/dense"]
     assert (dense["recall@5"], dense["recall@10"], dense["rr"]) == (0.5, 1.0, 0.5)
     mmr = records[0]["runs"]["fixed/mmr"]
@@ -119,6 +121,23 @@ def test_retrieval_sweep_scores_sources_of_every_strategy_and_mode(monkeypatch):
     assert summary["fixed/dense"]["n"] == 2
     assert summary["fixed/dense"]["by_type"]["multi_hop"]["mrr"] == 0.5
     assert summary["fixed/dense"]["by_type"]["contradictory"]["mrr"] == 0.0
+
+
+def test_retrieval_retries_a_throttled_search(monkeypatch):
+    attempts = []
+
+    def fake_search(query, k, strategy, mode):
+        attempts.append(mode)
+        if len(attempts) == 1:
+            raise RuntimeError("ThrottlingException")
+        return [hit("hotpotqa:Ann")]
+
+    waits = []
+    monkeypatch.setattr(search, "search", fake_search)
+    monkeypatch.setattr(run.time, "sleep", waits.append)
+    record = run._retrieve(GOOD[0], "fixed", "dense")
+    assert "error" not in record and record["rr"] == 1.0
+    assert waits == [run.SEARCH_RETRY_SECONDS]
 
 
 def llm_step(model=llm.HAIKU, cached=False, tokens_in=1000, tokens_out=100):
@@ -158,7 +177,7 @@ def test_answer_run_records_sources_usage_metrics_and_paces(monkeypatch):
     pauses = []
     records = run.run_answers(GOOD, run.ANSWER_CONFIGS["single-shot"], sleep=pauses.append)
 
-    assert asked == [("structured", "mmr", 1)] * 3
+    assert asked == [("fixed", "mmr", 1)] * 3
     answered, abstained, failed = records
     assert answered["cited_sources"] == ["hotpotqa:X", "hotpotqa:Other"]
     assert answered["claims"][1] == {"text": "Gone.", "citations": [99], "sources": []}

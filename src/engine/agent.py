@@ -15,7 +15,7 @@ DEADLINE_SECONDS = 80
 # With less time left, the next LLM call is the last one and final_answer is forced: one
 # attempt (llm.ATTEMPT_SECONDS) plus ~10 s for the search a non-final call would lead to.
 FORCE_BELOW_SECONDS = llm.ATTEMPT_SECONDS + 10
-SEARCH_K = 8  # passages per search when the model does not ask for another k
+SEARCH_K = 10  # passages per search when the model does not ask for another k
 # get_document shows at most this much text (~2k tokens): one call must not eat the budget.
 DOCUMENT_CHARS = 8000
 
@@ -87,9 +87,7 @@ _NO_TOOL_CALL = "Reply only with tool calls. When you are done, call final_answe
 _EMPTY_REPLY = "Your reply was cut off before any content. Reply again, shorter."
 
 
-def ask(
-    question: str, strategy: str = "structured", mode: str = "mmr", max_steps: int = 6
-) -> Answer:
+def ask(question: str, strategy: str = "fixed", mode: str = "mmr", max_steps: int = 6) -> Answer:
     """Answer `question` from the corpus with cited claims, or abstain (ADR 0005, ADR 0025).
 
     `strategy` and `mode` are passed to every `search.search` call (the evaluated

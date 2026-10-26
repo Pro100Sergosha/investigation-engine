@@ -62,6 +62,17 @@ def test_rrf_custom_k0_changes_scores():
     assert rrf([[1, 2]], k0=0) == [(1, 1 / 1), (2, 1 / 2)]
 
 
+def test_rrf_weight_scales_a_list():
+    # Keyword list at half weight: its first id (2) gets 0.5/11, less than dense rank 2 (1/12).
+    result = rrf([[1, 3], [2]], k0=10, weights=[1.0, 0.5])
+    assert result == [(1, 1 / 11), (3, 1 / 12), (2, 0.5 / 11)]
+
+
+def test_rrf_weights_must_match_rankings():
+    with pytest.raises(ValueError):
+        rrf([[1], [2]], weights=[1.0])
+
+
 # --- mmr ---
 
 
@@ -81,21 +92,21 @@ def test_mmr_lam_zero_avoids_near_duplicate():
 
 
 def test_mmr_balances_relevance_and_diversity_by_hand():
-    # lam = 0.5. Scores 1.0, 0.9, 0.5 -> relevance 1.0, 0.9, 0.5 (best score is 1.0).
+    # lam = 0.5. Scores 1.0, 0.9, 0.5 -> min-max relevance 1.0, 0.8, 0.0.
     # A=(1,0), B=(1,0) (copy of A), C=(0,1).
-    # Step 1, nothing picked, similarity 0: A = 0.5, B = 0.45, C = 0.25 -> A.
-    # Step 2: B = 0.5*0.9 - 0.5*cos(A,B)=1 -> -0.05; C = 0.5*0.5 - 0.5*0 = 0.25 -> C.
+    # Step 1, nothing picked, similarity 0: A = 0.5, B = 0.4, C = 0 -> A.
+    # Step 2: B = 0.5*0.8 - 0.5*cos(A,B)=1 -> -0.1; C = 0.5*0 - 0.5*0 = 0 -> C.
     # Step 3: B is the only one left.
     hits = [_hit(1, 1.0), _hit(2, 0.9), _hit(3, 0.5)]
     vectors = {1: [1.0, 0.0], 2: [1.0, 0.0], 3: [0.0, 1.0]}
     assert _ids(mmr(hits, vectors, k=3, lam=0.5)) == [1, 3, 2]
 
 
-def test_mmr_relevance_is_normalized_by_best_score():
-    # Raw scores are tiny (RRF-like). lam=0.9, relevance = score / 0.04 = 1, 0.75, 0.25.
-    # Step 2: hit 2 = 0.9*0.75 - 0.1*1 = 0.575; hit 3 = 0.9*0.25 - 0 = 0.225 -> 2 wins.
+def test_mmr_relevance_is_min_max_normalized():
+    # Raw scores are tiny (RRF-like). lam=0.9, relevance = (s - 0.01) / 0.03 = 1, 2/3, 0.
+    # Step 2: hit 2 = 0.9*2/3 - 0.1*1 = 0.5; hit 3 = 0 - 0 = 0 -> 2 wins.
     # Without normalization hit 2 = 0.9*0.03 - 0.1 < 0 and the dissimilar hit 3 would win.
-    # With lam=0.5: hit 2 = 0.5*0.75 - 0.5 = -0.125; hit 3 = 0.5*0.25 = 0.125 -> 3 wins.
+    # With lam=0.5: hit 2 = 0.5*2/3 - 0.5 = -0.17; hit 3 = 0 -> 3 wins.
     hits = [_hit(1, 0.04), _hit(2, 0.03), _hit(3, 0.01)]
     vectors = {1: [1.0, 0.0], 2: [1.0, 0.0], 3: [0.0, 1.0]}
     assert _ids(mmr(hits, vectors, k=2, lam=0.9)) == [1, 2]
@@ -133,14 +144,15 @@ def test_mmr_no_candidates_returns_empty():
 
 def test_mmr_zero_vector_has_zero_similarity():
     # Hit 2 is a zero vector: similarity to hit 1 is 0 (not a ZeroDivisionError), so with
-    # lam=0.5 it scores 0.5*0.8 = 0.4, beating hit 3 = 0.5*0.5 - 0.5*cos(1,3)=1 -> -0.25.
+    # lam=0.5 it scores 0.5*0.6 = 0.3, beating hit 3 = 0.5*0 - 0.5*cos(1,3)=1 -> -0.5.
     hits = [_hit(1, 1.0), _hit(2, 0.8), _hit(3, 0.5)]
     vectors = {1: [1.0, 0.0], 2: [0.0, 0.0], 3: [1.0, 0.0]}
     assert _ids(mmr(hits, vectors, k=2, lam=0.5)) == [1, 2]
 
 
-def test_mmr_all_scores_zero_does_not_divide_by_zero():
-    # Relevance is 0 for all; with lam=0.5 the second pick is the dissimilar one.
+def test_mmr_equal_scores_do_not_divide_by_zero():
+    # Highest == lowest: relevance is 1 for all; with lam=0.5 the second pick is the
+    # dissimilar one.
     hits = [_hit(1, 0.0), _hit(2, 0.0), _hit(3, 0.0)]
     vectors = {1: [1.0, 0.0], 2: [1.0, 0.0], 3: [0.0, 1.0]}
     assert _ids(mmr(hits, vectors, k=2, lam=0.5)) == [1, 3]
@@ -181,3 +193,12 @@ def test_mmr_tie_goes_to_earlier_candidate():
     hits = [_hit(1, 0.5), _hit(2, 0.5), _hit(3, 0.5)]
     vectors = {1: [1.0, 0.0], 2: [0.0, 1.0], 3: [1.0, 1.0]}
     assert _ids(mmr(hits, vectors, k=1, lam=1.0)) == [1]
+
+
+def test_mmr_narrow_rrf_band_still_prefers_relevance():
+    # RRF-like scores 1/11 .. 1/13: divided by the best they would all be ~0.85-1.0 and a small
+    # similarity difference would decide; min-max keeps the most relevant near-duplicate (2,
+    # relevance 0.46, cosine 0.6 to hit 1) ahead of the least relevant hit (3, relevance 0).
+    hits = [_hit(1, 1 / 11), _hit(2, 1 / 12), _hit(3, 1 / 13)]
+    vectors = {1: [1.0, 0.0], 2: [0.6, 0.8], 3: [0.0, 1.0]}
+    assert _ids(mmr(hits, vectors, k=2, lam=0.85)) == [1, 2]

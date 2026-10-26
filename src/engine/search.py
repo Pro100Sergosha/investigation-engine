@@ -13,6 +13,13 @@ MODES = ("dense", "hybrid", "mmr")
 # what keeps pure-Python MMR fast (rank.mmr).
 CANDIDATES = 40
 
+# Fusion and diversity settings, chosen by the retrieval sweep over the eval questions (ADR 0029).
+# The keyword list is noisy (OR over every word of a long question), so it counts half; k0=10
+# instead of the usual 60 keeps dense's top ranks clearly ahead of a keyword-only match.
+RRF_K0 = 10
+KEYWORD_WEIGHT = 0.5
+MMR_LAMBDA = 0.85
+
 # The partial HNSW index of the strategy serves this (sql/schema.sql, ADR 0024).
 _DENSE_SQL = """
 SELECT id, 1 - (embedding <=> CAST(:q AS halfvec(1024)))
@@ -49,12 +56,13 @@ d.id, d.source, d.title, d.doc_type, d.version, d.created_at,
 """
 
 
-def search(query: str, k: int = 10, strategy: str = "structured", mode: str = "mmr") -> list[Hit]:
+def search(query: str, k: int = 10, strategy: str = "fixed", mode: str = "mmr") -> list[Hit]:
     """Top `k` chunks of one chunking `strategy` ("fixed" | "structured") for `query`.
 
     `mode` selects the evaluated configuration: "dense" (vector search only, score = cosine
-    similarity), "hybrid" (dense top-N and keyword top-N fused by `rank.rrf`, score = RRF
-    score), "mmr" (hybrid, then `rank.mmr` with its per-document cap). Blank query -> [].
+    similarity), "hybrid" (dense top-N and keyword top-N fused by `rank.rrf` with the keyword
+    list at `KEYWORD_WEIGHT`, score = RRF score), "mmr" (hybrid, then `rank.mmr` at
+    `MMR_LAMBDA` with its per-document cap). Blank query -> [].
     Raises ValueError on an unknown strategy or mode, or k outside 1..CANDIDATES.
     """
     if strategy not in STRATEGIES:
@@ -74,7 +82,9 @@ def search(query: str, k: int = 10, strategy: str = "structured", mode: str = "m
         return _hits(dense[:k])
 
     keyword = [row[0] for row in db.run(_KEYWORD_SQL, q=query, strategy=strategy, n=CANDIDATES)]
-    fused = rank.rrf([[chunk_id for chunk_id, _ in dense], keyword])
+    fused = rank.rrf(
+        [[chunk_id for chunk_id, _ in dense], keyword], k0=RRF_K0, weights=[1.0, KEYWORD_WEIGHT]
+    )
     if mode == "hybrid":
         return _hits(fused[:k])
 
@@ -82,7 +92,7 @@ def search(query: str, k: int = 10, strategy: str = "structured", mode: str = "m
     rows = db.run(_HITS_SQL, ids=[chunk_id for chunk_id, _ in pool], vectors=True)
     candidates = _to_hits(pool, rows)
     vectors = {row[0]: _parse_vector(row[5]) for row in rows}
-    return rank.mmr(candidates, vectors, k)
+    return rank.mmr(candidates, vectors, k, lam=MMR_LAMBDA)
 
 
 def _hits(scored: list[tuple[int, float]]) -> list[Hit]:

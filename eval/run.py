@@ -24,12 +24,14 @@ TYPES = ("simple", "multi_hop", "multi_doc", "unanswerable", "contradictory")
 # every chunking strategy x search mode. The others run the agent with these arguments.
 RETRIEVAL = "retrieval"
 ANSWER_CONFIGS = {
-    "agent": {"strategy": "structured", "mode": "mmr", "max_steps": 6},
-    "agent-fixed": {"strategy": "fixed", "mode": "mmr", "max_steps": 6},
-    "single-shot": {"strategy": "structured", "mode": "mmr", "max_steps": 1},
+    "agent": {"strategy": "fixed", "mode": "mmr", "max_steps": 6},
+    "agent-structured": {"strategy": "structured", "mode": "mmr", "max_steps": 6},
+    "single-shot": {"strategy": "fixed", "mode": "mmr", "max_steps": 1},
 }
 GRID = [f"{strategy}/{mode}" for strategy in search.STRATEGIES for mode in search.MODES]
 K = 10  # hits per search: Recall@10 needs 10
+SEARCH_ATTEMPTS = 3
+SEARCH_RETRY_SECONDS = 20
 
 # USD per 1M tokens (input, output), EU prices (ADR 0017). A cached call costs nothing.
 # The global Haiku pool has no EU surcharge.
@@ -125,11 +127,17 @@ def run_retrieval(questions: list[dict]) -> list[dict]:
 
 def _retrieve(q: dict, strategy: str, mode: str) -> dict:
     gold = set(q["gold_sources"])
-    start = time.monotonic()
-    try:
-        hits = search.search(q["question"], k=K, strategy=strategy, mode=mode)
-    except Exception as error:  # one failed search is recorded, the sweep goes on
-        return {"error": f"{type(error).__name__}: {error}"}
+    for attempt in range(SEARCH_ATTEMPTS):
+        start = time.monotonic()
+        try:
+            hits = search.search(q["question"], k=K, strategy=strategy, mode=mode)
+            break
+        except Exception as error:  # one failed search is recorded, the sweep goes on
+            if attempt == SEARCH_ATTEMPTS - 1:
+                return {"error": f"{type(error).__name__}: {error}"}
+            # The query-embedding client gives up within seconds (ADR 0028): right for the
+            # api, but the sweep can wait for the Cohere pool (20 requests/min) to refill.
+            time.sleep(SEARCH_RETRY_SECONDS)
     # One source per chunk, duplicates kept: recall@k looks at the first k chunks.
     sources = [hit.source for hit in hits]
     return {

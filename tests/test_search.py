@@ -128,12 +128,14 @@ def test_dense_mode_scores_are_cosine_similarities(fused_inputs):
 
 def test_hybrid_mode_fuses_dense_and_keyword_with_rrf(fused_inputs):
     hits = search.search("q", k=3, mode="hybrid")
-    # 3 is in both lists (ranks 3 and 1); 2 and 4 tie at rank 2 of one list, smaller id first.
+    # k0=10, keyword at half weight: 3 is in both lists (dense rank 3, keyword rank 1) and gets
+    # 1/13 + 0.5/11; keyword-only 4 (0.5/12) falls behind dense 1 and 2.
     assert [hit.chunk_id for hit in hits] == [3, 1, 2]
-    assert hits[0].score == pytest.approx(1 / 63 + 1 / 61)
+    assert hits[0].score == pytest.approx(1 / 13 + 0.5 / 11)
 
 
 def test_mmr_mode_reranks_the_fused_candidates(fused_inputs):
     hits = search.search("q", k=3, mode="mmr")
-    # Fused order is 3, 1, 2, 4; 1 duplicates 3's direction, so 2 and 4 come before it.
-    assert [hit.chunk_id for hit in hits] == [3, 2, 4]
+    # Fused order is 3, 1, 2, 4; 1 duplicates 3's direction, so 2 comes before it. 4 is the
+    # least relevant (min-max relevance 0) and stays out at lam 0.85.
+    assert [hit.chunk_id for hit in hits] == [3, 2, 1]

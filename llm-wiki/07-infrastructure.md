@@ -150,7 +150,7 @@ aws codebuild start-build --project-name investigation-jobs --profile investigat
 | `acme` | `scripts/gen_acme.py`: the Acme corpus from `data/acme/spec.json`, one Haiku call per document, each file checked by parsing it; files and labels to `jobs/acme/` (inert), to be committed ([05 Corpora](05-corpora.md#acme-synthetic)) |
 | `acme-load` | copies the committed `data/acme/files/` to `uploads/`, so `ingest` indexes them as `upload:<file name>` |
 | `redrive-ingest` | `scripts/redrive_ingest.py`: for each message in `IngestFailures`, log the condition and error, invoke `ingest` asynchronously with the original S3 event, delete the message once the invoke is accepted; stops at the first empty receive. Safe to run twice: `ingest` skips what is stored |
-| `eval CONFIG=<name> [LIMIT=N]` | `eval/run.py`: the question set through `retrieval` (no LLM), `agent`, `agent-fixed` or `single-shot`; results to `jobs/eval/<config>.json` ([09 Evaluation](09-evaluation.md)). The whole value goes in one variable: `"name=TARGET,value=eval CONFIG=agent LIMIT=3"` |
+| `eval CONFIG=<name> [LIMIT=N]` | `eval/run.py`: the question set through `retrieval` (no LLM), `agent`, `agent-structured` or `single-shot`; results to `jobs/eval/<config>.json` ([09 Evaluation](09-evaluation.md)). The whole value goes in one variable: `"name=TARGET,value=eval CONFIG=agent LIMIT=3"` |
 
 A build without `TARGET` fails on purpose.
 
