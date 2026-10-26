@@ -1,7 +1,7 @@
 ---
 title: Infrastructure
 status: current
-last_updated: 2026-10-25
+last_updated: 2026-10-26
 owner: Pro100Sergosha
 ---
 
@@ -92,7 +92,7 @@ Permissions (least privilege, no `*` actions):
 
 | Principal | Database login (`rds-db:connect`) | Bedrock | S3 |
 |---|---|---|---|
-| `api` | `app` | Cohere Embed V4 (`eu.*`), gpt-oss-120b, Qwen3-235B, Claude Haiku 4.5 (`eu.*`) | `PutObject` on `uploads/*` (to presign uploads) |
+| `api` | `app` | Cohere Embed V4 (`eu.*`), gpt-oss-120b, Qwen3-235B, Claude Haiku 4.5 (`eu.*` and `global.*`, ADR 0028) | `PutObject` on `uploads/*` (to presign uploads) |
 | `ingest` | `app` | Cohere Embed V4 (`eu.*`) only (it embeds, it never calls an LLM) | `GetObject` on `uploads/*`, `bulk/*`; `SendMessage` to `IngestFailures` (the failure destination) |
 | `investigation-jobs` | `app` | same as `api` | `GetObject`, `PutObject` on the bucket, `ListBucket`; receive/delete on `IngestFailures` and `lambda:InvokeFunction` on `ingest` (for `redrive-ingest`) |
 | `SchemaFn` | `postgres` | - | - |
@@ -197,7 +197,7 @@ first. Claude Code's auto mode refuses IAM-changing deploys; the owner runs thos
 One image from `Dockerfile` (base `public.ecr.aws/lambda/python:3.12`), dependencies installed with
 uv from `uv.lock` (`--no-dev`), code copied from `src/engine`. `.dockerignore` is a whitelist
 (`pyproject.toml`, `uv.lock`, `src/`), which also keeps the CDK asset staged in `cdk.out` small.
-[ADR 0009](adr/0009-one-container-image-for-all-lambdas.md).
+[ADR 0016](adr/0016-titan-embeddings-no-model-in-lambda.md) (it replaced [ADR 0009](adr/0009-one-container-image-for-all-lambdas.md)).
 
 ## Cost
 

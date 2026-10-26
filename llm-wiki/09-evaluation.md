@@ -200,8 +200,10 @@ gpt-oss call each, both still correct) and two questions abstained on
 
 What the runs show (the failure analysis for EVALUATION.md starts here):
 - **The loop pays off on multi-hop**: 0.87 vs 0.52 judge (same prompt). `single-shot` abstains on 9 of 23
-  multi-hop questions (abstention precision 0.48): it cannot search again for the bridge entity
-  the first hits name.
+  multi-hop questions (abstention precision 0.48). 6 of the 9 are comparison questions, and in 4
+  of those both gold paragraphs were already in the first hits: one forced answer gives up where
+  the loop reads more and decides (EVALUATION.md 4.5); for bridge questions it cannot search
+  again for the entity the first hits name.
 - **Chunking**: fixed beats structured on retrieval (R@10 0.89 vs 0.83); on answers the gap
   (0.74 vs 0.70) is within the noise of this set.
 - **Contradictions were the weak spot and a prompt fix moved them most** (recall 0.25 -> 0.67,
@@ -215,8 +217,9 @@ What the runs show (the failure analysis for EVALUATION.md starts here):
   against a status page or a later report); acme-020 reports the conflict but its short answer
   takes one side. No answerable question was flagged `conflicting` by mistake.
 - **Multi-hop moved 0.87 -> 0.78 with the new prompt**: two questions. One abstained on a
-  Bedrock `ServiceUnavailableException`; in the other (hp-5a8c493e...) the uncached model chose
-  different sub-queries and found the wrong John Ruskin. Run-to-run variance, not the
+  Bedrock `ServiceUnavailableException`; the other (hp-5a8c493e...) abstained after the uncached
+  model chose different sub-queries (the trace keeps chunk ids, not titles, so what it found is
+  not visible). Run-to-run variance, not the
   contradiction rules: a question moves this type by 0.04.
 - **Malformed `final_answer`**: 16 of 72 `agent` answers needed a reprompt with the #31 prompt,
   5 with the current one; Haiku puts `claims` in as a string with tool-call markup
@@ -229,11 +232,13 @@ What the runs show (the failure analysis for EVALUATION.md starts here):
 ## Known limits
 
 - **Judge bias.** One model's opinion; Qwen3 is from a different family than the Claude
-  generator, which removes self-preference but not leniency. Spot-check ~10 verdicts by hand and
-  report agreement in EVALUATION.md. Seen in the 2026-10-26 runs: `acme-024` in `agent` reported
-  the conflict with both times in its contradiction and was judged wrong, while `single-shot`'s
-  answer with an empty short answer was judged right; `acme-004` was judged wrong for an answer
-  that matches the gold. Measured once (2026-10-25): "Joseph L. Mankiewicz" against
+  generator, which removes self-preference but not leniency. Spot-check of 10 verdicts by the
+  author (EVALUATION.md section 5): 6 agree, and in all 4 disagreements the judge said wrong where
+  the author said correct, so judge correctness reads as a lower bound. Its strictness is uneven
+  on `conflicting` answers: with the prompt of #31, `acme-024` reported both times in its
+  contradiction and was judged wrong, while `single-shot`'s answer with an empty short answer was
+  judged right; `acme-004` was judged wrong for an answer that matches the gold (both are judged
+  correct in the current `agent` run). Measured once (2026-10-25): "Joseph L. Mankiewicz" against
   gold "Joseph Leo Mankiewicz" -> `{"correct": true, ...}`, a clean JSON object, 197 in / 36 out.
 - **HotpotQA chunking comparison is weak.** Paragraphs average 532 characters, so both chunkers
   mostly keep a paragraph whole; the chunking comparison is meaningful on Acme.

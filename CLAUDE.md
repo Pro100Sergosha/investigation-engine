@@ -33,8 +33,8 @@ Nothing runs on the author's computer except git and `aws login` (ADR 0018).
 - Stream interfaces (keep signatures stable):
   `parse(path) -> ParsedDoc`, `search(query, k=10) -> list[Hit]`,
   `get_document(document_id) -> ParsedDoc`, `ask(question) -> Answer`.
-- Planned modules: `db.py`, `chunking.py`, `embed.py`, `index.py`, `search.py`, `parsers.py`, `llm.py`,
-  `agent.py`, `handlers.py`; `eval/`, `scripts/`, `data/`, `static/`. Don't invent other layers.
+- Modules: `db.py`, `chunking.py`, `embed.py`, `index.py`, `search.py`, `rank.py`, `parsers.py`,
+  `llm.py`, `grounding.py`, `agent.py`, `handlers.py`; `eval/`, `scripts/`, `data/`, `static/`. Don't invent other layers.
 - `src/engine/config.py` — the only place that reads env vars.
 - `cdk/app.py` — all infrastructure.
 - `llm-wiki/` — knowledge base (numbered docs + `adr/`). Start at `index.md`.

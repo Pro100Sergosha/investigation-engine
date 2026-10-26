@@ -112,3 +112,9 @@ safe because `index.upsert` returns `unchanged` for what is already stored. Sing
 token signing works outside Lambda and CodeBuild too. Measured from the Region: ~0.8 ms per round
 trip, 137 ms per inserted HotpotQA document (108 ms of it Titan); from Tbilisi 88 ms per round
 trip, and pg8000 makes ~3 round trips per parameterized statement.
+
+## Update 2026-10-26
+
+The database is `postgres`, not `investigation` as the Decision says: express configuration
+rejects an initial database name at create, so the cluster keeps the default
+([07 Infrastructure](../07-infrastructure.md)). Nothing else changes.

@@ -91,3 +91,8 @@ change, and quality is lower.
 
 **`global.cohere.embed-v4:0`, or both pools**: doubles the throughput, but text may be processed
 outside the EU. Worth it if the `eu` pool proves too small.
+
+## Update 2026-10-26
+
+Measured: the full load of 66,555 documents took ~65 min (2026-10-25, 17:29-18:34 UTC by
+document `created_at`, [05 Corpora](../05-corpora.md)), not the ~35-40 min estimated above.

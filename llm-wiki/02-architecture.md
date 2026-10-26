@@ -1,7 +1,7 @@
 ---
 title: Architecture
 status: current
-last_updated: 2026-10-25
+last_updated: 2026-10-26
 owner: Pro100Sergosha
 ---
 
@@ -13,8 +13,8 @@ Wave 2 (2026-10-25): the `api` Lambda serves the page and the document routes (l
 `ingest` parses, dedups, chunks, embeds (Cohere Embed V4, 96 texts per request) and stores every
 object put under `uploads/` or `bulk/`, and keeps the events it gave up on in an SQS queue; `search.py` runs dense + keyword -> RRF -> MMR; `llm.py` is the Bedrock client.
 Wave 3 (2026-10-26): `agent.ask` (tool-calling loop, ADR 0025) behind `POST /ask`; the Acme corpus
-(`data/acme/`, ADR 0026); the evaluation runner (`eval/run.py`, [09 Evaluation](09-evaluation.md),
-built, not run yet). Everything marked *(planned)* is decided (see the ADRs) but not built.
+(`data/acme/`, ADR 0026); the evaluation runner (`eval/run.py`, [09 Evaluation](09-evaluation.md));
+full runs of every configuration are in `eval/results/` and EVALUATION.md. Everything marked *(planned)* is decided (see the ADRs) but not built.
 
 ## Contracts
 
