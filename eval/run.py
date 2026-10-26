@@ -5,11 +5,12 @@ import json
 import math
 import time
 from collections import Counter
+from functools import partial
 from pathlib import Path
 
 import boto3
 
-from engine import agent, llm, search
+from engine import agent, embed, llm, search
 from eval import metrics
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,8 +28,15 @@ ANSWER_CONFIGS = {
     "agent": {"strategy": "fixed", "mode": "mmr", "max_steps": 6},
     "agent-structured": {"strategy": "structured", "mode": "mmr", "max_steps": 6},
     "single-shot": {"strategy": "fixed", "mode": "mmr", "max_steps": 1},
+    # The LLM comparison (ADR 0032): `agent` with gpt-oss-120b answering instead of Haiku.
+    "agent-gpt-oss": {"strategy": "fixed", "mode": "mmr", "max_steps": 6, "model": llm.GPT_OSS},
 }
 GRID = [f"{strategy}/{mode}" for strategy in search.STRATEGIES for mode in search.MODES]
+# The embedding comparison (ADR 0032), no LLM: exact dense search on fixed chunks with the first
+# 1024 / 512 / 256 numbers of the stored Cohere V4 vectors. Nothing is re-embedded.
+EMBEDDINGS = "embeddings"
+EMBED_DIMS = (1024, 512, 256)
+EMBED_GRID = [f"fixed/dense-exact@{dims}" for dims in EMBED_DIMS]
 K = 10  # hits per search: Recall@10 needs 10
 SEARCH_ATTEMPTS = 3
 SEARCH_RETRY_SECONDS = 20
@@ -127,26 +135,72 @@ def run_retrieval(questions: list[dict]) -> list[dict]:
         runs = {}
         for strategy in search.STRATEGIES:
             for mode in search.MODES:
-                runs[f"{strategy}/{mode}"] = _retrieve(q, strategy, mode)
-        records.append({"id": q["id"], "type": q["type"], "question": q["question"], "runs": runs})
-        recalls = [f"{name}={r.get('recall@10', 'error')}" for name, r in runs.items()]
-        print(f"{q['id']}: recall@10 {' '.join(recalls)}")
+                call = partial(search.search, q["question"], K, strategy, mode)
+                runs[f"{strategy}/{mode}"] = _retrieve(q, call)
+        records.append(_retrieval_record(q, runs))
     return records
 
 
-def _retrieve(q: dict, strategy: str, mode: str) -> dict:
-    gold = set(q["gold_sources"])
-    for attempt in range(SEARCH_ATTEMPTS):
-        start = time.monotonic()
+def _retrieval_record(q: dict, runs: dict) -> dict:
+    recalls = [f"{name}={r.get('recall@10', 'error')}" for name, r in runs.items()]
+    print(f"{q['id']}: recall@10 {' '.join(recalls)}")
+    return {"id": q["id"], "type": q["type"], "question": q["question"], "runs": runs}
+
+
+def run_embeddings(questions: list[dict]) -> list[dict]:
+    """Every answerable question through `search.dense_prefix` at each of `EMBED_DIMS`.
+
+    The 1024 query embedding is cut to each size, like the stored vectors. The truncation
+    check: Cohere's own 512 and 256 query embeddings and their cosine with the cut 1024 one
+    (1.0: cutting gives exactly the smaller embedding).
+    """
+    records = []
+    for q in questions:
+        if not q["gold_sources"]:
+            continue
+        text = q["question"]
+        try:  # embedded before the timed searches
+            vectors = {d: _retrying(partial(embed.embed_query, text, d)) for d in EMBED_DIMS}
+        except Exception as error:
+            runs = {name: {"error": f"{type(error).__name__}: {error}"} for name in EMBED_GRID}
+        else:
+            full = vectors[embed.DIMENSIONS]
+            runs = {}
+            for dims, name in zip(EMBED_DIMS, EMBED_GRID, strict=True):
+                runs[name] = _retrieve(q, partial(search.dense_prefix, full, dims, k=K))
+                if dims != embed.DIMENSIONS:
+                    runs[name]["native_cosine"] = round(cosine(vectors[dims], full[:dims]), 4)
+        records.append(_retrieval_record(q, runs))
+    return records
+
+
+def cosine(a: list[float], b: list[float]) -> float:
+    dot = sum(x * y for x, y in zip(a, b, strict=True))
+    return dot / math.sqrt(sum(x * x for x in a) * sum(y * y for y in b))
+
+
+def _retrying(call):
+    """`call()`, tried SEARCH_ATTEMPTS times with SEARCH_RETRY_SECONDS between; the last error
+    is raised. The query-embedding client gives up within seconds (ADR 0028): right for the api,
+    but the sweep can wait for the Cohere pool (20 requests/min) to refill.
+    """
+    for _ in range(SEARCH_ATTEMPTS - 1):
         try:
-            hits = search.search(q["question"], k=K, strategy=strategy, mode=mode)
-            break
-        except Exception as error:  # one failed search is recorded, the sweep goes on
-            if attempt == SEARCH_ATTEMPTS - 1:
-                return {"error": f"{type(error).__name__}: {error}"}
-            # The query-embedding client gives up within seconds (ADR 0028): right for the
-            # api, but the sweep can wait for the Cohere pool (20 requests/min) to refill.
+            return call()
+        except Exception as error:
+            print(f"retry in {SEARCH_RETRY_SECONDS} s: {type(error).__name__}: {error}")
             time.sleep(SEARCH_RETRY_SECONDS)
+    return call()
+
+
+def _retrieve(q: dict, search_call) -> dict:
+    """Score the sources of `search_call()`'s hits against the question's gold sources."""
+    gold = set(q["gold_sources"])
+    start = time.monotonic()
+    try:
+        hits = _retrying(search_call)
+    except Exception as error:  # one failed search is recorded, the sweep goes on
+        return {"error": f"{type(error).__name__}: {error}"}
     # One source per chunk, duplicates kept: recall@k looks at the first k chunks.
     sources = [hit.source for hit in hits]
     return {
@@ -158,10 +212,10 @@ def _retrieve(q: dict, strategy: str, mode: str) -> dict:
     }
 
 
-def summarize_retrieval(records: list[dict]) -> dict:
+def summarize_retrieval(records: list[dict], grid: list[str] = GRID) -> dict:
     """Per strategy/mode: question count, errors, mean Recall@5/@10, MRR, and the same by type."""
     summary = {}
-    for name in GRID:
+    for name in grid:
         runs = [(r["type"], r["runs"][name]) for r in records]
         ok = [(kind, run) for kind, run in runs if "error" not in run]
         types = sorted({kind for kind, _ in ok})
@@ -172,6 +226,24 @@ def summarize_retrieval(records: list[dict]) -> dict:
             "by_type": {
                 t: _retrieval_scores([run for kind, run in ok if kind == t]) for t in types
             },
+        }
+    return summary
+
+
+def summarize_embeddings(records: list[dict]) -> dict:
+    """The retrieval summary per prefix size, plus search latency p50/p95 (exact scan) and the
+    mean truncation check (`native_cosine`, None at 1024)."""
+    summary = summarize_retrieval(records, EMBED_GRID)
+    for name in EMBED_GRID:
+        runs = [r["runs"][name] for r in records if "error" not in r["runs"][name]]
+        seconds = [run["seconds"] for run in runs]
+        summary[name] |= {
+            "seconds_p50": percentile(seconds, 50),
+            "seconds_p95": percentile(seconds, 95),
+            "native_cosine": mean(run.get("native_cosine") for run in runs),
+            "native_cosine_min": min(
+                (run["native_cosine"] for run in runs if "native_cosine" in run), default=None
+            ),
         }
     return summary
 
@@ -197,7 +269,7 @@ def run_answers(questions: list[dict], settings: dict, sleep=time.sleep) -> list
             seconds = time.monotonic() - start
             chunks = search.get_chunks(_cited_ids(answer))
             sources = {chunk["chunk_id"]: chunk["source"] for chunk in chunks}
-            record = answer_record(q, answer, sources, seconds)
+            record = answer_record(q, answer, sources, seconds, settings.get("model", llm.HAIKU))
         except Exception as error:  # ask should not raise; if it does, record it and go on
             record = _base(q) | {"error": f"{type(error).__name__}: {error}"}
         else:
@@ -213,12 +285,16 @@ def run_answers(questions: list[dict], settings: dict, sleep=time.sleep) -> list
     return records
 
 
-def answer_record(q: dict, answer, sources: dict[int, str], seconds: float) -> dict:
+def answer_record(
+    q: dict, answer, sources: dict[int, str], seconds: float, primary: str = llm.HAIKU
+) -> dict:
     """One question's result: the answer, its cited sources, LLM usage and per-question metrics.
 
     `sources` maps cited chunk ids to document sources (ids missing from it were deleted).
+    `primary` is the configuration's answering model: a call by any other model is a fallback.
     """
     calls = llm_calls(answer.trace)
+    primaries = HAIKUS if primary == llm.HAIKU else (primary,)
     gold = set(q["gold_sources"])
     cited = list(dict.fromkeys(sources[c] for c in _cited_ids(answer) if c in sources))
     # EM/F1 compare short answers, which only HotpotQA questions (ids "hp-...") have.
@@ -234,7 +310,7 @@ def answer_record(q: dict, answer, sources: dict[int, str], seconds: float) -> d
         "uncached_haiku_calls": sum(
             1 for call in calls if call["model"] in HAIKUS and not call["cached"]
         ),
-        "fallback": any(call["model"] not in HAIKUS for call in calls),
+        "fallback": any(call["model"] not in primaries for call in calls),
         "steps": len(answer.trace),
         "searches": sum(1 for step in answer.trace if step.get("step") == "search"),
         "input_tokens": sum(call["usage"].get("inputTokens", 0) for call in calls),
@@ -427,7 +503,7 @@ def percentile(values: list[float], p: float) -> float | None:
 
 def markdown(config: str, summary: dict) -> str:
     """The summary as Markdown tables for the build log (and EVALUATION.md)."""
-    if config == RETRIEVAL:
+    if config in (RETRIEVAL, EMBEDDINGS):
         rows = ["| strategy/mode | n | errors | Recall@5 | Recall@10 | MRR |", "|---" * 6 + "|"]
         for name, s in summary.items():
             scores = (s["recall@5"], s["recall@10"], s["mrr"])
@@ -460,7 +536,7 @@ def _cells(*values, sep: str = " | ") -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", required=True, choices=[RETRIEVAL, *ANSWER_CONFIGS])
+    parser.add_argument("--config", required=True, choices=[RETRIEVAL, EMBEDDINGS, *ANSWER_CONFIGS])
     parser.add_argument("--limit", type=int, help="only the first N questions (a dry run)")
     parser.add_argument("--bucket", required=True)
     args = parser.parse_args()
@@ -473,6 +549,9 @@ def main() -> None:
     if args.config == RETRIEVAL:
         records = run_retrieval(questions)
         summary = summarize_retrieval(records)
+    elif args.config == EMBEDDINGS:
+        records = run_embeddings(questions)
+        summary = summarize_embeddings(records)
     else:
         records = run_answers(questions, ANSWER_CONFIGS[args.config])
         summary = summarize_answers(records)
@@ -481,7 +560,9 @@ def main() -> None:
     name = args.config if args.limit is None else f"{args.config}-limit{args.limit}"
     result = {
         "config": args.config,
-        "settings": ANSWER_CONFIGS.get(args.config, {"k": K, "grid": GRID}),
+        "settings": ANSWER_CONFIGS.get(
+            args.config, {"k": K, "grid": EMBED_GRID if args.config == EMBEDDINGS else GRID}
+        ),
         "question_counts": counts,
         "summary": summary,
         "records": records,

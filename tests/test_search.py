@@ -82,6 +82,21 @@ def test_document_chunks_filters_by_strategy_and_keeps_sql_order(monkeypatch):
     assert [(c["chunk_id"], c["ord"]) for c in chunks] == [(8, 0), (5, 1)]
 
 
+def test_dense_prefix_sends_the_cut_query_and_keeps_the_scan_order(monkeypatch):
+    calls = []
+
+    def run(sql, **params):
+        calls.append(params)
+        if "subvector" in sql:
+            return [[7, 0.9], [3, 0.8]]
+        return [[3, 1, "t", "s", "three", None], [7, 1, "t", "s", "seven", None]]
+
+    monkeypatch.setattr(db, "run", run)
+    hits = search.dense_prefix([0.5, 0.25, 1.0], 2, k=2)
+    assert calls[0] == {"q": "[0.5,0.25]", "dims": 2, "strategy": "fixed", "n": 2}
+    assert [(h.chunk_id, h.score) for h in hits] == [(7, 0.9), (3, 0.8)]
+
+
 def test_document_created_at_is_iso_utc():
     tbilisi = timezone(timedelta(hours=4))
     row = [1, "test:a", "A", "md", 2, datetime(2026, 10, 25, 18, 0, tzinfo=tbilisi), 6]

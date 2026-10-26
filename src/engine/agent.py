@@ -98,12 +98,19 @@ _NO_TOOL_CALL = "Reply only with tool calls. When you are done, call final_answe
 _EMPTY_REPLY = "Your reply was cut off before any content. Reply again, shorter."
 
 
-def ask(question: str, strategy: str = "fixed", mode: str = "mmr", max_steps: int = 6) -> Answer:
+def ask(
+    question: str,
+    strategy: str = "fixed",
+    mode: str = "mmr",
+    max_steps: int = 6,
+    model: str = llm.HAIKU,
+) -> Answer:
     """Answer `question` from the corpus with cited claims, or abstain (ADR 0005, ADR 0025).
 
     `strategy` and `mode` are passed to every `search.search` call (the evaluated
     configurations); `max_steps` caps the LLM calls, and `max_steps=1` is single-shot RAG: one
-    search of the question, one forced `final_answer`.
+    search of the question, one forced `final_answer`. `model` answers: Haiku with its fallbacks
+    in production; the eval's LLM comparison passes `llm.GPT_OSS` (ADR 0032).
     `Answer.trace` lists the steps in order. Entries with "step": "llm" always carry
     "model" (the model that answered), "cached" (bool) and "usage" (Converse token counts):
     the eval runner paces Haiku calls and reports cost from them. Other entries are free-form.
@@ -132,6 +139,7 @@ def ask(question: str, strategy: str = "fixed", mode: str = "mmr", max_steps: in
             result = llm.converse(
                 SYSTEM,
                 messages,
+                model=model,
                 # Only final_answer on offer: gpt-oss ignores toolChoice (llm.converse).
                 tools=[FINAL_ANSWER_TOOL] if final else TOOLS,
                 tool_choice=_FORCE_FINAL if final else None,

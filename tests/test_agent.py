@@ -96,6 +96,15 @@ def test_llm_trace_entries_carry_model_cached_usage(fake):
     )
 
 
+def test_model_is_passed_to_every_call(fake):
+    fake.script = [_reply(_tool_call("search", {"query": "a"})), _reply(_final([10]))]
+    agent.ask("q", model=llm.GPT_OSS)
+    assert [call["model"] for call in fake.calls] == [llm.GPT_OSS, llm.GPT_OSS]
+    fake.script = [_reply(_final([10]))]
+    agent.ask("q")
+    assert fake.calls[-1]["model"] == llm.HAIKU
+
+
 def test_last_step_forces_final_answer(fake):
     fake.script = [
         _reply(_tool_call("search", {"query": "a"})),
