@@ -85,9 +85,10 @@ acme-load:  ## Job: copy data/acme/files/ to s3://$BUCKET/uploads/ (ingest index
 redrive-ingest:  ## Job: rerun the ingest events in the IngestFailures queue (Lambda gave up)
 	uv run python scripts/redrive_ingest.py --queue-url $$INGEST_FAILURES_QUEUE --function $$INGEST_FUNCTION
 
-# CONFIG: retrieval (no LLM) | agent | agent-structured | single-shot; LIMIT=N for a dry run.
+# CONFIG: retrieval (no LLM) | agent | agent-structured | single-shot; LIMIT=N for a dry run;
+# TYPE=<question type> for a subset (TYPE=injection -> <config>-injection.json).
 eval:  ## Job: run the eval set in CONFIG -> s3://$BUCKET/jobs/eval/<config>.json
-	uv run python -m eval.run --config $(CONFIG) --bucket $$BUCKET $(if $(LIMIT),--limit $(LIMIT))
+	uv run python -m eval.run --config $(CONFIG) --bucket $$BUCKET $(if $(LIMIT),--limit $(LIMIT)) $(if $(TYPE),--type $(TYPE))
 
 diff-cicd:  ## Show what deploy-cicd would change
 	cd cdk && $(CDK) diff Investigation-Cicd-prod
