@@ -80,8 +80,8 @@ section 4.
 | `CONFIG` | What | LLM |
 |---|---|---|
 | `retrieval` | every answerable question through `search.search(q, k=10, strategy, mode)` for strategy `fixed`, `structured` x mode `dense`, `hybrid`, `mmr`: the chunking A vs B and dense vs hybrid vs MMR comparisons | none (one Cohere query embedding per question: `embed_query` is memoized) |
-| `agent` | `agent.ask(q)`: structured chunks, mmr, 6 steps | Haiku + judge |
-| `agent-fixed` | the same with fixed chunks | Haiku + judge |
+| `agent` | `agent.ask(q)`: fixed chunks, mmr, 6 steps (the defaults, [ADR 0029](adr/0029-weighted-rrf-min-max-mmr-fixed-chunks.md)) | Haiku + judge |
+| `agent-structured` | the same with structured chunks | Haiku + judge |
 | `single-shot` | `max_steps=1`: one search, one forced answer (RAG without the loop) | Haiku + judge |
 
 ## Running
@@ -92,8 +92,14 @@ whole value is one `TARGET` (the buildspec splits it into a target and variables
 ```bash
 aws codebuild start-build --project-name investigation-jobs --profile investigation \
   --environment-variables-override "name=TARGET,value=eval CONFIG=agent LIMIT=3"
-# full runs: value=eval CONFIG=retrieval | agent | agent-fixed | single-shot
+# full runs: value=eval CONFIG=retrieval | agent | agent-structured | single-shot
 ```
+
+A search that fails (the query-embedding client gives up within seconds when the Cohere pool
+is throttled, ADR 0028) is retried twice after 20 s; only then is it recorded as an error.
+
+The fusion weights, `k0` and MMR lambda were tuned on this question set ([ADR 0029](adr/0029-weighted-rrf-min-max-mmr-fixed-chunks.md)),
+so retrieval numbers are optimistic; the ADR has the offline sweep.
 
 Do not run an eval while a bulk load or the Acme generation runs: they share the Cohere and Haiku
 quotas (PLAN.md section 5). The retrieval run needs the full Cohere-embedded corpus.
@@ -121,7 +127,7 @@ Estimates for the 30 HotpotQA questions (25 answerable), before the Acme questio
 | `CONFIG` | Time | Cost |
 |---|---|---|
 | `retrieval` | ~3-5 min (25 embeddings, 150 searches) | ~$0 (Cohere, a few thousand tokens) |
-| `agent`, `agent-fixed` | ~10-20 min (3-6 Haiku calls per question at 6 s) | ~$0.5-1 (~$0.02-0.035 per question) |
+| `agent`, `agent-structured` | ~10-20 min (3-6 Haiku calls per question at 6 s) | ~$0.5-1 (~$0.02-0.035 per question) |
 | `single-shot` | ~3-4 min | ~$0.15 |
 | judge | in the runs above | ~$0.0001 per question (~250 tokens, measured) |
 

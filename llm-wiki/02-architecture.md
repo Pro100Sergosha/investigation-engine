@@ -85,10 +85,11 @@ the chunks of a whole file in batches of 96) -> insert `documents` + `chunks`, o
 document (`db.py`). Bulk corpus: JSONL shards in S3, same path.
 
 Question (`POST /ask` -> `agent.ask`, ADR 0025): the server searches the question itself
-(k = 8) and puts the hits into the first message -> Claude Haiku calls tools: `search(q, k)` =
+(k = 10, fixed chunks, `mmr`) and puts the hits into the first message -> Claude Haiku calls tools: `search(q, k)` =
 Cohere query vector (`search_query`) -> dense top-40 (partial HNSW of the strategy) + keyword
-top-40 (OR `tsquery`, `ts_rank_cd`) -> RRF -> MMR over the top-40 fused, with per-document cap
-(modes `dense | hybrid | mmr`, ADR 0024); `get_document(id)` = the document's chunks, up to
+top-40 (OR `tsquery`, `ts_rank_cd`) -> RRF (k0=10, keyword list at weight 0.5) -> MMR over the
+top-40 fused (min-max relevance, lambda 0.85), with per-document cap (modes
+`dense | hybrid | mmr`, ADR 0024, ADR 0029); `get_document(id)` = the document's chunks, up to
 8,000 characters, citable -> up to 6 LLM calls, the last one (or the one with < 45 s left of
 the 80 s deadline) forced to `final_answer` -> citation validator (only chunk ids shown in this
 run count) -> `Answer(status=answered | insufficient | conflicting)` with the short answer,

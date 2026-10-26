@@ -42,7 +42,7 @@ Ingestion
 Search
 - [x] vector DB, embeddings, semantic search — Aurora + pgvector (#8, #10), Cohere Embed V4 (#19, #24), writes (#22), dense search (#23); 66,555 documents loaded, used by `POST /ask` on the public URL (#27)
 - [x] hybrid search (semantic + keyword) — dense + OR keyword + RRF in `search.py` (#23), the agent's default mode over the loaded corpus (#27); quality measured by the `retrieval` eval (#26, not run yet)
-- [x] >= 1 own ranking/search algorithm (not only library calls) — RRF + MMR with per-document cap (#5), `search.py` mode `mmr` (#23), the agent's default over the loaded corpus (#27)
+- [x] >= 1 own ranking/search algorithm (not only library calls) — RRF + MMR with per-document cap (#5), `search.py` mode `mmr` (#23), the agent's default over the loaded corpus (#27); weighted RRF and min-max MMR tuned by the retrieval eval (#PR, ADR 0029)
 
 LLM / RAG
 - [x] RAG, multi-document synthesis, multi-step handling of complex questions — `agent.ask` loop with seeded search and sub-searches (#27); `POST /ask` on the public URL answered a HotpotQA comparison question (2 steps, 37 s, 2026-10-26)
@@ -55,7 +55,7 @@ LLM / RAG
 Evaluation
 - [ ] own automated eval, >= 40 questions: simple, multi-hop, multi-doc, unanswerable, contradictory — partial: runner `eval/run.py` and 30 HotpotQA questions (20 multi-hop, 5 simple, 5 unanswerable) (#26), 42 Acme questions (15 multi-doc, 3 multi-hop, 12 contradictory, 6 unanswerable, 6 simple) (#28): 72 in total; not run
 - [ ] retrieval + answer metrics: Recall@K, MRR, Answer Correctness, Citation Accuracy — partial: pure metric functions (#15), runner with Qwen3 judge, citation precision, abstention/contradiction P/R (#26); not run
-- [ ] >= 2 configurations compared — partial: runner configs `retrieval` (fixed/structured x dense/hybrid/mmr), `agent`, `agent-fixed`, `single-shot` (#26); not run
+- [ ] >= 2 configurations compared — partial: runner configs `retrieval` (fixed/structured x dense/hybrid/mmr), `agent`, `agent-structured`, `single-shot` (#26); not run
 - [ ] error analysis: where it fails, why, how to improve
 
 Backend / UI
@@ -87,7 +87,7 @@ Each decision has an ADR in [llm-wiki/adr/](llm-wiki/adr/) with context, cost an
 | Vector DB | Aurora Serverless v2, PostgreSQL 17 + pgvector (`halfvec(1024)`, HNSW) + built-in full-text search; min 0 ACU (pauses when idle), max 2-4 ACU; **express configuration** (the only Aurora the Free plan creates): no VPC, internet access gateway, IAM auth tokens over TLS with `pg8000`, no password or secret | One store for docs, chunks, vectors, keyword index, CRUD, dedup hashes, LLM cache. Idle cost is ~storage only, so the credits last until the interview; no NAT, no secrets, no Data API limits. Trade-off: ~15 s resume after a pause, a public (IAM-only) endpoint, own connection handling. No local database. ADR 0015, ADR 0021. |
 | Embeddings | Amazon Bedrock Cohere Embed V4 through the `eu.cohere.embed-v4:0` inference profile (EU Regions only), 1024 dimensions, `search_document` / `search_query` | 96 texts per request: the corpus loads in ~35-40 min within the pool's 20 requests/min (Titan V2, one text per request, throttled at ~1 request/s: ~18 h). ~$1.3 for the corpus, no model in the Lambda image, nothing on the laptop. Query embeddings share the pool with the bulk load. Fallback: the `global.*` profile (second pool, data may leave the EU). ADR 0016, ADR 0022. |
 | Keyword search | Postgres `tsvector` + `ts_rank_cd` | Native, indexed. |
-| Own algorithm | Reciprocal Rank Fusion (dense + keyword) + MMR diversification with per-document cap, written by hand | Small, testable, easy to explain on a whiteboard. Optional: own BM25 scorer to compare with `ts_rank_cd`. |
+| Own algorithm | Reciprocal Rank Fusion (dense + keyword) + MMR diversification with per-document cap, written by hand | Small, testable, easy to explain on a whiteboard. Optional: own BM25 scorer to compare with `ts_rank_cd`. Tuned by the retrieval eval: k0=10, keyword list at weight 0.5, MMR lambda 0.85 with min-max relevance; equal-weight RRF at k0=60 cut Recall@10 to 0.71 (ADR 0029). |
 | LLM | Amazon Bedrock only (Converse API, IAM, no external keys): **Claude Haiku 4.5** (`eu.anthropic.claude-haiku-4-5-20251001-v1:0` cross-Region profile) for the agent and Acme generation, falling back to the same model's `global.*` profile when `eu.*` fails (ADR 0028); `openai.gpt-oss-120b` (in Region) as the last automatic fallback; `qwen.qwen3-235b-a22b-2507` (in Region) as the evaluation judge | Reliable JSON and tool calling from Haiku ($1.10/$5.50 per 1M in EU), paid from credits. `llm.py`: timeout, backoff on throttling, fallback, prompt caching, Postgres `llm_cache`. All models verified with real calls on 2026-10-24; Haiku is limited to 10 requests/min per profile until the requested increase is approved. ADR 0017 (+ updates), ADR 0023. |
 | Orchestration | Own agent loop with tool calling: `search`, `get_document`, `final_answer` (JSON schema) | Satisfies tool calling + multi-step + agentic bonus. Hard step cap (6), first search seeded by the server, last step forced to `final_answer`, own 80 s deadline; the token budget is the step cap, `k` <= 40 and the 8,000-character `get_document` cap (ADR 0005 update, ADR 0025). |
 | Grounding | Structured answer `{claims:[{text, citations:[chunk_id]}], contradictions:[], status: answered/insufficient/conflicting}`; server drops claims citing chunks that were never retrieved | Mechanical anti-hallucination check, not only prompt wording. |
@@ -185,7 +185,7 @@ Configurations compared:
 3. single-shot RAG vs agent loop
 4. (bonus, cheap) Cohere V4 embeddings at 512 vs 1024 dimensions (`output_dimension`; needs a second vector column or a reload)
 
-Runs in the CodeBuild jobs project (`TARGET="eval CONFIG=<name>"`, configs `retrieval`, `agent`, `agent-fixed`, `single-shot`); output: `eval/results/<config>.json` (via S3, committed by PR) + generated `EVALUATION.md` table and a failure analysis section.
+Runs in the CodeBuild jobs project (`TARGET="eval CONFIG=<name>"`, configs `retrieval`, `agent`, `agent-structured`, `single-shot`); output: `eval/results/<config>.json` (via S3, committed by PR) + generated `EVALUATION.md` table and a failure analysis section.
 
 ## 5. Schedule
 
