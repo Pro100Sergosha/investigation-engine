@@ -92,8 +92,9 @@ per document ([ADR 0022](adr/0022-cohere-embed-v4-batched.md)). Numbers:
 
 History: the first load (2026-10-25, Titan V2, one request per chunk, 5 workers) stalled at
 1,853 documents: Titan throttled beyond ~1 request/s and Lambda dropped the shards after its
-retries. Those documents carry Titan vectors, which do not compare with Cohere's: they must be
-deleted and the corpus reloaded with Cohere ([14 Known gaps](14-known-gaps.md)). A shard Lambda gives up on now lands in the
+retries. Those documents carried Titan vectors, which do not compare with Cohere's: they were
+deleted and the corpus reloaded with Cohere the same day (2026-10-25, 17:29-18:34 UTC by document
+`created_at`): 66,555 documents, every one created after the Cohere deploy. A shard Lambda gives up on now lands in the
 `IngestFailures` queue (`make redrive-ingest` reruns it); rerunning `dataset` also works, since
 `ingest` skips what is stored.
 

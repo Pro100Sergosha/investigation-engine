@@ -11,18 +11,20 @@ own small code instead.
 
 ## 0. Status
 
-**Updated 2026-10-25 (day 2 of 6).** Wave 0 and wave 1 merged (PRs #4-#17). Wave 2 in progress:
-contracts and `embed.py` (#19), document writes (#22), search (#23), LLM client (#20), API routes + `ingest` (#21) merged: wave 2 code is complete.
-**Behind:** the day 2 goal (`search()` over >= 50k records) is not met. The first bulk load
-stalled at 1,853 of 66,555 documents: Titan throttled beyond ~1 request/s (~18 h for the corpus)
-and Lambda dropped the failed shards. Embeddings switch to Cohere Embed V4, 96 texts per request,
-whole shards per call, failed events kept in SQS (#24, ADR 0022).
-Next: after that deploy, delete the 1,853 Titan-embedded documents and rerun `dataset` (~35-40
-min), then the UI check of upload/update/delete, then wave 3.
+**Updated 2026-10-26 (day 3 of 6).** Waves 0-2 merged (PRs #4-#24). The HotpotQA bulk load
+finished on 2026-10-25 with Cohere Embed V4: 66,555 documents in Aurora (`GET /documents` total;
+the oldest was created after the Cohere deploy, so no Titan vectors remain). Wave 3 merged:
+contracts (#25), agent loop + `POST /ask` (#27, answers on the public URL), Acme corpus generator
+and 64 committed documents (#28), eval runner + 72 questions (#26).
+**Behind:** nothing on the schedule; the day 4 goal (public URL answers end to end) is met early.
+Next: `make acme-load` (index the Acme corpus; needs an `aws login`), eval dry run
+(`eval CONFIG=agent LIMIT=3`), then `retrieval`, `agent`, `single-shot` sweeps; a bounded query
+embedding client (search is not covered by the agent deadline); UI check of upload/update/delete
+and `POST /ask`; then wave 4 (EVALUATION.md, README, AI_USAGE.md).
 
 How status is kept (every PR that finishes or advances a task updates it in the same PR):
 - this section: date, current day and wave, what is behind, what is next;
-- the wave table in section 5: the row gets `**Done (#27):**`; the day table: `**Done:**` or
+- the wave table in section 5: the row gets `**Done (#PR):**`; the day table: `**Done:**` or
   `**In progress:**` with what is left;
 - the checklist below: `[x]` only when the requirement works end to end on the deployed system;
   otherwise `[ ]` with a `partial:` note naming the merged pieces (PR numbers) and what is missing.
@@ -38,20 +40,20 @@ Ingestion
 - [ ] add / update / delete documents — partial: `index.upsert/delete` (#22), checked live on Aurora, API routes + `ingest` (#21); not checked through the UI
 
 Search
-- [ ] vector DB, embeddings, semantic search — partial: Aurora + pgvector (#8, #10), `embed.py` (#19, Cohere Embed V4 since #24), writes (#22, batched since #24), dense search (#23); 1,853 Titan-embedded documents to be replaced by the Cohere reload
-- [ ] hybrid search (semantic + keyword) — partial: dense + OR keyword + RRF in `search.py` (#23), checked live on 10 test documents; not run over the loaded corpus
-- [ ] >= 1 own ranking/search algorithm (not only library calls) — partial: RRF + MMR with per-document cap (#5), called by `search.py` (#23); not run over the loaded corpus
+- [x] vector DB, embeddings, semantic search — Aurora + pgvector (#8, #10), Cohere Embed V4 (#19, #24), writes (#22), dense search (#23); 66,555 documents loaded, used by `POST /ask` on the public URL (#27)
+- [x] hybrid search (semantic + keyword) — dense + OR keyword + RRF in `search.py` (#23), the agent's default mode over the loaded corpus (#27); quality measured by the `retrieval` eval (#26, not run yet)
+- [x] >= 1 own ranking/search algorithm (not only library calls) — RRF + MMR with per-document cap (#5), `search.py` mode `mmr` (#23), the agent's default over the loaded corpus (#27)
 
 LLM / RAG
-- [ ] RAG, multi-document synthesis, multi-step handling of complex questions — partial: `agent.ask` loop with seeded search and sub-searches (#27), answered two HotpotQA multi-hop questions against the deployed corpus from the laptop; `POST /ask` not yet checked on the public URL
-- [ ] answers grounded in evidence, sources + citations — partial: citation validator (#14) wired into the agent, `POST /ask` returns cited `sources` (#27); not yet checked on the public URL
-- [ ] contradiction detection attempt — partial: `conflicting` status (#14), the agent prompt asks to compare sources and report contradictions citing >= 2 documents (#27); untested until the Acme corpus exists
+- [x] RAG, multi-document synthesis, multi-step handling of complex questions — `agent.ask` loop with seeded search and sub-searches (#27); `POST /ask` on the public URL answered a HotpotQA comparison question (2 steps, 37 s, 2026-10-26)
+- [x] answers grounded in evidence, sources + citations — citation validator (#14) in the agent, `POST /ask` returns claims with cited `sources` (#27), checked on the public URL
+- [ ] contradiction detection attempt — partial: `conflicting` status (#14), the agent prompt asks to compare sources and report contradictions citing >= 2 documents (#27), 14 planted contradictions and 12 questions (#28); Acme not indexed yet, not measured
 - [ ] abstain when information is insufficient — partial: `insufficient` status (#14), the agent abstains on no evidence, model errors and its 80 s deadline (#27); not measured on unanswerable questions
 - [ ] LLM error/limit handling (timeouts, 429, malformed output) — partial: `llm.py` retry, fallback, cache (#20); agent deadline, forced final answer, reprompt on malformed output, Bedrock errors -> `insufficient` (#27); search is not bounded by the deadline (llm-wiki/14)
-- [ ] >= 1 tool-calling mechanism — partial: Converse tools `search`, `get_document`, `final_answer` in `agent.py` (#27), checked live; deployed on merge
+- [x] >= 1 tool-calling mechanism — Converse tools `search`, `get_document`, `final_answer` in `agent.py` (#27), deployed
 
 Evaluation
-- [ ] own automated eval, >= 40 questions: simple, multi-hop, multi-doc, unanswerable, contradictory — partial: runner `eval/run.py` and 30 HotpotQA questions (20 multi-hop, 5 simple, 5 unanswerable) (#26); Acme multi-doc/contradictory questions missing; not run
+- [ ] own automated eval, >= 40 questions: simple, multi-hop, multi-doc, unanswerable, contradictory — partial: runner `eval/run.py` and 30 HotpotQA questions (20 multi-hop, 5 simple, 5 unanswerable) (#26), 42 Acme questions (15 multi-doc, 3 multi-hop, 12 contradictory, 6 unanswerable, 6 simple) (#28): 72 in total; not run
 - [ ] retrieval + answer metrics: Recall@K, MRR, Answer Correctness, Citation Accuracy — partial: pure metric functions (#15), runner with Qwen3 judge, citation precision, abstention/contradiction P/R (#26); not run
 - [ ] >= 2 configurations compared — partial: runner configs `retrieval` (fixed/structured x dense/hybrid/mmr), `agent`, `agent-fixed`, `single-shot` (#26); not run
 - [ ] error analysis: where it fails, why, how to improve
@@ -60,7 +62,7 @@ Backend / UI
 - [ ] Python backend, functional UI: upload/manage docs, ask, inspect sources — partial: page served at `GET /` (#17), document routes (#21), `POST /ask` with cited sources and the short answer on the page (#27); not checked through the UI
 
 Dataset
-- [ ] >= 50,000 documents/records, reproducible subset with justification — partial: dataset job, 66,555 unique HotpotQA documents as JSONL shards (#7); not indexed
+- [x] >= 50,000 documents/records, reproducible subset with justification — dataset job (#7), 66,555 unique HotpotQA documents indexed with Cohere V4 (#24, loaded 2026-10-25); counts and rules in llm-wiki/05
 - [ ] cross-document linking, source identity preserved, incomplete/contradictory data, repeatable eval — partial: Acme corpus (#28): 64 documents referencing each other by id, 14 planted contradictions, 6 gaps, 42 labelled questions with `upload:` gold sources; not indexed (`make acme-load`), no eval run
 
 Deployment
@@ -87,7 +89,7 @@ Each decision has an ADR in [llm-wiki/adr/](llm-wiki/adr/) with context, cost an
 | Keyword search | Postgres `tsvector` + `ts_rank_cd` | Native, indexed. |
 | Own algorithm | Reciprocal Rank Fusion (dense + keyword) + MMR diversification with per-document cap, written by hand | Small, testable, easy to explain on a whiteboard. Optional: own BM25 scorer to compare with `ts_rank_cd`. |
 | LLM | Amazon Bedrock only (Converse API, IAM, no external keys): **Claude Haiku 4.5** (`eu.anthropic.claude-haiku-4-5-20251001-v1:0` cross-Region profile) for the agent and Acme generation; `openai.gpt-oss-120b` (in Region) as automatic fallback; `qwen.qwen3-235b-a22b-2507` (in Region) as the evaluation judge | Reliable JSON and tool calling from Haiku ($1.10/$5.50 per 1M in EU), paid from credits. `llm.py`: timeout, backoff on throttling, fallback, prompt caching, Postgres `llm_cache`. All models verified with real calls on 2026-10-24; Haiku is limited to 10 requests/min per profile until the requested increase is approved. ADR 0017 (+ updates), ADR 0023. |
-| Orchestration | Own agent loop with tool calling: `search`, `get_document`, `final_answer` (JSON schema) | Satisfies tool calling + multi-step + agentic bonus. Hard step cap (e.g. 6), token budget per question. |
+| Orchestration | Own agent loop with tool calling: `search`, `get_document`, `final_answer` (JSON schema) | Satisfies tool calling + multi-step + agentic bonus. Hard step cap (6), first search seeded by the server, last step forced to `final_answer`, own 80 s deadline; the token budget is the step cap, `k` <= 40 and the 8,000-character `get_document` cap (ADR 0005 update, ADR 0025). |
 | Grounding | Structured answer `{claims:[{text, citations:[chunk_id]}], contradictions:[], status: answered/insufficient/conflicting}`; server drops claims citing chunks that were never retrieved | Mechanical anti-hallucination check, not only prompt wording. |
 | Backend | AWS Lambda (Python 3.12 container image) behind a Lambda Function URL; hand-written router over the event, no web framework | Pay per request, always-free tier (1M req, 400k GB-s/month) covers the demo. Function URL instead of API Gateway: API Gateway cuts requests at 30 s, the agent loop can take longer (Function URL allows up to 15 min). Trade-off: no SSE streaming in Python Lambda, the trace comes back with the final answer. |
 | UI | One static HTML page + vanilla JS, served by the same `api` Lambda at `GET /` | Same origin as the API: no CORS, no CloudFront, HTTPS from the Function URL. |
@@ -161,12 +163,13 @@ SSM: GitHub token   CloudWatch Logs: JSON line per request
 
 ## 4. Evaluation design
 
-Question set (`eval/questions.jsonl`, >= 40, target 60):
-- 20 HotpotQA bridge + comparison (gold supporting titles/sentences)
-- 15 Acme multi-doc investigation questions (gold doc ids written by hand)
-- 10 unanswerable (Acme + HotpotQA questions with gold paragraphs removed from the index)
-- 10 contradictory (planted conflicts in Acme)
-- 5 simple single-hop
+Question set: 72 (`eval/questions.jsonl`, 30, #26; `data/acme/questions.jsonl`, 42, #28; llm-wiki/09):
+- 20 HotpotQA bridge + comparison (gold supporting titles), 3 Acme multi-hop
+- 15 Acme multi-doc investigation questions (gold sources derived from the spec)
+- 11 unanswerable: 5 HotpotQA (ask a fact no paragraph contains, checked against the dataset;
+  nothing is removed from the index) + 6 Acme gaps
+- 12 contradictory (planted conflicts in Acme)
+- 11 simple single-hop (5 HotpotQA, 6 Acme)
 
 Metrics:
 - Retrieval: Recall@5/10, MRR (vs gold doc ids)
@@ -182,7 +185,7 @@ Configurations compared:
 3. single-shot RAG vs agent loop
 4. (bonus, cheap) Cohere V4 embeddings at 512 vs 1024 dimensions (`output_dimension`; needs a second vector column or a reload)
 
-Runs in the CodeBuild jobs project (`TARGET=eval`); output: `eval/results/<config>.json` (via S3, committed by PR) + generated `EVALUATION.md` table and a failure analysis section.
+Runs in the CodeBuild jobs project (`TARGET="eval CONFIG=<name>"`, configs `retrieval`, `agent`, `agent-fixed`, `single-shot`); output: `eval/results/<config>.json` (via S3, committed by PR) + generated `EVALUATION.md` table and a failure analysis section.
 
 ## 5. Schedule
 
@@ -192,8 +195,8 @@ schedule is compressed and scope is cut (see "Cuts"). Code freeze 2026-10-29 15:
 | Day | Date | Work | Done when |
 |---|---|---|---|
 | 1 | 10-24 | **Done:** repo, uv, Makefile, AWS project + `aws login`, CDK skeleton, CI/CD (GitHub Actions + CodeBuild PR diff/deploy), llm-wiki + ADRs 0001-0018, stack decisions | `/health` live, merges deploy automatically |
-| 2 | 10-25 | **In progress.** Done: Aurora + S3 + `ingest` stub + jobs project (#8, #10, #12, #13), `dataset` job (#7), 2 chunkers (#6), RRF + MMR (#5); pulled forward from days 3-4: citation validator (#14), parsers (#16), UI page (#17), eval metrics (#15). Wave 2: embeddings (#19, Titan; Cohere V4 since #24), writes with dedup (#22), dense + keyword search (#23). `ingest` wiring (#21). Left: bulk load (the Titan load stalled at 1,853 documents; redone with Cohere after #24). Plan: Stream A: Aurora + S3 + `ingest` + jobs project in the stack, schema, `dataset` job (HotpotQA shards), dedup, 2 chunkers, embeddings, bulk load, dense + keyword + RRF + MMR | `search("...")` returns fused results over >= 50k records |
-| 3 | 10-26 | Stream B: `llm.py` (Bedrock, retry/backoff/fallback/cache), agent loop, JSON answer, citation validator; stream C: start the `acme` job | `ask()` answers a HotpotQA multi-hop question with valid citations |
+| 2 | 10-25 | **Done.** Aurora + S3 + `ingest` stub + jobs project (#8, #10, #12, #13), `dataset` job (#7), 2 chunkers (#6), RRF + MMR (#5); pulled forward from days 3-4: citation validator (#14), parsers (#16), UI page (#17), eval metrics (#15). Wave 2: embeddings (#19, Titan; Cohere V4 since #24), writes with dedup (#22), dense + keyword search (#23). `ingest` wiring (#21). Bulk load with Cohere: 66,555 documents. Plan: Stream A: Aurora + S3 + `ingest` + jobs project in the stack, schema, `dataset` job (HotpotQA shards), dedup, 2 chunkers, embeddings, bulk load, dense + keyword + RRF + MMR | `search("...")` returns fused results over >= 50k records |
+| 3 | 10-26 | **In progress.** Done: agent loop + `POST /ask` (#27, answers on the public URL), Acme generator + corpus (#28), eval runner + questions (#26). Left: `acme-load`, eval dry run and sweeps. Plan: Stream B: `llm.py` (Bedrock, retry/backoff/fallback/cache), agent loop, JSON answer, citation validator; stream C: start the `acme` job | `ask()` answers a HotpotQA multi-hop question with valid citations |
 | 4 | 10-27 | Streams C + D: Acme corpus + parsers indexed, Lambda router + HTML UI, persistence check; stream E: questions + metrics | public URL answers a question end to end |
 | 5 | 10-28 | Stream E: eval runner in the jobs project, config sweep (cached LLM calls) | `eval/results/*.json` for all configs |
 | 6 | 10-29 | EVALUATION.md with failure analysis, README, AI_USAGE.md, buffer, defense rehearsal | submitted before 18:00 |
