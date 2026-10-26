@@ -69,6 +69,19 @@ def test_sources_in_order_follows_ids_skips_unknown_and_repeats():
     }
 
 
+def test_document_chunks_filters_by_strategy_and_keeps_sql_order(monkeypatch):
+    calls = []
+
+    def run(sql, **params):
+        calls.append(params)
+        return [[8, 2, "t", "s", "first", 0], [5, 2, "t", "s", "second", 1]]  # ORDER BY ord
+
+    monkeypatch.setattr(db, "run", run)
+    chunks = search.document_chunks(2, "fixed")
+    assert calls == [{"id": 2, "strategy": "fixed"}]
+    assert [(c["chunk_id"], c["ord"]) for c in chunks] == [(8, 0), (5, 1)]
+
+
 def test_document_created_at_is_iso_utc():
     tbilisi = timezone(timedelta(hours=4))
     row = [1, "test:a", "A", "md", 2, datetime(2026, 10, 25, 18, 0, tzinfo=tbilisi), 6]

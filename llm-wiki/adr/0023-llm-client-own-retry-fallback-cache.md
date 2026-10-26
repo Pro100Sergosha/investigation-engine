@@ -72,3 +72,17 @@ answers under Haiku's key forever.
 **Cache point after the last message** (caches the growing agent history, which passes 4,096
 tokens after a few search results): real savings on steps 2-6; left for the agent PR, where the
 history shape is known and can be measured.
+
+## Update 2026-10-26
+
+The agent ([ADR 0025](0025-agent-loop-seeded-forced-deadline.md)) needed three more parameters
+of `converse`; the decisions above stand:
+- `tool_choice` (Converse `toolChoice`): in the cache key only when set, so the keys of stored
+  rows did not change. gpt-oss-120b accepts `{"tool": ...}`, `{"any": {}}` and `{"auto": {}}`
+  without error but ignores them (measured: forced to `final_answer`, it called `search`), so a
+  caller forces a tool by offering only that tool.
+- `deadline` (a `time.monotonic()` value): a retry or the fallback starts only if a whole
+  attempt (`ATTEMPT_SECONDS = 35`: connect 5 + read 30) still fits before it.
+- `cache_history`: a second Claude `cachePoint` after the last message, the "cache point after
+  the last message" alternative above. Measured in a 6-step agent run: 6.4k, 9.0k and 11.4k
+  tokens read from the cache on steps 3-5, about 35% cheaper than without it.
