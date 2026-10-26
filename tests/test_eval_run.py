@@ -214,9 +214,20 @@ def test_judge_failure_is_recorded_not_raised(monkeypatch):
         raise RuntimeError("throttled")
 
     monkeypatch.setattr(llm, "converse", broken)
-    record = {"status": "answered", "answer": "Ann", "claims": []}
+    record = {"status": "answered", "answer": "Ann", "claims": [], "contradictions": []}
     verdict = run.judge(GOOD[0], record)
     assert verdict["judge_correct"] is None and "throttled" in verdict["judge_error"]
+
+
+def test_judge_sees_status_and_contradictions():
+    record = {
+        "status": "conflicting",
+        "answer": "14:02 UTC",
+        "claims": [],
+        "contradictions": [{"text": "INC-301 says 14:02 UTC, STS-301 says 14:15 UTC"}],
+    }
+    prompt = run.judge_prompt(GOOD[0], record)
+    assert "System status: conflicting" in prompt and "STS-301 says 14:15 UTC" in prompt
 
 
 @pytest.mark.parametrize(
