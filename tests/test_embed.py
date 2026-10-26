@@ -23,6 +23,7 @@ class FakeBedrock:
 def fake(monkeypatch):
     client = FakeBedrock()
     monkeypatch.setattr(embed, "_bedrock", client)
+    monkeypatch.setattr(embed, "_query_bedrock", client)
     embed.embed_query.cache_clear()  # a vector cached by another test would skip the request
     return client
 
@@ -62,3 +63,14 @@ def test_query_is_embedded_once_per_text(fake):
     assert len(fake.bodies) == 1
     embed.embed_query("another question")
     assert len(fake.bodies) == 2
+
+
+def test_queries_use_the_bounded_client(monkeypatch):
+    bulk, query = FakeBedrock(), FakeBedrock()
+    monkeypatch.setattr(embed, "_bedrock", bulk)
+    monkeypatch.setattr(embed, "_query_bedrock", query)
+    embed.embed_query.cache_clear()
+    embed.embed_query("q")
+    embed.embed_documents(["d"])
+    assert [b["input_type"] for b in query.bodies] == ["search_query"]
+    assert [b["input_type"] for b in bulk.bodies] == ["search_document"]

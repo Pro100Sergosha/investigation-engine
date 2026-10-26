@@ -3,7 +3,7 @@ title: One LLM client with its own retry loop, Haiku-only fallback, portable tur
 status: accepted
 date: 2026-10-25
 supersedes: none
-superseded_by: none
+superseded_by: 0028 (fallback order only)
 ---
 
 # ADR 0023: One LLM client with its own retry loop, Haiku-only fallback, portable turns and a fail-open cache

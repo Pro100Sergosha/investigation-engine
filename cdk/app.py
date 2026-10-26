@@ -359,7 +359,7 @@ class AppStack(cdk.Stack):
 
     def _allow_bedrock(self, grantee: iam.IGrantable, llm: bool) -> None:
         # Every caller embeds (chunks or queries) with Cohere Embed V4 (ADR 0022).
-        self._allow_eu_profile(grantee, "cohere.embed-v4:0")
+        self._allow_profile(grantee, "eu", "cohere.embed-v4:0")
         if not llm:
             return
         in_region = f"arn:aws:bedrock:{self.region}::foundation-model"
@@ -372,20 +372,26 @@ class AppStack(cdk.Stack):
                 ],
             )
         )
-        self._allow_eu_profile(grantee, "anthropic.claude-haiku-4-5-*")
+        # Haiku's second pool: llm.py moves there when eu.* fails (requests may leave the EU).
+        for prefix in ("eu", "global"):
+            self._allow_profile(grantee, prefix, "anthropic.claude-haiku-4-5-*")
 
-    def _allow_eu_profile(self, grantee: iam.IGrantable, model: str) -> None:
-        # Cohere Embed V4 and Claude Haiku 4.5 exist here only through eu.* cross-Region
-        # profiles. A call needs the profile and the model in every EU Region the profile may
-        # route to; the condition allows the model only when the call comes through the profile.
-        profile = f"arn:aws:bedrock:{self.region}:{self.account}:inference-profile/eu.{model}"
+    def _allow_profile(self, grantee: iam.IGrantable, prefix: str, model: str) -> None:
+        # Cohere Embed V4 and Claude Haiku 4.5 exist here only through cross-Region profiles
+        # (eu.*, global.*). A call needs the profile and the model in every Region the profile
+        # may route to; a global profile's model ARN has no Region at all. The condition allows
+        # the model only when the call comes through the profile.
+        profile = f"arn:aws:bedrock:{self.region}:{self.account}:inference-profile/{prefix}.{model}"
         grantee.grant_principal.add_to_principal_policy(
             iam.PolicyStatement(actions=self._INVOKE, resources=[profile])
         )
         grantee.grant_principal.add_to_principal_policy(
             iam.PolicyStatement(
                 actions=self._INVOKE,
-                resources=[f"arn:aws:bedrock:*::foundation-model/{model}"],
+                resources=[
+                    f"arn:aws:bedrock:*::foundation-model/{model}",
+                    f"arn:aws:bedrock:::foundation-model/{model}",
+                ],
                 conditions={"StringLike": {"bedrock:InferenceProfileArn": profile}},
             )
         )

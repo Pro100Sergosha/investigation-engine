@@ -32,7 +32,15 @@ GRID = [f"{strategy}/{mode}" for strategy in search.STRATEGIES for mode in searc
 K = 10  # hits per search: Recall@10 needs 10
 
 # USD per 1M tokens (input, output), EU prices (ADR 0017). A cached call costs nothing.
-PRICES = {llm.HAIKU: (1.10, 5.50), llm.GPT_OSS: (0.15, 0.60), llm.QWEN: (0.22, 0.88)}
+# The global Haiku pool has no EU surcharge.
+PRICES = {
+    llm.HAIKU: (1.10, 5.50),
+    llm.HAIKU_GLOBAL: (1.00, 5.00),
+    llm.GPT_OSS: (0.15, 0.60),
+    llm.QWEN: (0.22, 0.88),
+}
+# Either pool runs the same model: an answer from the global pool is not a fallback answer.
+HAIKUS = (llm.HAIKU, llm.HAIKU_GLOBAL)
 
 # Haiku allows 10 requests/min per profile (ADR 0017): one every 6 s on average. Faster, and
 # llm.py silently falls back to gpt-oss, which would mix models into the results.
@@ -205,9 +213,9 @@ def answer_record(q: dict, answer, sources: dict[int, str], seconds: float) -> d
         "models": dict(Counter(call["model"] for call in calls)),
         "llm_calls": len(calls),
         "uncached_haiku_calls": sum(
-            1 for call in calls if call["model"] == llm.HAIKU and not call["cached"]
+            1 for call in calls if call["model"] in HAIKUS and not call["cached"]
         ),
-        "fallback": any(call["model"] != llm.HAIKU for call in calls),
+        "fallback": any(call["model"] not in HAIKUS for call in calls),
         "steps": len(answer.trace),
         "input_tokens": sum(call["usage"].get("inputTokens", 0) for call in calls),
         "output_tokens": sum(call["usage"].get("outputTokens", 0) for call in calls),

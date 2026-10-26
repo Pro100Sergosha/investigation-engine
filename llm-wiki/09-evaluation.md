@@ -109,7 +109,9 @@ Results are downloaded from S3 and committed through a PR (ADR 0018).
 
 Haiku allows 10 requests/min per profile. After each question the runner sleeps
 `max(0, 6 s x uncached Haiku calls - elapsed)`, so a run never bursts past the quota and
-`llm.py` does not silently fall back to gpt-oss. After an `ask` that raised, it assumes
+`llm.py` does not silently fall back to gpt-oss. Both Haiku profiles (`eu.*`, `global.*`,
+ADR 0028) count as Haiku for pacing and the fallback share; `global.*` is priced at
+$1.00/$5.00 per 1M. After an `ask` that raised, it assumes
 `max_steps` calls. Cached calls are free and unpaced; the judge (Qwen, 100 requests/min) is not
 paced.
 

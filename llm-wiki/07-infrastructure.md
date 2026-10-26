@@ -102,12 +102,14 @@ Permissions (least privilege, no `*` actions):
   (`generate_db_auth_token`, local, no API call). No secret, no password.
 - Bedrock: `InvokeModel` and `InvokeModelWithResponseStream`, which also authorize `Converse` and
   `ConverseStream` (there is no separate Converse action). In-Region models by foundation-model ARN.
-  Cohere Embed V4 and Claude Haiku 4.5 exist here only through `eu.*` inference profiles; each
-  needs two statements (`_allow_eu_profile` in `cdk/app.py`): the profile in eu-north-1
-  (`inference-profile/eu.cohere.embed-v4:0`, `inference-profile/eu.anthropic.claude-haiku-4-5-*`),
-  and `arn:aws:bedrock:*::foundation-model/<model>` (every EU Region the profile routes to) with
-  the condition `bedrock:InferenceProfileArn` = that profile, so the model can be called only
-  through the profile.
+  Cohere Embed V4 and Claude Haiku 4.5 exist here only through inference profiles (`eu.*`, and
+  `global.*` as Haiku's second pool, ADR 0028); each needs two statements (`_allow_profile` in
+  `cdk/app.py`): the profile in eu-north-1 (`inference-profile/eu.cohere.embed-v4:0`,
+  `inference-profile/{eu,global}.anthropic.claude-haiku-4-5-*`), and
+  `arn:aws:bedrock:*::foundation-model/<model>` plus `arn:aws:bedrock:::foundation-model/<model>`
+  (every Region the profile routes to; a global profile's model ARN has no Region) with the
+  condition `bedrock:InferenceProfileArn` = that profile, so the model can be called only through
+  the profile.
 - IAM is not quota: verified on 2026-10-24, all four models answer and cross-Region inference works,
   but Claude Haiku 4.5 is limited to 10 requests/min per profile until the account-level increase
   is approved (14 Known gaps). Haiku 5.5 is not available to the account.

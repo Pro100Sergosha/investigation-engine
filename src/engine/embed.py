@@ -18,6 +18,16 @@ _bedrock = boto3.client(
     region_name=config.REGION,
     config=Config(retries={"max_attempts": 10, "mode": "adaptive"}),
 )
+# Queries run inside the agent's 80 s deadline, which leaves ~10 s for the search after the last
+# non-final LLM call (ADR 0025). The bulk client could wait minutes; this one gives up after two
+# attempts of at most 2 + 4 s, and the agent abstains on the error instead of overrunning.
+_query_bedrock = boto3.client(
+    "bedrock-runtime",
+    region_name=config.REGION,
+    config=Config(
+        connect_timeout=2, read_timeout=4, retries={"max_attempts": 2, "mode": "standard"}
+    ),
+)
 
 
 def embed_documents(texts: list[str]) -> list[list[float]]:
@@ -28,7 +38,7 @@ def embed_documents(texts: list[str]) -> list[list[float]]:
     """
     vectors = []
     for start in range(0, len(texts), BATCH):
-        vectors += _embed(texts[start : start + BATCH], "search_document")
+        vectors += _embed(texts[start : start + BATCH], "search_document", _bedrock)
     return vectors
 
 
@@ -38,10 +48,10 @@ def embed_documents(texts: list[str]) -> list[list[float]]:
 @functools.lru_cache(maxsize=256)
 def embed_query(text: str) -> list[float]:
     """The vector of a search query (`search_query`), comparable with `embed_documents`."""
-    return _embed([text], "search_query")[0]
+    return _embed([text], "search_query", _query_bedrock)[0]
 
 
-def _embed(texts: list[str], input_type: str) -> list[list[float]]:
+def _embed(texts: list[str], input_type: str, client) -> list[list[float]]:
     """1024 floats per text, unit length as returned by Cohere, so cosine is the dot product.
 
     `truncate: RIGHT` cuts an over-long input instead of failing the whole batch.
@@ -53,5 +63,5 @@ def _embed(texts: list[str], input_type: str) -> list[list[float]]:
         "output_dimension": DIMENSIONS,
         "truncate": "RIGHT",
     }
-    response = _bedrock.invoke_model(modelId=config.EMBED_MODEL, body=json.dumps(body))
+    response = client.invoke_model(modelId=config.EMBED_MODEL, body=json.dumps(body))
     return json.loads(response["body"].read())["embeddings"]["float"]

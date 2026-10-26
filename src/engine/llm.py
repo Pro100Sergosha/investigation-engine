@@ -13,7 +13,9 @@ from botocore.exceptions import ConnectionError as BotoConnectionError
 from engine import config, db
 
 HAIKU = "eu.anthropic.claude-haiku-4-5-20251001-v1:0"  # the agent (ADR 0017)
-GPT_OSS = "openai.gpt-oss-120b-1:0"  # fallback when Haiku keeps failing
+# The same model through the global pool: its own quota, but requests may leave the EU.
+HAIKU_GLOBAL = "global.anthropic.claude-haiku-4-5-20251001-v1:0"
+GPT_OSS = "openai.gpt-oss-120b-1:0"  # last fallback when both Haiku pools keep failing
 QWEN = "qwen.qwen3-235b-a22b-2507-v1:0"  # evaluation judge
 
 TEMPERATURE = 0  # same request, same answer: the cache and the eval rely on it
@@ -27,6 +29,11 @@ _RETRYABLE_CODES = {
     "ModelNotReadyException",
     "ModelTimeoutException",
 }
+# Tried in order when a model fails with a retryable error. The eu.* pool gets no retries of its
+# own: on 2026-10-26 it answered ServiceUnavailableException for every call while global.*
+# worked, and three retries there would cost ~10 s of every call for nothing.
+_FALLBACKS = {HAIKU: (HAIKU_GLOBAL, GPT_OSS)}
+
 # Seconds to wait before retries 1, 2, 3 (plus up to 1 s of jitter each): at most 10 s of
 # waiting per model. Haiku allows 10 requests/min, one every 6 s, so 7 s usually gets a slot;
 # longer waits would not fit an agent run inside the api Lambda's 90 s.
@@ -55,7 +62,8 @@ def converse(
     deadline: float | None = None,
     cache_history: bool = False,
 ) -> dict:
-    """One Converse call: answer from llm_cache, or call `model` (falling back from Haiku).
+    """One Converse call: answer from llm_cache, or call `model` (Haiku falls back to the
+    global pool, then to gpt-oss).
 
     `messages` and `tools` are in Converse format (`{"role", "content": [blocks]}`,
     `[{"toolSpec": ...}]`). `tool_choice` is Converse `toolChoice`, e.g.
@@ -68,7 +76,7 @@ def converse(
     {"message": {"role": "assistant", "content": [blocks]},  # text / toolUse blocks
      "stop_reason": "end_turn" | "tool_use" | "max_tokens" | ...,
      "usage": {"inputTokens", "outputTokens", "totalTokens", ...cache token counts if any},
-     "model": the model that answered (GPT_OSS after a fallback),
+     "model": the model that answered (HAIKU_GLOBAL or GPT_OSS after a fallback),
      "cached": True if served from llm_cache (usage is then the original call's, cost 0)}.
     `message` can be appended to `messages` as is for the next turn, to either model:
     reasoningContent blocks (gpt-oss) are removed. It may have no blocks at all when
@@ -85,15 +93,18 @@ def converse(
     def request(model_id: str) -> dict:
         return _request(model_id, system, messages, tools, max_tokens, tool_choice, cache_history)
 
-    try:
-        response = _call_with_retries(request(model), deadline)
-        answered_by = model
-    except (ClientError, BotoCoreError) as error:
-        if model != HAIKU or not _retryable(error) or not _time_left(deadline, wait=0):
-            raise
-        print(f"llm fallback to {GPT_OSS}: {error}")
-        response = _call_with_retries(request(GPT_OSS), deadline)
-        answered_by = GPT_OSS
+    candidates = [model, *_FALLBACKS.get(model, ())]
+    for index, candidate in enumerate(candidates):
+        delays = () if candidate in _FALLBACKS else _DELAYS
+        try:
+            response = _call_with_retries(request(candidate), deadline, delays)
+            answered_by = candidate
+            break
+        except (ClientError, BotoCoreError) as error:
+            last = index == len(candidates) - 1
+            if last or not _retryable(error) or not _time_left(deadline, wait=0):
+                raise
+            print(f"llm fallback to {candidates[index + 1]}: {error}")
 
     # gpt-oss returns its chain of thought as reasoningContent blocks without a signature;
     # Claude rejects such blocks in history, so they are dropped to keep turns portable.
@@ -105,8 +116,9 @@ def converse(
         "usage": response["usage"],
         "model": answered_by,
     }
-    # A fallback answer is not cached: the key names Haiku, and a rerun should ask Haiku again.
-    if use_cache and answered_by == model:
+    # The key names Haiku: a gpt-oss answer is not cached, so a rerun asks Haiku again. The global
+    # pool runs the same model at temperature 0, so its answer is as good as one from eu.*.
+    if use_cache and answered_by in (model, HAIKU_GLOBAL):
         _cache_put(key, model, result)
     return {**result, "cached": False}
 
@@ -148,7 +160,7 @@ def _request(
 ) -> dict:
     """Converse keyword arguments. Only Claude gets cachePoints: other models reject them."""
     system_blocks: list[dict] = [{"text": system}]
-    is_claude = model.startswith("eu.anthropic.")
+    is_claude = ".anthropic." in model  # eu.* or global.*
     if is_claude:
         # Claude renders tools before the system prompt, so this one point covers both.
         system_blocks.append({"cachePoint": {"type": "default"}})
@@ -172,12 +184,13 @@ def _request(
     return request
 
 
-def _call_with_retries(request: dict, deadline: float | None = None) -> dict:
-    """Call Converse; on a retryable error wait and try again, then re-raise the last error.
-
-    With a `deadline`, a retry happens only if a whole attempt still fits after the wait.
+def _call_with_retries(
+    request: dict, deadline: float | None = None, delays: tuple[int, ...] = _DELAYS
+) -> dict:
+    """Call Converse; on a retryable error wait `delays` and try again, then re-raise the last
+    error. With a `deadline`, a retry happens only if a whole attempt still fits after the wait.
     """
-    for delay in (*_DELAYS, None):
+    for delay in (*delays, None):
         try:
             return _bedrock.converse(**request)
         except (ClientError, BotoCoreError) as error:

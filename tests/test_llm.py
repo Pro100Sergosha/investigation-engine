@@ -53,18 +53,29 @@ def _ask(**kwargs) -> dict:
 
 def test_retry_then_success(fake):
     fake.script = [_error("ThrottlingException"), ReadTimeoutError(endpoint_url="x"), _response()]
-    result = _ask()
+    result = _ask(model=llm.HAIKU_GLOBAL)
     assert len(fake.requests) == 3
-    assert result["model"] == llm.HAIKU
+    assert result["model"] == llm.HAIKU_GLOBAL
     assert result["message"] == {"role": "assistant", "content": [{"text": "ok"}]}
     assert result["usage"]["inputTokens"] == 10
     assert result["cached"] is False
 
 
-def test_fallback_to_gpt_oss_after_retries(fake):
-    fake.script = [_error("ServiceUnavailableException")] * 4 + [_response("from gpt-oss")]
+def test_eu_failure_goes_straight_to_the_global_pool(fake):
+    fake.script = [_error("ServiceUnavailableException"), _response("from global")]
     result = _ask(tools=TOOLS)
-    assert [r["modelId"] for r in fake.requests] == [llm.HAIKU] * 4 + [llm.GPT_OSS]
+    assert [r["modelId"] for r in fake.requests] == [llm.HAIKU, llm.HAIKU_GLOBAL]
+    assert result["model"] == llm.HAIKU_GLOBAL
+    # Still Claude: the prompt-cache point stays.
+    assert fake.requests[-1]["system"][-1] == {"cachePoint": {"type": "default"}}
+
+
+def test_fallback_to_gpt_oss_after_global_retries(fake):
+    fake.script = [_error("ServiceUnavailableException")] * 5 + [_response("from gpt-oss")]
+    result = _ask(tools=TOOLS)
+    assert [r["modelId"] for r in fake.requests] == (
+        [llm.HAIKU] + [llm.HAIKU_GLOBAL] * 4 + [llm.GPT_OSS]
+    )
     assert result["model"] == llm.GPT_OSS
     # Same request apart from the model and the Claude-only cachePoint.
     assert fake.requests[-1]["messages"] == MESSAGES
@@ -158,11 +169,11 @@ def test_deadline_stops_retries_and_fallback(fake, monkeypatch):
         _ask(deadline=llm.ATTEMPT_SECONDS - 1)
     assert len(fake.requests) == 1
 
-    fake.script = [_error("ThrottlingException")] * 4 + [_response()]
-    assert _ask(deadline=1000)["model"] == llm.GPT_OSS  # plenty of time: retries + fallback
+    fake.script = [_error("ThrottlingException")] * 5 + [_response()]
+    assert _ask(deadline=1000)["model"] == llm.GPT_OSS  # plenty of time: retries + fallbacks
 
 
-def test_cache_hit_skips_the_model_and_fallback_is_not_cached(fake, monkeypatch):
+def test_cache_hit_skips_the_model_and_only_gpt_oss_is_not_cached(fake, monkeypatch):
     stored: dict = {}
 
     def run(sql, **params):
@@ -179,9 +190,13 @@ def test_cache_hit_skips_the_model_and_fallback_is_not_cached(fake, monkeypatch)
     assert (first["cached"], second["cached"]) == (False, True)
     assert second["message"] == first["message"]
 
-    fake.script = [_error("ThrottlingException")] * 4 + [_response()]
+    fake.script = [_error("ThrottlingException")] * 5 + [_response()]
     llm.converse(SYSTEM, [{"role": "user", "content": [{"text": "other"}]}])
-    assert len(stored) == 1
+    assert len(stored) == 1  # gpt-oss answered: not stored under the Haiku key
+
+    fake.script = [_error("ThrottlingException"), _response()]
+    llm.converse(SYSTEM, [{"role": "user", "content": [{"text": "third"}]}])
+    assert len(stored) == 2  # the global pool is the same model: stored
 
 
 def test_database_down_still_answers(fake, monkeypatch):
