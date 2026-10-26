@@ -86,3 +86,26 @@ throttling, and a sweep would measure the fallback, not Haiku.
 
 **EM/F1 on the claims text**: no extra field needed, but a long claim against "1972" scores near 0
 even when correct.
+
+## Update 2026-10-26
+
+The first full runs found two holes in the runner; neither changes the decision.
+
+- **The judge did not see the status or the contradictions**, only the short answer and the
+  claims. A correct `conflicting` answer to a contradictory question looked one-sided and was
+  judged wrong (12 of 12). The judge prompt now carries `System status` and `System
+  contradictions`, and the system prompt says a gold answer starting with `conflicting:` is
+  matched only by an answer that reports the disagreement with its values.
+- **Pacing counted only Haiku.** A rerun served by `llm_cache` makes no uncached Haiku calls, so
+  it did not pause at all, and the agent's searches burst past the Cohere query pool (20
+  requests/min, ADR 0022): six questions abstained on `ThrottlingException`. The runner now waits
+  `max(6 s x uncached Haiku calls, 3 s x searches) - elapsed` after each question.
+
+Answer records also keep the agent's `trace` (searches, documents read, models, reprompts,
+grounding drops) and the number of `searches`, for the failure analysis.
+
+A rerun from the cache is not bit-for-bit the first run: some first calls missed the cache because
+two near-tied hits of the seeded search swapped places between runs (seen on
+`hp-5a7e36815542995ed0d166d4` and `hp-simple-4`), which changes the prompt, so a few answers
+changed. Cost and latency of a cached rerun are not the system's; the first, uncached run
+is the one to quote for them (llm-wiki/09).

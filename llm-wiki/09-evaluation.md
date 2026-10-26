@@ -1,7 +1,7 @@
 ---
 title: Evaluation
 status: current
-last_updated: 2026-10-25
+last_updated: 2026-10-26
 owner: Pro100Sergosha
 ---
 
@@ -9,8 +9,8 @@ owner: Pro100Sergosha
 
 The question set, the metrics, the configurations and how a run works. Why it is built this way:
 [ADR 0027](adr/0027-eval-runner-retrieval-sweep-qwen-judge.md). Metric functions:
-`eval/metrics.py`; the runner: `eval/run.py`. No results yet: the first runs come after the agent
-merges (PLAN.md section 0).
+`eval/metrics.py`; the runner: `eval/run.py`. Results of the full runs: [Results](#results),
+files in `eval/results/`.
 
 ## Question set
 
@@ -63,7 +63,7 @@ left out of every score.
 | Recall@5, Recall@10 | `metrics.recall_at_k` on the sources of the first 5 / 10 chunk hits (a document hit twice takes two positions) vs `gold_sources` | answerable questions, retrieval run |
 | MRR | mean of `metrics.reciprocal_rank` on the same list | same |
 | EM, F1 | `metrics.exact_match` / `f1` of `Answer.answer` (the short answer) vs `answer` | ids starting `hp-` with a gold answer |
-| Judge correctness | Qwen3-235B (`llm.QWEN`) gets question, gold answer, system answer and claims, replies `{"correct": bool, "reason": ...}`; the JSON object is taken from the first `{` to the last `}`. An `insufficient` answer to an answerable question is `false` without a call. A failed call or unreadable reply is `None` and counted in `judge_failures` | questions with a gold answer |
+| Judge correctness | Qwen3-235B (`llm.QWEN`) gets question, gold answer, the system's status, answer, claims and contradictions (a gold answer starting `conflicting:` is matched only by an answer that reports the disagreement with its values), replies `{"correct": bool, "reason": ...}`; the JSON object is taken from the first `{` to the last `}`. An `insufficient` answer to an answerable question is `false` without a call. A failed call or unreadable reply is `None` and counted in `judge_failures` | questions with a gold answer |
 | Citation precision | `metrics.citation_precision`: distinct sources of the cited chunks (claims and contradictions, mapped with `search.get_chunks`) that are gold; `None` when nothing is cited | answerable questions |
 | Abstention P/R | `metrics.abstention_precision_recall`: predicted = status `insufficient`, actual = type `unanswerable` | the whole run |
 | Contradiction P/R | `metrics.contradiction_precision_recall`: predicted = status `conflicting`, actual = type `contradictory` | the whole run |
@@ -107,43 +107,116 @@ quotas (PLAN.md section 5). The retrieval run needs the full Cohere-embedded cor
 Outputs: `eval/results/<config>.json` in the build and `s3://$BUCKET/jobs/eval/<config>.json`
 (`<config>-limit<N>.json` for a dry run, so it never overwrites a full run): `{config, settings,
 question_counts, summary, records}`. Records keep the answer, claims with their sources, cited
-sources, models and call counts, tokens, cost, seconds and every metric; retrieval records keep
+sources, models and call counts, the number of searches, tokens, cost, seconds, every metric and
+the agent's `trace` (searches with their chunk ids, documents read, LLM calls, reprompts, grounding
+drops: what the failure analysis reads); retrieval records keep
 the ranked sources per strategy/mode. The build log ends with the summary as Markdown tables.
 Results are downloaded from S3 and committed through a PR (ADR 0018).
 
 ## Pacing and cost
 
-Haiku allows 10 requests/min per profile. After each question the runner sleeps
-`max(0, 6 s x uncached Haiku calls - elapsed)`, so a run never bursts past the quota and
-`llm.py` does not silently fall back to gpt-oss. Both Haiku profiles (`eu.*`, `global.*`,
+Haiku allows 10 requests/min per profile, and every agent search embeds its query in the Cohere
+pool (20 requests/min). After each question the runner sleeps
+`max(0, max(6 s x uncached Haiku calls, 3 s x searches) - elapsed)`, so a run never bursts past
+either quota and `llm.py` does not silently fall back to gpt-oss. The search term matters for a
+rerun from the cache: with no uncached Haiku calls it would not pause at all, and on 2026-10-26
+such a rerun lost six questions to Cohere `ThrottlingException` before the term was added. Both Haiku profiles (`eu.*`, `global.*`,
 ADR 0028) count as Haiku for pacing and the fallback share; `global.*` is priced at
 $1.00/$5.00 per 1M. After an `ask` that raised, it assumes
-`max_steps` calls. Cached calls are free and unpaced; the judge (Qwen, 100 requests/min) is not
+`max_steps` calls and searches. Cached calls are free and unpaced; the judge (Qwen, 100 requests/min) is not
 paced.
 
-Estimates for the 30 HotpotQA questions (25 answerable), before the Acme questions are added
-(roughly double with them):
+Measured on the full set (72 questions, 61 answerable), first uncached runs, 2026-10-26:
 
-| `CONFIG` | Time | Cost |
+| `CONFIG` | Build time | Cost (Haiku + judge) |
 |---|---|---|
-| `retrieval` | ~3-5 min (25 embeddings, 150 searches) | ~$0 (Cohere, a few thousand tokens) |
-| `agent`, `agent-structured` | ~10-20 min (3-6 Haiku calls per question at 6 s) | ~$0.5-1 (~$0.02-0.035 per question) |
-| `single-shot` | ~3-4 min | ~$0.15 |
-| judge | in the runs above | ~$0.0001 per question (~250 tokens, measured) |
+| `retrieval` | ~5 min | ~$0 (Cohere, a few thousand tokens) |
+| `agent` | 22 min | $0.41 (~$0.006 per question) |
+| `agent-structured` | 19 min | $0.56 |
+| `single-shot` | 9 min | $0.37 |
+| judge | in the runs above | ~$0.0001 per question (~250 tokens) |
 
-A rerun of the same configuration with the same prompts is served by `llm_cache`: free and fast.
+A rerun of the same configuration with the same prompts is served by `llm_cache`: cheap and fast,
+but its cost and latency columns are not the system's, and a few answers can differ: near-tied
+search hits can swap places between runs, which changes the prompt and misses the cache
+([ADR 0027](adr/0027-eval-runner-retrieval-sweep-qwen-judge.md) update).
 CodeBuild adds ~1-2 min of setup per build.
+
+## Results
+
+Full runs of 2026-10-26 on the deployed system (66,619 documents: 66,555 HotpotQA + 64 Acme), 72
+questions (61 answerable). Files: `eval/results/{retrieval,agent,agent-structured,single-shot}.json`.
+All three answer runs: 0 errors, 0 judge failures, fallback share 0.00 (every answer from Haiku,
+`eu.*` or `global.*`).
+
+Retrieval (`retrieval`, k=10, 61 answerable questions; tuned on this set, ADR 0029):
+
+| strategy/mode | Recall@5 | Recall@10 | MRR |
+|---|---|---|---|
+| fixed/dense | 0.80 | 0.89 | 0.86 |
+| fixed/hybrid | 0.83 | 0.89 | 0.79 |
+| fixed/mmr (agent default) | 0.82 | 0.89 | 0.79 |
+| structured/dense | 0.71 | 0.81 | 0.78 |
+| structured/hybrid | 0.73 | 0.81 | 0.77 |
+| structured/mmr | 0.74 | 0.83 | 0.78 |
+
+Answers:
+
+| config | EM | F1 | judge | citation P | abstain P/R | conflict P/R | cost | p50/p95 s |
+|---|---|---|---|---|---|---|---|---|
+| `agent` (fixed, 6 steps) | 0.48 | 0.73 | 0.74 | 0.94 | 0.77/0.91 | 0.75/0.25 | $0.41 | 13.4/40.0 |
+| `agent-structured` | 0.52 | 0.73 | 0.70 | 0.93 | 0.83/0.91 | 0.80/0.33 | $0.56 | 6.7/22.8 |
+| `single-shot` (1 step) | 0.32 | 0.53 | 0.62 | 0.94 | 0.48/0.91 | 0.75/0.25 | $0.37 | 5.8/11.4 |
+
+Judge correctness by type:
+
+| type | n | `agent` | `agent-structured` | `single-shot` |
+|---|---|---|---|---|
+| simple | 11 | 1.00 | 1.00 | 1.00 |
+| multi_hop | 23 | 0.87 | 0.74 | 0.52 |
+| multi_doc | 15 | 0.87 | 0.93 | 0.93 |
+| contradictory | 12 | 0.08 | 0.08 | 0.08 |
+
+`agent.json` is the third run of that configuration (the first two exposed the runner holes in
+the [ADR 0027](adr/0027-eval-runner-retrieval-sweep-qwen-judge.md) update) and was mostly served
+from `llm_cache`: its quality columns are the system's, its own cost ($0.05) and latency
+(0.7/12.9 s) are not. Cost and latency above are from the first, uncached run of the same
+configuration, during the `eu.*` outage (ADR 0028): 130 of 192 calls were answered by
+`global.*` after a failed `eu.*` attempt; that is why it is slower than `agent-structured`.
+
+What the runs show (the failure analysis for EVALUATION.md starts here):
+- **The loop pays off on multi-hop**: 0.87 vs 0.52 judge. `single-shot` abstains on 9 of 23
+  multi-hop questions (abstention precision 0.48): it cannot search again for the bridge entity
+  the first hits name.
+- **Chunking**: fixed beats structured on retrieval (R@10 0.89 vs 0.83); on answers the gap
+  (0.74 vs 0.70) is within the noise of this set.
+- **Contradictions are the weak spot** (recall 0.25-0.33, judge 0.08) although retrieval finds
+  both sides (contradictory R@10 0.96 for fixed/mmr). Two causes in the traces: (1) the model
+  writes each side of a conflict as its own `contradictions` entry with one citation, and the
+  validator, which wants >= 2 distinct citations per entry, drops all of them (5 of 12 in
+  `agent`: acme-020, 022, 025, 027, 030); (2) the agent stops at the first source that answers:
+  9 of 12 contradictory answers in `agent` cite fewer than 2 documents.
+- **Malformed `final_answer`**: 16 of 72 `agent` answers needed a reprompt; Haiku put `claims` in
+  as a string with tool-call markup (`<parameter name="text">...`) instead of a list.
+- **The citation validator never dropped a claim** (0 in 216 answers): claims cite retrieved
+  chunks; citation precision 0.93-0.94.
+- **EM undercounts**: short answers carry extra words ("two monks" for "two", "Honolulu County"
+  for "Honolulu"); EM 0.48 vs F1 0.73 vs judge 0.74.
 
 ## Known limits
 
 - **Judge bias.** One model's opinion; Qwen3 is from a different family than the Claude
   generator, which removes self-preference but not leniency. Spot-check ~10 verdicts by hand and
-  report agreement in EVALUATION.md. Measured once (2026-10-25): "Joseph L. Mankiewicz" against
+  report agreement in EVALUATION.md. Seen in the 2026-10-26 runs: `acme-024` in `agent` reported
+  the conflict with both times in its contradiction and was judged wrong, while `single-shot`'s
+  answer with an empty short answer was judged right; `acme-004` was judged wrong for an answer
+  that matches the gold. Measured once (2026-10-25): "Joseph L. Mankiewicz" against
   gold "Joseph Leo Mankiewicz" -> `{"correct": true, ...}`, a clean JSON object, 197 in / 36 out.
 - **HotpotQA chunking comparison is weak.** Paragraphs average 532 characters, so both chunkers
   mostly keep a paragraph whole; the chunking comparison is meaningful on Acme.
 - **Small set.** 25 answerable HotpotQA questions: one question moves Recall by 0.04. Differences
   below ~0.1 are noise.
-- **Recall depends on the dense candidate list** (`hnsw.ef_search` 40, 14 Known gaps).
+- **Recall depends on the dense candidate list** (`hnsw.ef_search` 40): measured end to end it is
+  enough (fixed/dense Recall@10 0.89); raise it inside `db.transaction()` if a corpus change drops it.
 - **EM is strict** on HotpotQA's long or noisy gold answers; read it together with F1 and the
   judge.
