@@ -1,0 +1,71 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [6 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Title (Incident report: fraud-scorer feature store lag) /Author (Acme Payments) /CreationDate (D:20260422000000+00'00') >>
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 2807 >>
+stream
+BT /F2 16 Tf 56 766 Td (Incident report: fraud-scorer feature store lag) Tj ET
+BT /F1 10 Tf 56 746 Td (Document: INC-403) Tj ET
+BT /F1 10 Tf 56 726 Td (Date: 2026-04-22) Tj ET
+BT /F1 10 Tf 56 706 Td (Services: fraud-scorer, payments-api) Tj ET
+BT /F2 12 Tf 56 684 Td (Summary) Tj ET
+BT /F1 10 Tf 56 664 Td (SEV3 incident on April 22, 2026 affecting fraud-scorer and payments-api. The fraud-scorer) Tj ET
+BT /F1 10 Tf 56 650 Td (feature store fell behind with a lag of 12 minutes, causing payment approvals to wait on fresh) Tj ET
+BT /F1 10 Tf 56 636 Td (features and become slower. Marco Bellini investigated. The issue was resolved by restarting) Tj ET
+BT /F1 10 Tf 56 622 Td (the feature consumer.) Tj ET
+BT /F2 12 Tf 56 600 Td (Impact) Tj ET
+BT /F1 10 Tf 56 580 Td (Payment approval latency increased by 3 seconds slower during the incident window. Merchants) Tj ET
+BT /F1 10 Tf 56 566 Td (experienced slower payment processing as the fraud-scorer service waited for feature store) Tj ET
+BT /F1 10 Tf 56 552 Td (updates. See STS-403 for real-time status updates during the incident.) Tj ET
+BT /F2 12 Tf 56 530 Td (Timeline) Tj ET
+BT /F1 10 Tf 56 510 Td (- 14:32 UTC: Monitoring alert triggered for feature store lag) Tj ET
+BT /F1 10 Tf 56 490 Td (- 14:35 UTC: Incident commander notified; Marco Bellini began investigation) Tj ET
+BT /F1 10 Tf 56 470 Td (- 14:41 UTC: Root cause identified as feature consumer process stalled) Tj ET
+BT /F1 10 Tf 56 450 Td (- 14:43 UTC: Feature consumer restarted) Tj ET
+BT /F1 10 Tf 56 430 Td (- 14:45 UTC: Feature store lag returned to normal; payment approval latency normalized) Tj ET
+BT /F2 12 Tf 56 408 Td (Root cause) Tj ET
+BT /F1 10 Tf 56 388 Td (The fraud-scorer feature store consumer process stopped consuming messages from the upstream) Tj ET
+BT /F1 10 Tf 56 374 Td (data pipeline, causing the feature store to fall behind by 12 minutes. This lag forced the) Tj ET
+BT /F1 10 Tf 56 360 Td (payments-api to wait for fresh features during fraud scoring, adding latency to payment) Tj ET
+BT /F1 10 Tf 56 346 Td (approvals.) Tj ET
+BT /F2 12 Tf 56 324 Td (Resolution) Tj ET
+BT /F1 10 Tf 56 304 Td (The feature consumer was restarted, which resumed normal message consumption and cleared the) Tj ET
+BT /F1 10 Tf 56 290 Td (accumulated lag. Payment approval latency returned to baseline within 2 minutes of restart.) Tj ET
+BT /F2 12 Tf 56 268 Td (Follow-up actions) Tj ET
+BT /F1 10 Tf 56 248 Td (- Implement automated alerting for feature store lag as described in CHG-1080) Tj ET
+BT /F1 10 Tf 56 228 Td (- Review RB-12 for standard procedures to follow during future feature store lag incidents) Tj ET
+BT /F1 10 Tf 56 208 Td (- Investigate why the feature consumer process stalled and implement safeguards to prevent) Tj ET
+BT /F1 10 Tf 56 194 Td (  recurrence) Tj ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000212 00000 n 
+0000000314 00000 n 
+0000000456 00000 n 
+0000000592 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R /Info 5 0 R >>
+startxref
+3451
+%%EOF

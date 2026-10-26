@@ -1,0 +1,71 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [6 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Title (Incident report: slow report exports in merchant portal) /Author (Acme Payments) /CreationDate (D:20260224000000+00'00') >>
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 2960 >>
+stream
+BT /F2 16 Tf 56 766 Td (Incident report: slow report exports in merchant portal) Tj ET
+BT /F1 10 Tf 56 746 Td (Document: INC-203) Tj ET
+BT /F1 10 Tf 56 726 Td (Date: 2026-02-24) Tj ET
+BT /F1 10 Tf 56 706 Td (Services: merchant-portal) Tj ET
+BT /F2 12 Tf 56 684 Td (Summary) Tj ET
+BT /F1 10 Tf 56 664 Td (On 2026-02-24, merchants using the merchant-portal experienced timeouts when exporting CSV) Tj ET
+BT /F1 10 Tf 56 650 Td (reports containing more than 100,000 rows. The issue was classified as SEV3. Exports failed) Tj ET
+BT /F1 10 Tf 56 636 Td (because the report generation logic ran synchronously within web request handlers, which were) Tj ET
+BT /F1 10 Tf 56 622 Td (subject to a 30-second request timeout. Merchants could work around the issue by exporting data) Tj ET
+BT /F1 10 Tf 56 608 Td (using smaller date ranges. See STS-203 for status updates during the incident.) Tj ET
+BT /F2 12 Tf 56 586 Td (Impact) Tj ET
+BT /F1 10 Tf 56 566 Td (Merchants attempting to export large payment reports received timeout errors instead of CSV) Tj ET
+BT /F1 10 Tf 56 552 Td (files. This prevented access to comprehensive historical payment data through the portal's) Tj ET
+BT /F1 10 Tf 56 538 Td (export feature. The impact was limited to users exporting reports with more than 100,000 rows;) Tj ET
+BT /F1 10 Tf 56 524 Td (smaller exports completed successfully.) Tj ET
+BT /F2 12 Tf 56 502 Td (Timeline) Tj ET
+BT /F1 10 Tf 56 482 Td (- 09:15 UTC: Merchants report export failures in support channels) Tj ET
+BT /F1 10 Tf 56 462 Td (- 09:45 UTC: Merchant Experience team confirms timeouts on large report exports) Tj ET
+BT /F1 10 Tf 56 442 Td (- 10:30 UTC: Root cause identified as synchronous processing within request handler) Tj ET
+BT /F1 10 Tf 56 422 Td (- 11:00 UTC: Workaround documented and communicated to affected merchants) Tj ET
+BT /F2 12 Tf 56 400 Td (Root cause) Tj ET
+BT /F1 10 Tf 56 380 Td (Report exports were implemented as synchronous operations executed within the merchant-portal) Tj ET
+BT /F1 10 Tf 56 366 Td (web request handler. When merchants requested exports of more than 100,000 rows, the processing) Tj ET
+BT /F1 10 Tf 56 352 Td (time exceeded the 30-second request timeout, causing the request to fail before the CSV could) Tj ET
+BT /F1 10 Tf 56 338 Td (be generated and returned.) Tj ET
+BT /F2 12 Tf 56 316 Td (Resolution) Tj ET
+BT /F1 10 Tf 56 296 Td (CHG-1025 was implemented to refactor report exports as background jobs, removing the dependency) Tj ET
+BT /F1 10 Tf 56 282 Td (on the request timeout and allowing exports of any size to complete successfully.) Tj ET
+BT /F2 12 Tf 56 260 Td (Follow-up actions) Tj ET
+BT /F1 10 Tf 56 240 Td (- Monitor export completion times after CHG-1025 deployment) Tj ET
+BT /F1 10 Tf 56 220 Td (- Review other long-running operations in merchant-portal for similar timeout issues) Tj ET
+BT /F1 10 Tf 56 200 Td (- Update export documentation with expected processing times for large datasets) Tj ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000212 00000 n 
+0000000314 00000 n 
+0000000464 00000 n 
+0000000600 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R /Info 5 0 R >>
+startxref
+3612
+%%EOF

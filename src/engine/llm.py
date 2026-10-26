@@ -39,6 +39,9 @@ _bedrock = boto3.client(
     region_name=config.REGION,
     config=Config(connect_timeout=5, read_timeout=30, retries={"total_max_attempts": 1}),
 )
+# The longest one attempt can take (connect + read timeout). With a deadline, no retry and no
+# fallback starts unless this much time is left, so a call never runs past it (ADR 0025).
+ATTEMPT_SECONDS = 35
 
 
 def converse(
@@ -48,11 +51,20 @@ def converse(
     model: str = HAIKU,
     max_tokens: int = 2048,
     use_cache: bool = True,
+    tool_choice: dict | None = None,
+    deadline: float | None = None,
+    cache_history: bool = False,
 ) -> dict:
     """One Converse call: answer from llm_cache, or call `model` (falling back from Haiku).
 
     `messages` and `tools` are in Converse format (`{"role", "content": [blocks]}`,
-    `[{"toolSpec": ...}]`). Returns
+    `[{"toolSpec": ...}]`). `tool_choice` is Converse `toolChoice`, e.g.
+    `{"tool": {"name": "final_answer"}}`; gpt-oss accepts it but ignores it (measured), so to
+    force a tool offer only that tool. `deadline` is a `time.monotonic()` value: a retry or the
+    fallback starts only if a whole attempt (`ATTEMPT_SECONDS`) still fits before it, so a call
+    that starts with that much time left ends by the deadline. `cache_history` adds a Claude
+    prompt-cache point after the last message, for a conversation that goes on (the agent loop);
+    a one-off call would pay the cache-write premium for nothing. Returns
     {"message": {"role": "assistant", "content": [blocks]},  # text / toolUse blocks
      "stop_reason": "end_turn" | "tool_use" | "max_tokens" | ...,
      "usage": {"inputTokens", "outputTokens", "totalTokens", ...cache token counts if any},
@@ -61,22 +73,26 @@ def converse(
     `message` can be appended to `messages` as is for the next turn, to either model:
     reasoningContent blocks (gpt-oss) are removed. It may have no blocks at all when
     stop_reason is "max_tokens"; do not send such a message back.
-    Raises botocore ClientError for a bad request or when every retry and the fallback failed.
+    Raises botocore ClientError for a bad request or when every retry and the fallback failed
+    (or the deadline left no time for them).
     """
-    key = cache_key(model, system, messages, tools, max_tokens)
+    key = cache_key(model, system, messages, tools, max_tokens, tool_choice)
     if use_cache:
         hit = _cache_get(key)
         if hit is not None:
             return {**hit, "cached": True}
 
+    def request(model_id: str) -> dict:
+        return _request(model_id, system, messages, tools, max_tokens, tool_choice, cache_history)
+
     try:
-        response = _call_with_retries(_request(model, system, messages, tools, max_tokens))
+        response = _call_with_retries(request(model), deadline)
         answered_by = model
     except (ClientError, BotoCoreError) as error:
-        if model != HAIKU or not _retryable(error):
+        if model != HAIKU or not _retryable(error) or not _time_left(deadline, wait=0):
             raise
         print(f"llm fallback to {GPT_OSS}: {error}")
-        response = _call_with_retries(_request(GPT_OSS, system, messages, tools, max_tokens))
+        response = _call_with_retries(request(GPT_OSS), deadline)
         answered_by = GPT_OSS
 
     # gpt-oss returns its chain of thought as reasoningContent blocks without a signature;
@@ -96,9 +112,17 @@ def converse(
 
 
 def cache_key(
-    model: str, system: str, messages: list[dict], tools: list[dict] | None, max_tokens: int
+    model: str,
+    system: str,
+    messages: list[dict],
+    tools: list[dict] | None,
+    max_tokens: int,
+    tool_choice: dict | None = None,
 ) -> str:
-    """sha256 of everything that determines the answer, as canonical JSON (sorted keys)."""
+    """sha256 of everything that determines the answer, as canonical JSON (sorted keys).
+
+    `tool_choice` enters the key only when set, so keys stored before it existed stay valid.
+    """
     request = {
         "model": model,
         "system": system,
@@ -107,18 +131,34 @@ def cache_key(
         "max_tokens": max_tokens,
         "temperature": TEMPERATURE,
     }
+    if tool_choice is not None:
+        request["tool_choice"] = tool_choice
     canonical = json.dumps(request, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
 def _request(
-    model: str, system: str, messages: list[dict], tools: list[dict] | None, max_tokens: int
+    model: str,
+    system: str,
+    messages: list[dict],
+    tools: list[dict] | None,
+    max_tokens: int,
+    tool_choice: dict | None = None,
+    cache_history: bool = False,
 ) -> dict:
-    """Converse keyword arguments. Only Claude gets a cachePoint: other models reject it."""
+    """Converse keyword arguments. Only Claude gets cachePoints: other models reject them."""
     system_blocks: list[dict] = [{"text": system}]
-    if model.startswith("eu.anthropic."):
+    is_claude = model.startswith("eu.anthropic.")
+    if is_claude:
         # Claude renders tools before the system prompt, so this one point covers both.
         system_blocks.append({"cachePoint": {"type": "default"}})
+    if is_claude and cache_history:
+        # A second point after the last message: the next turn reads this prefix back. Below
+        # Haiku 4.5's 4,096-token minimum it is ignored at no cost. Built on a copy, so the
+        # caller's history and the cache key stay as they are.
+        last = messages[-1]
+        cached_last = {**last, "content": [*last["content"], {"cachePoint": {"type": "default"}}]}
+        messages = [*messages[:-1], cached_last]
     request = {
         "modelId": model,
         "system": system_blocks,
@@ -127,21 +167,32 @@ def _request(
     }
     if tools:
         request["toolConfig"] = {"tools": tools}
+        if tool_choice is not None:
+            request["toolConfig"]["toolChoice"] = tool_choice
     return request
 
 
-def _call_with_retries(request: dict) -> dict:
-    """Call Converse; on a retryable error wait and try again, then re-raise the last error."""
+def _call_with_retries(request: dict, deadline: float | None = None) -> dict:
+    """Call Converse; on a retryable error wait and try again, then re-raise the last error.
+
+    With a `deadline`, a retry happens only if a whole attempt still fits after the wait.
+    """
     for delay in (*_DELAYS, None):
         try:
             return _bedrock.converse(**request)
         except (ClientError, BotoCoreError) as error:
-            if delay is None or not _retryable(error):
+            # + 1: the jitter below adds up to 1 s to the wait.
+            if delay is None or not _retryable(error) or not _time_left(deadline, delay + 1):
                 raise
             print(f"llm retry in {delay} s: {request['modelId']}: {error}")
             # Jitter, so callers throttled together do not all come back at the same moment.
             time.sleep(delay + random.uniform(0, 1))
     raise AssertionError("unreachable: the last attempt returns or raises")
+
+
+def _time_left(deadline: float | None, wait: float) -> bool:
+    """True if, after waiting `wait` seconds, a whole attempt still ends before `deadline`."""
+    return deadline is None or time.monotonic() + wait + ATTEMPT_SECONDS <= deadline
 
 
 def _retryable(error: Exception) -> bool:

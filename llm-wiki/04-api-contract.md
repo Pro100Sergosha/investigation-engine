@@ -8,9 +8,8 @@ owner: Pro100Sergosha
 # 04 API contract
 
 The HTTP interface of the `api` Lambda (Function URL) that the UI (`static/index.html`) and the
-smoke check code against. `handlers.api` serves every route below except `POST /ask`, which
-arrives with the agent; until then it answers 404 like any unknown route, and the UI's stub mode
-(`/?stub`) is the only way to see an answer.
+smoke check code against. `handlers.api` serves every route below. The UI's stub mode
+(`/?stub`) shows canned answers without a backend.
 
 ## Conventions
 
@@ -24,13 +23,17 @@ arrives with the agent; until then it answers 404 like any unknown route, and th
 
   | Status | When |
   |---|---|
-  | 400 | invalid JSON body or not an object, bad `limit`/`offset`, bad filename |
+  | 400 | invalid JSON body or not an object, bad `limit`/`offset`, bad filename, `question` missing, not a string, blank or over 1000 characters (after stripping) |
+  | 429 | from Lambda itself, not our JSON: more than 4 requests at once (reserved concurrency of `api`, ADR 0025). The UI says "busy, try again in a minute" |
   | 404 | unknown route, malformed id, unknown document or chunk id |
   | 503 | `{"error": "database is resuming, retry in ~15 s"}`: a pg8000 `InterfaceError` or `OSError` escaped `db.connect`'s retries (cluster resuming from 0 ACU, or unreachable). The UI waits 15 s and retries once |
   | 500 | `{"error": "internal error"}` for anything else; the traceback goes to CloudWatch only |
 
 - Logs: one JSON line per request, `{"handler": "api", "method", "route", "status", "ms"}`;
-  `route` is the pattern (`/documents/{id}`), not the raw path. No custom metrics.
+  `route` is the pattern (`/documents/{id}`), not the raw path. `POST /ask` adds
+  `answer_status`, `llm_steps`, `models` (the models that answered, sorted), `input_tokens`,
+  `output_tokens`, `prompt_cache_read_tokens` (Bedrock prompt cache) and `llm_cache_hits`
+  (calls served from `llm_cache`). No custom metrics.
 - Ids are integers. Timestamps are ISO 8601 strings in UTC.
 - Document text is untrusted: the UI renders it as text (`textContent`), never as HTML.
 
@@ -45,7 +48,7 @@ arrives with the agent; until then it answers 404 like any unknown route, and th
 | `POST /documents/upload-url` | `{"filename": str}` | `{"url": str, "key": str}` |
 | `DELETE /documents/{id}` | - | `{"deleted": id}` |
 | `GET /chunks/{id}` | - | `Source` plus `"ord": int` |
-| `POST /ask` (not served yet, 404) | `{"question": str}`, 1-1000 characters | `Answer` |
+| `POST /ask` | `{"question": str}`, 1-1000 characters after stripping | `Answer` |
 
 `Document` = `{"id", "source", "title", "doc_type", "version", "created_at", "chunks": int}`.
 
@@ -64,6 +67,16 @@ UI needs no extra requests:
   "trace": [{"step": "search", "...": "free-form, shown as JSON in the UI"}]
 }
 ```
+
+`POST /ask` runs `agent.ask(question)` with the defaults (strategy `structured`, mode `mmr`,
+6 steps; the client cannot choose them) and answers within ~80 s
+([ADR 0025](adr/0025-agent-loop-seeded-forced-deadline.md)). `sources` holds every chunk cited
+in `claims` and `contradictions`, once each, in citation order. A model that fails, times out
+or misbehaves gives status 200 with `"status": "insufficient"` and the reason in `trace`, not
+an error status. Trace steps: `search` (`query`, `k`, `chunk_ids`, `seed` for the server's
+own first search), `llm` (`model`, `cached`, `usage`, `stop_reason`, `forced`, `ms`),
+`get_document`, `reprompt`, `deadline`, `error`, and one `grounding` entry with what the
+validator dropped.
 
 ## Upload, update and delete
 

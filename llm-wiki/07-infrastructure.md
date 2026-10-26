@@ -77,7 +77,7 @@ they call `ingest`, and a bucket in the data stack would make the stacks depend 
 |---|---|
 | Bucket `Documents` | all public access blocked, SSL enforced, `RETAIN`, CORS `PUT` from `*` (presigned browser uploads, [ADR 0019](adr/0019-isolated-vpc-schema-custom-resource.md)). Prefixes: `uploads/` (UI), `bulk/` (JSONL shards), `jobs/` (job outputs, inert) |
 | S3 events | `ObjectCreated` on `uploads/` and `bulk/` -> `ingest` (asynchronous invoke) |
-| Lambda `api` | image, `engine.handlers.api`, x86_64, 1024 MB, 90 s, Function URL (output `ApiUrl`) |
+| Lambda `api` | image, `engine.handlers.api`, x86_64, 1024 MB, 90 s (the agent stops at 80 s, [ADR 0025](adr/0025-agent-loop-seeded-forced-deadline.md)), **reserved concurrency 4**: caps what the unauthenticated `POST /ask` can spend; more requests get 429. Function URL (output `ApiUrl`) |
 | Lambda `ingest` | image, `engine.handlers.ingest`, x86_64, 1024 MB, 15 min, **reserved concurrency 2**: two workers fill the ~20 requests/min of the Cohere `eu.*` pool ([ADR 0022](adr/0022-cohere-embed-v4-batched.md)); throttled S3 events wait in Lambda's async queue instead of overloading Bedrock and the database. Async invoke config: 2 retries, maximum event age 6 h (set explicitly), **on failure -> `IngestFailures`** |
 | Queue `IngestFailures` | SQS, SQS-managed encryption, SSL enforced, 14 days retention. Lambda puts here every `ingest` event it gave up on (retries exhausted or older than 6 h): the original S3 event (`requestPayload`), `requestContext.condition` and the error (`responsePayload`). No alarm: the depth is visible in the SQS console. Rerun with `make redrive-ingest` ([Jobs](#jobs)) |
 | CodeBuild `investigation-jobs` | see [Jobs](#jobs) |
@@ -145,10 +145,12 @@ aws codebuild start-build --project-name investigation-jobs --profile investigat
 |---|---|
 | `dataset` | HotpotQA -> dedup -> JSONL shards in `bulk/hotpotqa/` (which trigger `ingest`), stats and gold questions in `jobs/dataset/` |
 | `dataset-stats` | the same counts with `--dry-run`, writes nothing |
+| `acme` | `scripts/gen_acme.py`: the Acme corpus from `data/acme/spec.json`, one Haiku call per document, each file checked by parsing it; files and labels to `jobs/acme/` (inert), to be committed ([05 Corpora](05-corpora.md#acme-synthetic)) |
+| `acme-load` | copies the committed `data/acme/files/` to `uploads/`, so `ingest` indexes them as `upload:<file name>` |
 | `redrive-ingest` | `scripts/redrive_ingest.py`: for each message in `IngestFailures`, log the condition and error, invoke `ingest` asynchronously with the original S3 event, delete the message once the invoke is accepted; stops at the first empty receive. Safe to run twice: `ingest` skips what is stored |
 | `eval CONFIG=<name> [LIMIT=N]` | `eval/run.py`: the question set through `retrieval` (no LLM), `agent`, `agent-fixed` or `single-shot`; results to `jobs/eval/<config>.json` ([09 Evaluation](09-evaluation.md)). The whole value goes in one variable: `"name=TARGET,value=eval CONFIG=agent LIMIT=3"` |
 
-`acme` arrives with its stream. A build without `TARGET` fails on purpose.
+A build without `TARGET` fails on purpose.
 
 ## CI/CD
 

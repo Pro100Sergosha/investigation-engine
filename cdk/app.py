@@ -254,7 +254,12 @@ class AppStack(cdk.Stack):
             code=lambda_.DockerImageCode.from_image_asset(image, cmd=["engine.handlers.api"]),
             architecture=lambda_.Architecture.X86_64,
             memory_size=1024,
+            # agent.DEADLINE_SECONDS (80) + reading the cited chunks; ADR 0025 has the arithmetic.
             timeout=cdk.Duration.seconds(90),
+            # The Function URL has no auth: this caps what a flood of POST /ask can spend (Haiku,
+            # gpt-oss, Cohere query embeddings) and the database connections. Enough for a demo:
+            # one question running plus page loads; more requests get 429.
+            reserved_concurrent_executions=4,
             environment=data_env,
         )
         url = api.add_function_url(auth_type=lambda_.FunctionUrlAuthType.NONE)

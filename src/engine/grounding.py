@@ -6,11 +6,13 @@ from engine.models import Answer, Claim
 def build_answer(raw: dict, retrieved: set[int]) -> Answer:
     """Validate the `final_answer` tool input against the chunk ids retrieved in this run.
 
-    `raw` = {"status": str, "claims": [{"text": str, "citations": [int]}],
-             "contradictions": [{"text": str, "citations": [int]}]}; "contradictions" may be absent.
+    `raw` = {"status": str, "answer": str, "claims": [{"text": str, "citations": [int]}],
+             "contradictions": [{"text": str, "citations": [int]}]}; "answer" and
+    "contradictions" may be absent.
     Rules, in order:
-    1. Wrong shape (not a dict, "claims" not a list, an item without a string "text" or a list
-       "citations") -> ValueError, so the agent can ask the model again.
+    1. Wrong shape (not a dict, "answer" present but not a string, "claims" not a list, an item
+       without a string "text" or a list "citations") -> ValueError, so the agent can ask the
+       model again.
     2. A citation is valid if it is an int (not bool) in `retrieved`; others are removed,
        duplicates are removed keeping first order. A claim with blank text or no valid citation
        is dropped; a contradiction with blank text or fewer than 2 distinct valid citations
@@ -18,11 +20,16 @@ def build_answer(raw: dict, retrieved: set[int]) -> Answer:
     3. Status: "conflicting" if any contradiction survives; else "insufficient" if no claim
        survives or the model said "insufficient" (surviving claims are kept as partial facts);
        else "answered". An unknown model status is treated as "answered".
+    4. `Answer.answer` is the model's "answer" stripped, or "" when the status is "insufficient"
+       (an abstention has no direct answer, whatever the model wrote there).
     The returned trace always holds exactly one entry listing what was dropped (raw items):
     {"step": "grounding", "dropped_claims": [...], "dropped_contradictions": [...]}.
     """
     if not isinstance(raw, dict):
         raise ValueError("final answer must be a JSON object")
+    short_answer = raw.get("answer", "")
+    if not isinstance(short_answer, str):
+        raise ValueError('"answer" must be a string')
     claims = raw.get("claims")
     if not isinstance(claims, list):
         raise ValueError('"claims" must be a list')
@@ -70,7 +77,11 @@ def build_answer(raw: dict, retrieved: set[int]) -> Answer:
         }
     ]
     return Answer(
-        status=status, claims=kept_claims, contradictions=kept_contradictions, trace=trace
+        status=status,
+        claims=kept_claims,
+        answer="" if status == "insufficient" else short_answer.strip(),
+        contradictions=kept_contradictions,
+        trace=trace,
     )
 
 

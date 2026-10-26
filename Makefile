@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install lint fmt test check synth diff diff-pr deploy verify smoke dataset dataset-stats redrive-ingest eval diff-cicd deploy-cicd bootstrap
+.PHONY: help install lint fmt test check synth diff diff-pr deploy verify smoke dataset dataset-stats acme acme-labels acme-load redrive-ingest eval diff-cicd deploy-cicd bootstrap
 
 # CLI pinned here, library pinned in uv.lock. npx downloads it once and caches it.
 CDK := npx --yes aws-cdk@2.1146.1
@@ -68,6 +68,19 @@ dataset:  ## Job: HotpotQA -> dedup -> JSONL shards in s3://$BUCKET/bulk/ (inges
 
 dataset-stats:  ## Job: dataset counts and dedup stats only, writes nothing
 	uv run python scripts/dataset.py --bucket $$BUCKET --dry-run
+
+acme:  ## Job: Acme corpus from data/acme/spec.json (Haiku), checked, to s3://$BUCKET/jobs/acme/
+	uv run python -u scripts/gen_acme.py --bucket $$BUCKET
+
+# Fake keys as in `test`: importing engine.llm creates a boto3 client, and no call is made.
+acme-labels: export AWS_ACCESS_KEY_ID := test
+acme-labels: export AWS_SECRET_ACCESS_KEY := test
+acme-labels:  ## Rewrite data/acme/GROUND_TRUTH.md and questions.jsonl from the spec (no AWS)
+	uv run python scripts/gen_acme.py --labels-only
+
+# Through uploads/, exactly like a UI upload: ingest stores each file as upload:<file name>.
+acme-load:  ## Job: copy data/acme/files/ to s3://$BUCKET/uploads/ (ingest indexes them)
+	aws s3 cp data/acme/files/ s3://$$BUCKET/uploads/ --recursive
 
 redrive-ingest:  ## Job: rerun the ingest events in the IngestFailures queue (Lambda gave up)
 	uv run python scripts/redrive_ingest.py --queue-url $$INGEST_FAILURES_QUEUE --function $$INGEST_FUNCTION

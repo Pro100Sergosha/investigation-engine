@@ -8,6 +8,7 @@ import tempfile
 import time
 import traceback
 from collections import Counter
+from dataclasses import asdict
 from pathlib import Path
 from urllib.parse import unquote_plus
 
@@ -15,7 +16,7 @@ import boto3
 import pg8000.native
 from botocore.config import Config
 
-from engine import config, db, index, parsers, search
+from engine import agent, config, db, index, parsers, search
 
 # The cluster's master user (IAM auth only, created by express configuration). Only `schema`
 # connects as it: it owns the tables and creates the `app` role everything else uses.
@@ -41,6 +42,7 @@ _UPLOAD_URL_SECONDS = 300
 # what is bad input. 18 digits always fit; a billion is far beyond the corpus.
 _MAX_ID_DIGITS = 18
 _MAX_OFFSET = 1_000_000_000
+_MAX_QUESTION = 1000  # characters, as the page's text box
 
 
 class _BadRequest(Exception):
@@ -116,8 +118,9 @@ def api(event, context):
     started = time.monotonic()
     method = event["requestContext"]["http"]["method"]
     route, item_id = _match(event["rawPath"])
+    log = {"handler": "api", "method": method, "route": route}
     try:
-        response = _dispatch(method, route, item_id, event)
+        response = _dispatch(method, route, item_id, event, log)
     except _BadRequest as error:
         response = _json(400, {"error": str(error)})
     except (pg8000.native.InterfaceError, OSError):
@@ -129,8 +132,7 @@ def api(event, context):
         traceback.print_exc()  # to CloudWatch; the client never sees a traceback
         response = _json(500, {"error": "internal error"})
     ms = round((time.monotonic() - started) * 1000)
-    log = {"handler": "api", "method": method, "route": route, "status": response["statusCode"]}
-    print(json.dumps({**log, "ms": ms}))
+    print(json.dumps({**log, "status": response["statusCode"], "ms": ms}))
     return response
 
 
@@ -147,7 +149,8 @@ def _match(path: str) -> tuple[str, int | None]:
     return path, None
 
 
-def _dispatch(method: str, route: str, item_id: int | None, event: dict) -> dict:
+def _dispatch(method: str, route: str, item_id: int | None, event: dict, log: dict) -> dict:
+    """The response for one request; a route may add fields to the request's `log` line."""
     if (method, route) == ("GET", "/"):
         # Same origin as the API, so the page needs no CORS (ADR 0008).
         page = (config.STATIC_DIR / "index.html").read_text(encoding="utf-8")
@@ -176,8 +179,33 @@ def _dispatch(method: str, route: str, item_id: int | None, event: dict) -> dict
     if (method, route) == ("GET", "/chunks/{id}"):
         chunks = search.get_chunks([item_id])
         return _json(200, chunks[0]) if chunks else _not_found("chunk")
-    # POST /ask arrives with the agent (wave 3); until then it is an unknown route.
+    if (method, route) == ("POST", "/ask"):
+        return _ask(_body(event).get("question"), log)
     return _json(404, {"error": "not found"})
+
+
+def _ask(question: object, log: dict) -> dict:
+    """Run the agent with the default configuration; add the cited chunks and the LLM usage."""
+    if not isinstance(question, str) or not 1 <= len(question.strip()) <= _MAX_QUESTION:
+        raise _BadRequest(f"question: 1-{_MAX_QUESTION} characters")
+    answer = agent.ask(question.strip())
+    cited = [cid for claim in answer.claims + answer.contradictions for cid in claim.citations]
+    steps = [entry for entry in answer.trace if entry["step"] == "llm"]
+    log.update(
+        answer_status=answer.status,
+        llm_steps=len(steps),
+        models=sorted({step["model"] for step in steps}),
+        input_tokens=_usage(steps, "inputTokens"),
+        output_tokens=_usage(steps, "outputTokens"),
+        prompt_cache_read_tokens=_usage(steps, "cacheReadInputTokens"),
+        llm_cache_hits=sum(step["cached"] for step in steps),
+    )
+    return _json(200, {**asdict(answer), "sources": search.get_chunks(cited)})
+
+
+def _usage(steps: list[dict], key: str) -> int:
+    """One Converse token count summed over the LLM steps (cache counts may be absent)."""
+    return sum(step["usage"].get(key, 0) for step in steps)
 
 
 def _upload_url(filename: object) -> dict:

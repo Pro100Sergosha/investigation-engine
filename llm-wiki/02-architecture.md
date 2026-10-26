@@ -11,10 +11,10 @@ owner: Pro100Sergosha
 
 Wave 2 (2026-10-25): the `api` Lambda serves the page and the document routes (llm-wiki/04);
 `ingest` parses, dedups, chunks, embeds (Cohere Embed V4, 96 texts per request) and stores every
-object put under `uploads/` or `bulk/`, and keeps the events it gave up on in an SQS queue; `search.py` runs dense + keyword -> RRF -> MMR; `llm.py` is the Bedrock client. Not built:
-the agent loop and `POST /ask` (wave 3), the Acme corpus. The evaluation runner (`eval/run.py`,
-[09 Evaluation](09-evaluation.md)) is built but has not run yet. Everything marked
-*(planned)* is decided (see the ADRs) but not built.
+object put under `uploads/` or `bulk/`, and keeps the events it gave up on in an SQS queue; `search.py` runs dense + keyword -> RRF -> MMR; `llm.py` is the Bedrock client.
+Wave 3 (2026-10-26): `agent.ask` (tool-calling loop, ADR 0025) behind `POST /ask`; the Acme corpus
+(`data/acme/`, ADR 0026); the evaluation runner (`eval/run.py`, [09 Evaluation](09-evaluation.md),
+built, not run yet). Everything marked *(planned)* is decided (see the ADRs) but not built.
 
 ## Contracts
 
@@ -28,13 +28,14 @@ the specification, with `NotImplementedError` bodies until their wave owners imp
 | `read_jsonl(path) -> list[ParsedDoc]` | `parsers.py` | bulk shards, one `ParsedDoc` per line |
 | `fixed_chunks`, `structured_chunks` | `chunking.py` | strategies "fixed" and "structured"; a token is a whitespace word |
 | `rrf`, `mmr` | `rank.py` | MMR relevance is the normalized fused score, diversity is cosine of chunk vectors |
-| `build_answer(raw, retrieved) -> Answer` | `grounding.py` | the citation validator and the status rules |
+| `build_answer(raw, retrieved) -> Answer` | `grounding.py` | the citation validator and the status rules; passes the model's short `answer` through, "" when insufficient |
 | recall@k, reciprocal rank, EM, F1, citation precision, abstention P/R, contradiction P/R | `eval/metrics.py` | gold labels are document sources, not database ids |
 | `normalize`, `content_hash` | `index.py` | implemented: the dataset job and `ingest` must dedup identically |
 | `embed_documents(texts) -> list[list[float]]`, `embed_query(text) -> list[float]` | `embed.py` | implemented: Cohere Embed V4 (`eu.*` profile), 1024 floats of unit length, 96 texts per request (`search_document`), queries as `search_query` (memoized, 256 texts: the shared list must not be mutated), adaptive retry on throttling |
 | `upsert_many(docs) -> [(status, id)]`, `upsert(doc)`, `delete(id)` | `index.py` | implemented: dedup checks of the whole batch before any embedding (also within the batch), the distinct inputs of all docs to write embedded in one go, one transaction per doc; `upsert(doc)` is `upsert_many([doc])[0]`; chunks embedded as `<title>\n\n<chunk>` |
-| `search(query, k, strategy, mode)`, `get_document`, `list_documents`, `document_detail`, `get_chunks` | `search.py` | implemented, `k` 1-40: `mode` is `dense`, `hybrid` (RRF) or `mmr` (RRF + MMR), the evaluated configurations |
-| `ask(question, strategy, mode, max_steps) -> Answer` | `agent.py` | wave 3: `max_steps=1` is single-shot RAG; `trace` entries with `"step": "llm"` carry `model`, `cached`, `usage` (the eval runner paces and costs from them); never raises for model errors or timeouts, abstains instead. `Answer.answer` is the short direct answer EM/F1 compare |
+| `search(query, k, strategy, mode)`, `get_document`, `list_documents`, `document_detail`, `get_chunks`, `document_chunks` | `search.py` | implemented, `k` 1-40: `mode` is `dense`, `hybrid` (RRF) or `mmr` (RRF + MMR), the evaluated configurations; `document_chunks(id, strategy)` serves the agent's `get_document` tool |
+| `converse(system, messages, tools, model, max_tokens, use_cache, tool_choice, deadline, cache_history) -> dict` | `llm.py` | implemented: retry, Haiku -> gpt-oss fallback, Postgres cache (ADR 0023); `deadline` stops retries and the fallback when a whole attempt (35 s) no longer fits (ADR 0025) |
+| `ask(question, strategy, mode, max_steps) -> Answer` | `agent.py` | implemented (ADR 0025): server-seeded first search, tools `search` / `get_document` / `final_answer`, last step forced to `final_answer`, 80 s deadline; `max_steps=1` is single-shot RAG; `trace` entries with `"step": "llm"` carry `model`, `cached`, `usage` (the eval runner paces and costs from them); never raises for model errors or timeouts, abstains instead. `Answer.answer` is the short direct answer EM/F1 compare |
 
 `ParsedDoc.text` has one shape for every format: paragraphs separated by a blank line, headings
 on their own line starting with `#`. The structure-aware chunker depends on it.
@@ -61,11 +62,11 @@ on their own line starting with `#`. The structure-aware chunker depends on it.
 ## Component map
 
 ```
-browser ──HTTPS──> Lambda Function URL ──> api Lambda (container image)        [built: all but /ask]
+browser ──HTTPS──> Lambda Function URL ──> api Lambda (container image, at most 4 at once)
    │                                         GET  /                 -> index.html
    │                                         GET  /documents        POST /documents/upload-url
    │                                         DELETE /documents/{id} GET  /chunks/{id}
-   │                                         POST /ask  (agent loop, timeout 90 s)    (planned)
+   │                                         POST /ask  (agent loop, 80 s deadline, timeout 90 s)
    │                                             ├──IAM──> Bedrock: Claude Haiku, gpt-oss-120b, Cohere Embed V4 (eu.*)
    │                                             └──IAM token, TLS 5432──> Aurora (express)
    └──PUT (presigned)──> S3 uploads/ ──event──> ingest Lambda (same image, at most 2 at once)
@@ -73,7 +74,7 @@ browser ──HTTPS──> Lambda Function URL ──> api Lambda (container ima
                                                   gave up after 2 retries -> SQS IngestFailures
 
 CodeBuild investigation-jobs: dataset (HotpotQA shards -> S3 -> ingest) | redrive-ingest
-                              (IngestFailures -> ingest) | eval CONFIG=... (llm-wiki/09) | acme (planned)
+                              (IngestFailures -> ingest) | eval CONFIG=... (llm-wiki/09) | acme, acme-load
 ```
 
 ## Data flow
@@ -83,11 +84,16 @@ exact dedup -> chunk (fixed 300/50 tokens or structure-aware) -> embed (Cohere E
 the chunks of a whole file in batches of 96) -> insert `documents` + `chunks`, one transaction per
 document (`db.py`). Bulk corpus: JSONL shards in S3, same path.
 
-Question: agent loop -> `search(q)` = Cohere query vector (`search_query`) -> dense top-40
-(partial HNSW of the strategy) + keyword top-40 (OR `tsquery`, `ts_rank_cd`) -> RRF -> MMR over the top-40 fused, with
-per-document cap (modes `dense | hybrid | mmr`, ADR 0024) -> optional `get_document(id)` -> repeat up to 6 steps -> `final_answer` JSON -> citation
-validator -> `Answer(status=answered | insufficient | conflicting)` with claims, citations,
-contradictions and the trace.
+Question (`POST /ask` -> `agent.ask`, ADR 0025): the server searches the question itself
+(k = 8) and puts the hits into the first message -> Claude Haiku calls tools: `search(q, k)` =
+Cohere query vector (`search_query`) -> dense top-40 (partial HNSW of the strategy) + keyword
+top-40 (OR `tsquery`, `ts_rank_cd`) -> RRF -> MMR over the top-40 fused, with per-document cap
+(modes `dense | hybrid | mmr`, ADR 0024); `get_document(id)` = the document's chunks, up to
+8,000 characters, citable -> up to 6 LLM calls, the last one (or the one with < 45 s left of
+the 80 s deadline) forced to `final_answer` -> citation validator (only chunk ids shown in this
+run count) -> `Answer(status=answered | insufficient | conflicting)` with the short answer,
+claims, citations, contradictions and the trace -> the handler adds the cited chunks as
+`sources`.
 
 ## Service by service
 
