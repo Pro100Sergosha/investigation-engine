@@ -358,8 +358,9 @@ cause").
   "third-party card network", not NorthBank.
 
 So the reprompt path changed the content of the answer, and the conflict that was reported is not
-the full three-way conflict. Whether the verdict is right is a judgment call, and this case is in
-the spot-check (section 5).
+the full three-way conflict. Whether the verdict is right is a judgment call: in the spot-check
+(section 5) the author judged this answer correct, since the contradiction reports the
+disagreement and the short answer follows the final postmortem.
 
 **Fix.** For status `conflicting`, build the short answer on the server from the values in the
 contradiction text, or reject a `conflicting` answer whose short answer names only one value. It
@@ -697,18 +698,32 @@ author to fill in by hand. Answers are trimmed.
 
 | id | config | question | gold | system answer (status + short answer, trimmed) | judge verdict | author verdict |
 |---|---|---|---|---|---|---|
-| `hp-simple-2` | `single-shot` | How many monks live at Mariastern Abbey near Banja Luka today? | two | answered: "two monks" | correct | |
-| `hp-5a8ae0ae55429950cd6afbc2` | `agent` | What airline was a monopoly with a hub at Sheremetyevo International Airport? | AeroflotRussian Airlines | answered: "Aeroflot" | correct | |
-| `hp-5a81d54a55429903bc27b9d4` | `agent` | Were Jeff Martin and Kyle Patrick both in The Click Five? | no | answered: "No" (claims: Kyle Patrick was its lead singer; Jeff Martin fronted The Tea Party) | wrong | |
-| `hp-5ac401bb55429919431738f4` | `agent-structured` | Who worked on the origins of Mickey Mouse and created Oswald the Lucky Rabbit? | Ub Iwerks | answered: "Walt Disney and Ub Iwerks" | wrong | |
-| `acme-001` | `agent` | What caused the card payment outage on March 12, 2026, and how was it fixed? | CHG-1042 cut max_connections 200 -> 20 ...; rolled back at 14:41 UTC and CHG-1047 restored 200 with a check | answered: "CHG-1042 reduced the ledger connection pool from 200 to 20 ... fixed by rolling back CHG-1042 at 14:41 UTC" (no claim mentions CHG-1047) | wrong | |
-| `acme-004` | `agent`, prompt of #31 | Which incidents in 2026 were attributed, at least at first, to NorthBank? | INC-302 (March 12 timeouts) and INC-303 (March 26 3-D Secure failures) | conflicting: "Two incidents: (1) card-gateway authorization timeouts on March 12 ... (2) 3-D Secure challenge failures for Visa cards on March 26" (contradiction: INC-302 blamed NorthBank, INC-301 found CHG-1042) | wrong | |
-| `acme-017` | `agent-structured` | Which runbook covers the failure behind the March 12, 2026 outage, and which metric does it watch? | RB-03, ledger_pool_in_use (above 90%) | answered: "RB-07 (webhook backlog runbook); watches webhook_queue_depth metric" | wrong | |
-| `acme-020` | `agent` | Was the March 12, 2026 outage caused by Acme's own systems or by the card network? | conflicting: pool exhaustion (INC-301) vs slow NorthBank (INC-302) vs third-party card network (STS-301) | conflicting: "Acme's own systems" (contradiction: INC-302 and STS-301 blamed NorthBank, INC-301 found CHG-1042) | wrong | |
-| `acme-024` | `agent`, prompt of #31 | At what time was fraud-scorer model v3.4 deployed on January 21, 2026? | conflicting: 09:30 UTC (CHG-1011) vs 10:15 UTC (INC-201) | conflicting: "09:30 UTC" (contradiction: INC-201 says 10:15, CHG-1011 says 09:30) | wrong | |
-| `acme-028` | `agent` | What timeout does card-gateway use for NorthBank authorization requests? | conflicting: 8 seconds (CHG-1007) vs 5 seconds (RB-05) | conflicting: "8 seconds" (contradiction: RB-05 says 5 s, CHG-1007 raised it to 8 s) | correct | |
+| `hp-simple-2` | `single-shot` | How many monks live at Mariastern Abbey near Banja Luka today? | two | answered: "two monks" | correct | correct |
+| `hp-5a8ae0ae55429950cd6afbc2` | `agent` | What airline was a monopoly with a hub at Sheremetyevo International Airport? | AeroflotRussian Airlines | answered: "Aeroflot" | correct | correct |
+| `hp-5a81d54a55429903bc27b9d4` | `agent` | Were Jeff Martin and Kyle Patrick both in The Click Five? | no | answered: "No" (claims: Kyle Patrick was its lead singer; Jeff Martin fronted The Tea Party) | wrong | correct |
+| `hp-5ac401bb55429919431738f4` | `agent-structured` | Who worked on the origins of Mickey Mouse and created Oswald the Lucky Rabbit? | Ub Iwerks | answered: "Walt Disney and Ub Iwerks" | wrong | wrong |
+| `acme-001` | `agent` | What caused the card payment outage on March 12, 2026, and how was it fixed? | CHG-1042 cut max_connections 200 -> 20 ...; rolled back at 14:41 UTC and CHG-1047 restored 200 with a check | answered: "CHG-1042 reduced the ledger connection pool from 200 to 20 ... fixed by rolling back CHG-1042 at 14:41 UTC" (no claim mentions CHG-1047) | wrong | wrong |
+| `acme-004` | `agent`, prompt of #31 | Which incidents in 2026 were attributed, at least at first, to NorthBank? | INC-302 (March 12 timeouts) and INC-303 (March 26 3-D Secure failures) | conflicting: "Two incidents: (1) card-gateway authorization timeouts on March 12 ... (2) 3-D Secure challenge failures for Visa cards on March 26" (contradiction: INC-302 blamed NorthBank, INC-301 found CHG-1042) | wrong | correct |
+| `acme-017` | `agent-structured` | Which runbook covers the failure behind the March 12, 2026 outage, and which metric does it watch? | RB-03, ledger_pool_in_use (above 90%) | answered: "RB-07 (webhook backlog runbook); watches webhook_queue_depth metric" | wrong | wrong |
+| `acme-020` | `agent` | Was the March 12, 2026 outage caused by Acme's own systems or by the card network? | conflicting: pool exhaustion (INC-301) vs slow NorthBank (INC-302) vs third-party card network (STS-301) | conflicting: "Acme's own systems" (contradiction: INC-302 and STS-301 blamed NorthBank, INC-301 found CHG-1042) | wrong | correct |
+| `acme-024` | `agent`, prompt of #31 | At what time was fraud-scorer model v3.4 deployed on January 21, 2026? | conflicting: 09:30 UTC (CHG-1011) vs 10:15 UTC (INC-201) | conflicting: "09:30 UTC" (contradiction: INC-201 says 10:15, CHG-1011 says 09:30) | wrong | correct |
+| `acme-028` | `agent` | What timeout does card-gateway use for NorthBank authorization requests? | conflicting: 8 seconds (CHG-1007) vs 5 seconds (RB-05) | conflicting: "8 seconds" (contradiction: RB-05 says 5 s, CHG-1007 raised it to 8 s) | correct | correct |
 
-Agreement: TODO (author)
+Agreement: **6 of 10** (rows 1, 2, 4, 5, 7, 10). The author read the gold answer and the
+recorded answer only, without the judge's verdict or reason, and without asking the system again.
+
+All four disagreements go the same way: the judge said wrong, the author said correct.
+- `hp-5a81d54a55429903bc27b9d4`: the judge read a supporting claim as contradicting the answer.
+- `acme-004` (#31): the judge said the answer does not mention the postmortem that clears
+  NorthBank for March 12; the answer's third claim and its contradiction both do.
+- `acme-020` and `acme-024` (#31): status `conflicting`, one value in the short answer, the
+  conflict in the contradiction. The judge failed them and passed `acme-028`, which has the same
+  shape.
+
+So on this sample the judge is stricter than the author, never more lenient: judge correctness
+is more likely a lower bound than an overstatement. Its strictness is uneven on `conflicting`
+answers, which is where a deterministic rule (section 4.2's fix) would help most. Ten verdicts
+are too few for a rate; they show the direction, not its size.
 
 **Inconsistencies visible in the result files.** These are facts about the files, not verdicts.
 The judge gave opposite verdicts to answers of the same shape: status `conflicting`, one value in
@@ -727,8 +742,9 @@ gives the same short answer, and the judge accepted it there because its claims 
 
 - **One judge, unmeasured bias.** All correctness numbers are one model's opinion. Using Qwen3 to
   judge a Claude generator removes self-preference, not leniency or inconsistency. Section 5 shows
-  opposite verdicts for equivalent answers. Until the spot-check agreement is filled in, read
-  judge numbers as plus or minus a few questions.
+  opposite verdicts for equivalent answers, and agrees with the author on 6 of 10 spot-checked
+  verdicts; every disagreement is the judge being stricter. Read judge numbers as a lower bound,
+  plus or minus a few questions.
 - **Tuned on the test set.** The RRF weights, `k0` and the MMR lambda were chosen with this
   question set ([ADR 0029](llm-wiki/adr/0029-weighted-rrf-min-max-mmr-fixed-chunks.md)), and the
   #32 contradiction prompt was written against these 12 contradictory questions. Retrieval
