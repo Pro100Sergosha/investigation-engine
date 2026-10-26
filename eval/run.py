@@ -232,6 +232,8 @@ def answer_record(q: dict, answer, sources: dict[int, str], seconds: float) -> d
         "em": metrics.exact_match(answer.answer, q["answer"]) if short else None,
         "f1": metrics.f1(answer.answer, q["answer"]) if short else None,
         "citation_precision": metrics.citation_precision(cited, gold) if gold else None,
+        # Searches, documents read, models and reprompts: what the failure analysis reads.
+        "trace": answer.trace,
     }
 
 
