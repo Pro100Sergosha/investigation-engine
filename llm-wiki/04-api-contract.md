@@ -1,7 +1,7 @@
 ---
 title: API contract
 status: current
-last_updated: 2026-10-25
+last_updated: 2026-10-26
 owner: Pro100Sergosha
 ---
 
@@ -68,7 +68,7 @@ UI needs no extra requests:
 }
 ```
 
-`POST /ask` runs `agent.ask(question)` with the defaults (strategy `structured`, mode `mmr`,
+`POST /ask` runs `agent.ask(question)` with the defaults (strategy `fixed`, mode `mmr`,
 6 steps; the client cannot choose them) and answers within ~80 s
 ([ADR 0025](adr/0025-agent-loop-seeded-forced-deadline.md)). `sources` holds every chunk cited
 in `claims` and `contradictions`, once each, in citation order. A model that fails, times out

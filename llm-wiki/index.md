@@ -1,7 +1,7 @@
 ---
 title: Investigation Engine Knowledge Base
 status: current
-last_updated: 2026-10-25
+last_updated: 2026-10-26
 owner: Pro100Sergosha
 ---
 
@@ -15,8 +15,9 @@ section 0) live in [PLAN.md](../PLAN.md). If the code changed and the document d
 document is a bug.
 
 Numbering follows binadar's wiki. A document is written when there is something real to describe,
-so gaps in the numbers are deliberate: 03 Data model, 05 Corpora, 09 Evaluation
-and 10 Runbook appear with the streams that build them.
+so gaps in the numbers are deliberate (10 Runbook is not written yet). The deliverables at the
+repository root, [README](../README.md), [EVALUATION](../EVALUATION.md) and
+[AI_USAGE](../AI_USAGE.md), summarize this wiki for a reader outside the project.
 
 ## What to read for what task
 
