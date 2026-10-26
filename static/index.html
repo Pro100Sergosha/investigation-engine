@@ -28,6 +28,7 @@
   .chip { padding: 0 6px; margin: 0 2px; border-color: #1a56db; color: #1a56db; background: #eef3ff; }
   .chip[aria-pressed=true] { background: #1a56db; color: #fff; }
   .contradictions { border: 2px solid #8a1030; background: #fff5f7; padding: 8px; border-radius: 6px; margin: 12px 0; }
+  .direct { font-size: 1.3rem; margin: 8px 0; }
   .source { border: 1px solid #1a56db; border-radius: 6px; padding: 8px; margin-top: 12px; }
   pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #f0f0f0; padding: 8px; border-radius: 4px; max-height: 24em; overflow: auto; }
   .tablewrap { overflow-x: auto; }
@@ -123,6 +124,8 @@ async function api(method, path, body, retried = false) {
     $("net").textContent = "";
     return api(method, path, body, true);
   }
+  // Lambda's own throttle (reserved concurrency of the api function), not our JSON.
+  if (res.status === 429) throw new Error("The server is busy. Try again in a minute.");
   if (!res.ok) {
     throw new Error(data && typeof data.error === "string" ? data.error : "Unexpected response (HTTP " + res.status + ").");
   }
@@ -182,6 +185,7 @@ function renderAnswer(answer) {
   const contradictions = answer.contradictions || [];
 
   root.append(el("p", {}, el("span", { class: "badge " + answer.status, text: STATUS_TEXT[answer.status] || answer.status })));
+  if (answer.answer) root.append(el("p", { class: "direct" }, el("strong", { text: "Answer: " }), answer.answer));
   if (answer.status === "insufficient") {
     root.append(el("p", { text: "The corpus does not contain enough evidence to answer this question." }));
     if (claims.length) root.append(el("p", { class: "muted", text: "Partial findings:" }));
@@ -386,14 +390,14 @@ function stubAnswer(question) {
   const q = question.toLowerCase();
   const trace = [{ step: "search", query: question, hits: 3 }, { step: "answer", note: "<b>stub</b>" }];
   if (q.includes("conflict")) {
-    return { status: "conflicting", trace, sources: pick(101, 205, 307),
+    return { status: "conflicting", answer: "14:02 or 14:30", trace, sources: pick(101, 205, 307),
       claims: [{ text: "Service was restored after 40 minutes.", citations: [205] }],
       contradictions: [{ text: "Report A says 14:02, report B says 14:30.", citations: [101, 307] }] };
   }
   if (q.includes("unknown")) {
-    return { status: "insufficient", trace, sources: pick(101), claims: [{ text: "Only report A mentions the start time (14:02).", citations: [101] }], contradictions: [] };
+    return { status: "insufficient", answer: "", trace, sources: pick(101), claims: [{ text: "Only report A mentions the start time (14:02).", citations: [101] }], contradictions: [] };
   }
-  return { status: "answered", trace, sources: pick(101, 205), contradictions: [],
+  return { status: "answered", answer: "14:02", trace, sources: pick(101, 205), contradictions: [],
     claims: [{ text: "The outage began at 14:02.", citations: [101] }, { text: "Service was restored after 40 minutes.", citations: [205] }] };
 }
 
