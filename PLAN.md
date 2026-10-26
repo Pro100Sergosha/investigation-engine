@@ -14,7 +14,7 @@ own small code instead.
 **Updated 2026-10-26 (day 3 of 6).** Waves 0-3 merged (PRs #4-#30). Corpus: 66,619 documents
 (66,555 HotpotQA + 64 Acme, `make acme-load` done). Haiku falls back `eu.*` -> `global.*` (#29,
 ADR 0028; `eu.*` answers `ServiceUnavailableException` since the morning of 10-26); search tuned
-(#30, ADR 0029). Full eval done (#PR): `retrieval`, `agent`, `agent-structured`, `single-shot`,
+(#30, ADR 0029). Full eval done (#31): `retrieval`, `agent`, `agent-structured`, `single-shot`,
 results in `eval/results/` and llm-wiki/09 Results. `agent`: judge 0.74, citation precision
 0.94, abstention P/R 0.77/0.91, contradiction P/R 0.75/0.25; the loop beats single-shot on
 multi-hop (0.87 vs 0.52).
@@ -26,7 +26,7 @@ judge spot-check of ~10 verdicts; UI check of upload/update/delete and `POST /as
 
 How status is kept (every PR that finishes or advances a task updates it in the same PR):
 - this section: date, current day and wave, what is behind, what is next;
-- the wave table in section 5: the row gets `**Done (#PR):**`; the day table: `**Done:**` or
+- the wave table in section 5: the row gets `**Done (#31):**`; the day table: `**Done:**` or
   `**In progress:**` with what is left;
 - the checklist below: `[x]` only when the requirement works end to end on the deployed system;
   otherwise `[ ]` with a `partial:` note naming the merged pieces (PR numbers) and what is missing.
@@ -35,37 +35,37 @@ How status is kept (every PR that finishes or advances a task updates it in the 
 ## 1. Requirements checklist (from the task)
 
 Ingestion
-- [x] >= 3 file formats (plan: PDF, DOCX, Markdown/HTML, JSONL) — `parsers.py` (#16), wired into `ingest` (#21); HotpotQA as JSONL shards, the Acme corpus in PDF/MD/DOCX/HTML (#28) loaded through `ingest` (`make acme-load`); answers of the full eval cite all four Acme formats (#PR)
+- [x] >= 3 file formats (plan: PDF, DOCX, Markdown/HTML, JSONL) — `parsers.py` (#16), wired into `ingest` (#21); HotpotQA as JSONL shards, the Acme corpus in PDF/MD/DOCX/HTML (#28) loaded through `ingest` (`make acme-load`); answers of the full eval cite all four Acme formats (#31)
 - [ ] text + metadata extraction (source, title, date, doc type, service names) — partial: `ParsedDoc` metadata from parsers (#16), stored by `index.upsert` (#22) via `ingest` (#21); not checked on the deployed system
-- [x] chunking, >= 2 strategies compared — fixed + structure-aware chunkers (#6); compared by the eval (#PR): Recall@10 0.89 vs 0.83, judge 0.74 vs 0.70 (llm-wiki/09)
+- [x] chunking, >= 2 strategies compared — fixed + structure-aware chunkers (#6); compared by the eval (#31): Recall@10 0.89 vs 0.83, judge 0.74 vs 0.70 (llm-wiki/09)
 - [ ] duplicate handling — partial: sha256 of normalized text (#4), HotpotQA deduplicated in the dataset job (#7), `index.upsert` skips same-hash documents (#22), `ingest` calls it (#21); not checked on the deployed system
 - [ ] add / update / delete documents — partial: `index.upsert/delete` (#22), checked live on Aurora, API routes + `ingest` (#21); not checked through the UI
 
 Search
 - [x] vector DB, embeddings, semantic search — Aurora + pgvector (#8, #10), Cohere Embed V4 (#19, #24), writes (#22), dense search (#23); 66,555 documents loaded, used by `POST /ask` on the public URL (#27)
-- [x] hybrid search (semantic + keyword) — dense + OR keyword + RRF in `search.py` (#23), the agent's default mode over the loaded corpus (#27); quality measured by the `retrieval` eval (#26, #PR): fixed/hybrid Recall@10 0.89, MRR 0.79
+- [x] hybrid search (semantic + keyword) — dense + OR keyword + RRF in `search.py` (#23), the agent's default mode over the loaded corpus (#27); quality measured by the `retrieval` eval (#26, #31): fixed/hybrid Recall@10 0.89, MRR 0.79
 - [x] >= 1 own ranking/search algorithm (not only library calls) — RRF + MMR with per-document cap (#5), `search.py` mode `mmr` (#23), the agent's default over the loaded corpus (#27); weighted RRF and min-max MMR tuned by the retrieval eval (#30, ADR 0029)
 
 LLM / RAG
 - [x] RAG, multi-document synthesis, multi-step handling of complex questions — `agent.ask` loop with seeded search and sub-searches (#27); `POST /ask` on the public URL answered a HotpotQA comparison question (2 steps, 37 s, 2026-10-26)
 - [x] answers grounded in evidence, sources + citations — citation validator (#14) in the agent, `POST /ask` returns claims with cited `sources` (#27), checked on the public URL
-- [x] contradiction detection attempt — `conflicting` status (#14), the agent prompt asks to compare sources and report contradictions citing >= 2 documents (#27), 14 planted contradictions and 12 questions (#28); measured (#PR): precision 0.75, recall 0.25 (`agent`); why it misses: llm-wiki/09 Results, 14 Known gaps
-- [x] abstain when information is insufficient — `insufficient` status (#14), the agent abstains on no evidence, model errors and its 80 s deadline (#27); measured on 11 unanswerable questions (#PR): precision 0.77, recall 0.91 (`agent`)
+- [x] contradiction detection attempt — `conflicting` status (#14), the agent prompt asks to compare sources and report contradictions citing >= 2 documents (#27), 14 planted contradictions and 12 questions (#28); measured (#31): precision 0.75, recall 0.25 (`agent`); why it misses: llm-wiki/09 Results, 14 Known gaps
+- [x] abstain when information is insufficient — `insufficient` status (#14), the agent abstains on no evidence, model errors and its 80 s deadline (#27); measured on 11 unanswerable questions (#31): precision 0.77, recall 0.91 (`agent`)
 - [ ] LLM error/limit handling (timeouts, 429, malformed output) — partial: `llm.py` retry, fallback, cache (#20); agent deadline, forced final answer, reprompt on malformed output, Bedrock errors -> `insufficient` (#27); Haiku `eu.*` -> `global.*` -> gpt-oss and a bounded query-embedding client (#29, ADR 0028); not measured under load
 - [x] >= 1 tool-calling mechanism — Converse tools `search`, `get_document`, `final_answer` in `agent.py` (#27), deployed
 
 Evaluation
-- [x] own automated eval, >= 40 questions: simple, multi-hop, multi-doc, unanswerable, contradictory — runner `eval/run.py` and 30 HotpotQA questions (20 multi-hop, 5 simple, 5 unanswerable) (#26), 42 Acme questions (15 multi-doc, 3 multi-hop, 12 contradictory, 6 unanswerable, 6 simple) (#28): 72 in total; full runs in CodeBuild against the deployed system, results committed (#PR)
-- [x] retrieval + answer metrics: Recall@K, MRR, Answer Correctness, Citation Accuracy — pure metric functions (#15), runner with Qwen3 judge, citation precision, abstention/contradiction P/R (#26); measured (#PR, llm-wiki/09 Results)
-- [x] >= 2 configurations compared — 6 retrieval configurations (fixed/structured x dense/hybrid/mmr) and 3 answer configurations (`agent`, `agent-structured`, `single-shot`) (#PR)
-- [ ] error analysis: where it fails, why, how to improve — partial: findings from the traces in llm-wiki/09 Results and 14 Known gaps (#PR); EVALUATION.md not written
+- [x] own automated eval, >= 40 questions: simple, multi-hop, multi-doc, unanswerable, contradictory — runner `eval/run.py` and 30 HotpotQA questions (20 multi-hop, 5 simple, 5 unanswerable) (#26), 42 Acme questions (15 multi-doc, 3 multi-hop, 12 contradictory, 6 unanswerable, 6 simple) (#28): 72 in total; full runs in CodeBuild against the deployed system, results committed (#31)
+- [x] retrieval + answer metrics: Recall@K, MRR, Answer Correctness, Citation Accuracy — pure metric functions (#15), runner with Qwen3 judge, citation precision, abstention/contradiction P/R (#26); measured (#31, llm-wiki/09 Results)
+- [x] >= 2 configurations compared — 6 retrieval configurations (fixed/structured x dense/hybrid/mmr) and 3 answer configurations (`agent`, `agent-structured`, `single-shot`) (#31)
+- [ ] error analysis: where it fails, why, how to improve — partial: findings from the traces in llm-wiki/09 Results and 14 Known gaps (#31); EVALUATION.md not written
 
 Backend / UI
 - [ ] Python backend, functional UI: upload/manage docs, ask, inspect sources — partial: page served at `GET /` (#17), document routes (#21), `POST /ask` with cited sources and the short answer on the page (#27); not checked through the UI
 
 Dataset
 - [x] >= 50,000 documents/records, reproducible subset with justification — dataset job (#7), 66,555 unique HotpotQA documents indexed with Cohere V4 (#24, loaded 2026-10-25); counts and rules in llm-wiki/05
-- [x] cross-document linking, source identity preserved, incomplete/contradictory data, repeatable eval — Acme corpus (#28): 64 documents referencing each other by id, 14 planted contradictions, 6 gaps, 42 labelled questions with `upload:` gold sources; indexed, evaluated (#PR), reruns served by `llm_cache`
+- [x] cross-document linking, source identity preserved, incomplete/contradictory data, repeatable eval — Acme corpus (#28): 64 documents referencing each other by id, 14 planted contradictions, 6 gaps, 42 labelled questions with `upload:` gold sources; indexed, evaluated (#31), reruns served by `llm_cache`
 
 Deployment
 - [ ] public URL on free tier, DB integrated, data survives restart — partial: Function URL serves `/`, `/health` and the document routes (#21), smoke checks `GET /documents` on every deploy, Aurora with deletion protection (#10, #13); persistence across a redeploy not checked
@@ -198,9 +198,9 @@ schedule is compressed and scope is cut (see "Cuts"). Code freeze 2026-10-29 15:
 |---|---|---|---|
 | 1 | 10-24 | **Done:** repo, uv, Makefile, AWS project + `aws login`, CDK skeleton, CI/CD (GitHub Actions + CodeBuild PR diff/deploy), llm-wiki + ADRs 0001-0018, stack decisions | `/health` live, merges deploy automatically |
 | 2 | 10-25 | **Done.** Aurora + S3 + `ingest` stub + jobs project (#8, #10, #12, #13), `dataset` job (#7), 2 chunkers (#6), RRF + MMR (#5); pulled forward from days 3-4: citation validator (#14), parsers (#16), UI page (#17), eval metrics (#15). Wave 2: embeddings (#19, Titan; Cohere V4 since #24), writes with dedup (#22), dense + keyword search (#23). `ingest` wiring (#21). Bulk load with Cohere: 66,555 documents. Plan: Stream A: Aurora + S3 + `ingest` + jobs project in the stack, schema, `dataset` job (HotpotQA shards), dedup, 2 chunkers, embeddings, bulk load, dense + keyword + RRF + MMR | `search("...")` returns fused results over >= 50k records |
-| 3 | 10-26 | **Done.** Agent loop + `POST /ask` (#27, answers on the public URL), Acme generator + corpus (#28), eval runner + questions (#26), `acme-load`, Haiku `global.*` fallback (#29), search tuning (#30); pulled forward from day 5: full eval sweep (#PR). Plan: Stream B: `llm.py` (Bedrock, retry/backoff/fallback/cache), agent loop, JSON answer, citation validator; stream C: start the `acme` job | `ask()` answers a HotpotQA multi-hop question with valid citations |
+| 3 | 10-26 | **Done.** Agent loop + `POST /ask` (#27, answers on the public URL), Acme generator + corpus (#28), eval runner + questions (#26), `acme-load`, Haiku `global.*` fallback (#29), search tuning (#30); pulled forward from day 5: full eval sweep (#31). Plan: Stream B: `llm.py` (Bedrock, retry/backoff/fallback/cache), agent loop, JSON answer, citation validator; stream C: start the `acme` job | `ask()` answers a HotpotQA multi-hop question with valid citations |
 | 4 | 10-27 | Streams C + D: Acme corpus + parsers indexed, Lambda router + HTML UI, persistence check; stream E: questions + metrics | public URL answers a question end to end |
-| 5 | 10-28 | **Done early (10-26, #PR).** Stream E: eval runner in the jobs project, config sweep (cached LLM calls) | `eval/results/*.json` for all configs |
+| 5 | 10-28 | **Done early (10-26, #31).** Stream E: eval runner in the jobs project, config sweep (cached LLM calls) | `eval/results/*.json` for all configs |
 | 6 | 10-29 | EVALUATION.md with failure analysis, README, AI_USAGE.md, buffer, defense rehearsal | submitted before 18:00 |
 
 ### Parallel workstreams
@@ -263,7 +263,7 @@ worktree and branch, each ending in a PR that must pass CI. Rules:
 | 3 | **Done (#25):** contracts for wave 3: `Answer.answer` (short answer for EM/F1), `agent.ask(question, strategy, mode, max_steps)` stub with the trace contract | `models.py`, `agent.py` stub | wave 2 | - |
 | 3 | **Done (#27):** Agent loop + tools (ADR 0025): seeded search, `search` / `get_document` / `final_answer`, forced last step, 80 s deadline, `POST /ask`, reserved concurrency 4 on `api`, short answer in the UI | `agent.py`, `llm.py`, `grounding.py`, `handlers.py`, `cdk/app.py`, `static/index.html` | `llm.py`, `search.py`, `grounding.py` | two live questions |
 | 3 | **Done (#28):** Acme generator (spec -> Haiku -> 4 formats, every fact checked in the parsed file; ADR 0026) + `GROUND_TRUTH.md` + 42 Acme questions; corpus committed, `make acme-load` after merge | `scripts/gen_acme.py`, `data/acme/` | `llm.py`, jobs project | ground-truth check |
-| 3 | **Done (#26):** Eval runner + config sweep in the jobs project, HotpotQA questions (moved from wave 2: the runner defines their format): `make eval CONFIG=retrieval\|agent\|agent-fixed\|single-shot`, 30 questions, Qwen3 judge, Haiku pacing, memoized query embeddings (ADR 0027). Dry run on 3 questions done (10-26); full runs, trace in records, judge sees status and contradictions, search pacing (#PR) | `eval/run.py`, `eval/questions.jsonl` | `agent.py`, dataset labels | dry run on 3 questions |
+| 3 | **Done (#26):** Eval runner + config sweep in the jobs project, HotpotQA questions (moved from wave 2: the runner defines their format): `make eval CONFIG=retrieval\|agent\|agent-fixed\|single-shot`, 30 questions, Qwen3 judge, Haiku pacing, memoized query embeddings (ADR 0027). Dry run on 3 questions done (10-26); full runs, trace in records, judge sees status and contradictions, search pacing (#31) | `eval/run.py`, `eval/questions.jsonl` | `agent.py`, dataset labels | dry run on 3 questions |
 | 4 | EVALUATION.md, README, AI_USAGE.md | docs | results | - |
 
 Wave 1 tasks are pure Python or infra and can all start immediately (Bedrock is not needed);
