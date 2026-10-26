@@ -164,44 +164,58 @@ Answers:
 
 | config | EM | F1 | judge | citation P | abstain P/R | conflict P/R | cost | p50/p95 s |
 |---|---|---|---|---|---|---|---|---|
-| `agent` (fixed, 6 steps) | 0.48 | 0.73 | 0.74 | 0.94 | 0.77/0.91 | 0.75/0.25 | $0.41 | 13.4/40.0 |
+| `agent` (fixed, 6 steps) | 0.52 | 0.73 | 0.82 | 0.94 | 0.77/0.91 | 1.00/0.67 | $0.38 | 10.3/45.6 |
+| `agent`, prompt of #31 | 0.48 | 0.73 | 0.74 | 0.94 | 0.77/0.91 | 0.75/0.25 | $0.41 | 13.4/40.0 |
 | `agent-structured` | 0.52 | 0.73 | 0.70 | 0.93 | 0.83/0.91 | 0.80/0.33 | $0.56 | 6.7/22.8 |
 | `single-shot` (1 step) | 0.32 | 0.53 | 0.62 | 0.94 | 0.48/0.91 | 0.75/0.25 | $0.37 | 5.8/11.4 |
 
 Judge correctness by type:
 
-| type | n | `agent` | `agent-structured` | `single-shot` |
-|---|---|---|---|---|
-| simple | 11 | 1.00 | 1.00 | 1.00 |
-| multi_hop | 23 | 0.87 | 0.74 | 0.52 |
-| multi_doc | 15 | 0.87 | 0.93 | 0.93 |
-| contradictory | 12 | 0.08 | 0.08 | 0.08 |
+| type | n | `agent` | `agent`, #31 | `agent-structured` | `single-shot` |
+|---|---|---|---|---|---|
+| simple | 11 | 1.00 | 1.00 | 1.00 | 1.00 |
+| multi_hop | 23 | 0.78 | 0.87 | 0.74 | 0.52 |
+| multi_doc | 15 | 0.93 | 0.87 | 0.93 | 0.93 |
+| contradictory | 12 | 0.58 | 0.08 | 0.08 | 0.08 |
 
-`agent.json` is the third run of that configuration (the first two exposed the runner holes in
-the [ADR 0027](adr/0027-eval-runner-retrieval-sweep-qwen-judge.md) update) and was mostly served
-from `llm_cache`: its quality columns are the system's, its own cost ($0.05) and latency
-(0.7/12.9 s) are not. Cost and latency above are from the first, uncached run of the same
-configuration, during the `eu.*` outage (ADR 0028): 130 of 192 calls were answered by
-`global.*` after a failed `eu.*` attempt; that is why it is slower than `agent-structured`.
+`agent` is the current prompt (one contradiction per conflict citing both sides, check every
+document on the event; [ADR 0025](adr/0025-agent-loop-seeded-forced-deadline.md) update), run
+uncached on 2026-10-26: `eval/results/agent.json`. `agent-structured` and `single-shot` ran with
+the prompt of #31, so compare them with the "`agent`, prompt of #31" row (its file is
+`eval/results/agent.json` at commit `5cfbd5d`). That row's quality columns come from a rerun
+mostly served by `llm_cache`; its cost and latency from the first, uncached run, during the
+`eu.*` outage (ADR 0028): 130 of 192 calls were answered by `global.*` after a failed `eu.*`
+attempt. The current `agent` run had a fallback share of 0.03 (acme-010 and acme-012 got one
+gpt-oss call each, both still correct) and two questions abstained on
+`ServiceUnavailableException` from Bedrock (hp-5ac1b134..., hp-5a8e3ea9...).
 
 What the runs show (the failure analysis for EVALUATION.md starts here):
-- **The loop pays off on multi-hop**: 0.87 vs 0.52 judge. `single-shot` abstains on 9 of 23
+- **The loop pays off on multi-hop**: 0.87 vs 0.52 judge (same prompt). `single-shot` abstains on 9 of 23
   multi-hop questions (abstention precision 0.48): it cannot search again for the bridge entity
   the first hits name.
 - **Chunking**: fixed beats structured on retrieval (R@10 0.89 vs 0.83); on answers the gap
   (0.74 vs 0.70) is within the noise of this set.
-- **Contradictions are the weak spot** (recall 0.25-0.33, judge 0.08) although retrieval finds
-  both sides (contradictory R@10 0.96 for fixed/mmr). Two causes in the traces: (1) the model
-  writes each side of a conflict as its own `contradictions` entry with one citation, and the
-  validator, which wants >= 2 distinct citations per entry, drops all of them (5 of 12 in
-  `agent`: acme-020, 022, 025, 027, 030); (2) the agent stops at the first source that answers:
-  9 of 12 contradictory answers in `agent` cite fewer than 2 documents.
-- **Malformed `final_answer`**: 16 of 72 `agent` answers needed a reprompt; Haiku put `claims` in
-  as a string with tool-call markup (`<parameter name="text">...`) instead of a list.
-- **The citation validator never dropped a claim** (0 in 216 answers): claims cite retrieved
+- **Contradictions were the weak spot and a prompt fix moved them most** (recall 0.25 -> 0.67,
+  precision 0.75 -> 1.00, judge 0.08 -> 0.58), although retrieval found both sides from the
+  start (contradictory R@10 0.96 for fixed/mmr). Two causes in the #31 traces: (1) the model
+  wrote each side of a conflict as its own `contradictions` entry with one citation, and the
+  validator, which wants >= 2 distinct citations per entry, dropped all of them (5 of 12:
+  acme-020, 022, 025, 027, 030); (2) the agent stopped at the first source that answered (9 of
+  12 cited fewer than 2 documents). With one entry per conflict asked for, no contradiction was
+  dropped. Still missed: acme-019, 021, 023, 026 answer from one document (an incident report
+  against a status page or a later report); acme-020 reports the conflict but its short answer
+  takes one side. No answerable question was flagged `conflicting` by mistake.
+- **Multi-hop moved 0.87 -> 0.78 with the new prompt**: two questions. One abstained on a
+  Bedrock `ServiceUnavailableException`; in the other (hp-5a8c493e...) the uncached model chose
+  different sub-queries and found the wrong John Ruskin. Run-to-run variance, not the
+  contradiction rules: a question moves this type by 0.04.
+- **Malformed `final_answer`**: 16 of 72 `agent` answers needed a reprompt with the #31 prompt,
+  5 with the current one; Haiku puts `claims` in as a string with tool-call markup
+  (`<parameter name="text">...`) instead of a list.
+- **The citation validator never dropped a claim** (0 in 288 answers): claims cite retrieved
   chunks; citation precision 0.93-0.94.
 - **EM undercounts**: short answers carry extra words ("two monks" for "two", "Honolulu County"
-  for "Honolulu"); EM 0.48 vs F1 0.73 vs judge 0.74.
+  for "Honolulu"); EM 0.52 vs F1 0.73 vs judge 0.82.
 
 ## Known limits
 
