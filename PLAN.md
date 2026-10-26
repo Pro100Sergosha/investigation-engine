@@ -23,6 +23,9 @@ verdicts agree with the author, the judge is the stricter one), AI_USAGE.md; eva
 prompt-cache tokens (#37: `agent` ~$0.016 per question, ~3x single-shot). The UI was checked on
 the public URL on 10-26: upload, duplicate, update, delete, metadata, a question with its source.
 The short-answer fix was dropped: the traces show it could win at most 2 of 25 EM points.
+Monitoring and load test (#PR, ADR 0033): CloudWatch dashboard from built-in metrics and Logs
+Insights; 200 GETs at 1/5/10 clients answer in ~26 ms p50, above 4 clients ~50% get 429 (the
+reserved concurrency); search latency from the Lambda measured (0.74 s).
 **Behind:** nothing; the mandatory part is done except the author's sections of AI_USAGE.md.
 Next: protect the open Function URL (anyone can delete documents); optional fixes from
 EVALUATION.md (repair malformed `claims` on the server, runner errors vs abstentions); defense
@@ -116,7 +119,7 @@ processing architecture and justify it)
 - [x] Working integration with the database and external APIs — Aurora (IAM tokens), Bedrock (Haiku, Cohere, gpt-oss, Qwen), S3
 - [x] Safe management of environment configuration — `config.py` the only env reader, `.env.example`, no secrets in code or env vars
 - [x] Technical documentation — README (#35), llm-wiki (system as it is) + 29 ADRs
-- [x] Understanding of performance and LLM costs — README (#35), EVALUATION.md (#36): ~$0.016 per question for `agent` vs ~$0.005 for `single-shot` (prompt-cache tokens priced since #37), p50/p95 10.3/45.6 s; bulk load of 66,555 documents ~65 min (llm-wiki/05; ~35-40 min was the estimate); search latency from the Lambda not measured (14 Known gaps)
+- [x] Understanding of performance and LLM costs — README (#35), EVALUATION.md (#36): ~$0.016 per question for `agent` vs ~$0.005 for `single-shot` (prompt-cache tokens priced since #37), p50/p95 10.3/45.6 s; bulk load of 66,555 documents ~65 min (llm-wiki/05; ~35-40 min was the estimate); one search from the Lambda 0.74 s, in Region mmr p50/p95 0.33/0.73 s, cold start p50 1.3 s, Aurora resume ~18.5 s (llm-wiki/07 Performance)
 
 ### 6. Bonus (does not replace the core)
 - [ ] Compare several LLMs or embedding models — not done (Titan was replaced for throughput, not compared on quality); cheapest option: Cohere V4 512 vs 1024 dimensions
@@ -125,8 +128,8 @@ processing architecture and justify it)
 - [ ] Prompt-injection tests — not started (the prompt treats documents as data, nothing tests it)
 - [x] Caching and performance optimization — `llm_cache` in Postgres, prompt caching, 96 texts per embedding request, partial HNSW per strategy (#20, #23, #24)
 - [ ] Streaming answers — dropped: Python Lambda Function URLs do not stream
-- [ ] Detailed monitoring and observability — partial: one JSON log line per request in CloudWatch Logs; no dashboards or tracing
-- [ ] Performance testing on large data — partial: bulk load of 66k documents timed, eval latency p50/p95; no load test
+- [ ] Detailed monitoring and observability — CloudWatch dashboard `investigation-engine`: 35 built-in metrics (Lambda, Function URL, Aurora ACU, SQS, Bedrock per model) + Logs Insights tables over the per-request log line, 2 alarms without actions; no custom metrics, no X-Ray (#PR, ADR 0033). **Left:** deployed by the merge, then open the dashboard and check every widget has data
+- [x] Performance testing on large data — `scripts/load_test.py` in CodeBuild against the deployed system over the 66k-document corpus (#PR): 200 GETs at 1/5/10 clients, p50 26 ms, no errors, ~50% 429 above 4 clients (reserved concurrency); cold start, Aurora resume and search latency from the Lambda measured (llm-wiki/07 Performance); bulk load timed, eval latency p50/p95
 
 ### 7. Deliverables
 - [x] GitHub repository with full code and history
@@ -327,6 +330,7 @@ worktree and branch, each ending in a PR that must pass CI. Rules:
 | 3 | **Done (#28):** Acme generator (spec -> Haiku -> 4 formats, every fact checked in the parsed file; ADR 0026) + `GROUND_TRUTH.md` + 42 Acme questions; corpus committed, `make acme-load` after merge | `scripts/gen_acme.py`, `data/acme/` | `llm.py`, jobs project | ground-truth check |
 | 3 | **Done (#26):** Eval runner + config sweep in the jobs project, HotpotQA questions (moved from wave 2: the runner defines their format): `make eval CONFIG=retrieval\|agent\|agent-fixed\|single-shot`, 30 questions, Qwen3 judge, Haiku pacing, memoized query embeddings (ADR 0027). Dry run on 3 questions done (10-26); full runs, trace in records, judge sees status and contradictions, search pacing (#31) | `eval/run.py`, `eval/questions.jsonl` | `agent.py`, dataset labels | dry run on 3 questions |
 | 4 | **Done (#34, #35, #36):** AI_USAGE.md, README, EVALUATION.md, one agent each; eval cost fix found on the way (#37) | `AI_USAGE.md`, `README.md`, `EVALUATION.md` | results | CI |
+| 5 | **Done (#PR):** monitoring dashboard + alarms (ADR 0033), load test job, performance numbers | `cdk/app.py` (`_dashboard`), `scripts/load_test.py` | deployed system | unit tests + one job run |
 
 Wave 1 tasks are pure Python or infra and can all start immediately (Bedrock is not needed);
 wave 2 starts when infra is merged (Bedrock works since 2026-10-24, see ADR 0017 update).
@@ -362,12 +366,12 @@ prompt-injection tests (plant malicious text in a doc) and the 512 vs 1024 embed
   embeddings. A full load takes ~65 min (measured 10-25) and ~11M tokens. Mitigation: 96 texts per request,
   `ingest` capped at 2, adaptive retry, failed events kept in `IngestFailures` for a redrive;
   never run a load and an eval at once; `global.*` as a second pool.
-- **Aurora resume after a pause** (~15 s). Mitigation: connect retry in `db.py`, warm the database before a demo, document first-request latency.
+- **Aurora resume after a pause** (15-25 s, median ~18.5 s measured in the logs, llm-wiki/07 Performance). Mitigation: connect retry in `db.py`, warm the database before a demo.
 - **Aurora express configuration** (Free plan): public IAM-only endpoint, default engine version, ACU range set after creation. Mitigation: least-privilege `app` role, ADR 0021.
 - **HotpotQA chunking comparison is weak** (paragraphs already short). Compare chunkers on Acme, say so in the report.
 - **LLM-as-judge bias**. Judge from a different family (Qwen3 vs Claude), spot-check 10 answers by hand, report agreement.
 - **Defense without AI**. Keep code small and own; no framework magic you cannot rewrite on paper.
-- **Lambda cold start** (container pull, no model any more, ~1-2 s) plus Aurora resume. Document first-request latency. Provisioned concurrency costs money, not used.
+- **Lambda cold start** (container pull, no model any more; measured init p50 1.3 s, p95 1.7 s) plus Aurora resume. Provisioned concurrency costs money, not used.
 - **Credits and Free-plan expiry.** $100 total, the account closes on 2027-04-24 or when credits run out. Haiku in repeated eval sweeps is the main spend: cache everything, check spend in Billing.
 - **Infra ate day 1.** Streams start on day 2 with one day less of buffer.
 

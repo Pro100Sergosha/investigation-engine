@@ -39,7 +39,8 @@ One dashboard, `investigation-engine`, in `Investigation-prod` (it changes with 
 - Logs Insights tables over the existing log lines: requests and p50/p95/max per route, responses
   by status, `POST /ask` per day (questions, latency, tokens, cached calls, estimated USD at Haiku
   EU prices), cold starts and memory from Lambda's `REPORT` lines, recent 5xx, recent ingested
-  files. No change to the log lines was needed.
+  files, requests outside `/ask` slower than 3 s (Aurora resumes). No change to the log lines was
+  needed.
 - Two alarms without actions (no SNS topic): api `Url5xxCount >= 1` in 5 min and `IngestFailures`
   visible messages `>= 1`. They only turn red on the dashboard.
 - Load testing is a stdlib script (`scripts/load_test.py`, the `load-test` job), its numbers in

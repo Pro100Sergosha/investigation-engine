@@ -79,7 +79,7 @@ they call `ingest`, and a bucket in the data stack would make the stacks depend 
 | S3 events | `ObjectCreated` on `uploads/` and `bulk/` -> `ingest` (asynchronous invoke) |
 | Lambda `api` | image, `engine.handlers.api`, x86_64, 1024 MB, 90 s (the agent stops at 80 s, [ADR 0025](adr/0025-agent-loop-seeded-forced-deadline.md)), **reserved concurrency 4**: caps what the unauthenticated `POST /ask` can spend; more requests get 429. Function URL (output `ApiUrl`) |
 | Lambda `ingest` | image, `engine.handlers.ingest`, x86_64, 1024 MB, 15 min, **reserved concurrency 2**: two workers fill the ~20 requests/min of the Cohere `eu.*` pool ([ADR 0022](adr/0022-cohere-embed-v4-batched.md)); throttled S3 events wait in Lambda's async queue instead of overloading Bedrock and the database. Async invoke config: 2 retries, maximum event age 6 h (set explicitly), **on failure -> `IngestFailures`** |
-| Queue `IngestFailures` | SQS, SQS-managed encryption, SSL enforced, 14 days retention. Lambda puts here every `ingest` event it gave up on (retries exhausted or older than 6 h): the original S3 event (`requestPayload`), `requestContext.condition` and the error (`responsePayload`). No alarm: the depth is visible in the SQS console. Rerun with `make redrive-ingest` ([Jobs](#jobs)) |
+| Queue `IngestFailures` | SQS, SQS-managed encryption, SSL enforced, 14 days retention. Lambda puts here every `ingest` event it gave up on (retries exhausted or older than 6 h): the original S3 event (`requestPayload`), `requestContext.condition` and the error (`responsePayload`). `IngestFailuresAlarm` (no action) turns red on the dashboard when it is not empty ([Monitoring](#monitoring)). Rerun with `make redrive-ingest` ([Jobs](#jobs)) |
 | CodeBuild `investigation-jobs` | see [Jobs](#jobs) |
 | Custom resource `Schema` | Lambda `SchemaFn` (app image, `engine.handlers.schema`) + `cr.Provider`, see [Database schema](#database-schema) |
 | Dashboard `investigation-engine`, alarms `Api5xxAlarm`, `IngestFailuresAlarm` | see [Monitoring](#monitoring) |
@@ -153,7 +153,7 @@ aws codebuild start-build --project-name investigation-jobs --profile investigat
 | `redrive-ingest` | `scripts/redrive_ingest.py`: for each message in `IngestFailures`, log the condition and error, invoke `ingest` asynchronously with the original S3 event, delete the message once the invoke is accepted; stops at the first empty receive. Safe to run twice: `ingest` skips what is stored |
 | `eval CONFIG=<name> [LIMIT=N]` | `eval/run.py`: the question set through `retrieval` (no LLM), `agent`, `agent-structured` or `single-shot`; results to `jobs/eval/<config>.json` ([09 Evaluation](09-evaluation.md)). The whole value goes in one variable: `"name=TARGET,value=eval CONFIG=agent LIMIT=3"` |
 
-| `load-test URL=<ApiUrl> [REQUESTS=200 CONCURRENCY=1,5,10 IDLE=0 ASK=0]` | `scripts/load_test.py` (stdlib only): first requests (cold Lambda, resuming Aurora), then `REQUESTS` GETs per concurrency level over `/health`, `/documents?limit=10`, `/documents/{id}`, p50/p95/p99, errors and 429s per route; `IDLE=330` waits until Aurora pauses and times the resume; `ASK` (at most 3) sequential `POST /ask` calls, the last a cached rerun. Never loads `/ask`. Output: one JSON line per result in the build log ([Performance](#performance)). `CONCURRENCY` has commas: pass the environment override as JSON (`file://`), not the shorthand |
+| `load-test URL=<ApiUrl> [REQUESTS=200 CONCURRENCY=1,5,10 ASK=0]` | `scripts/load_test.py` (stdlib only): the first two requests timed alone (cold Lambda, resuming Aurora if it was paused), then `REQUESTS` GETs per concurrency level, round-robin over `/health`, `/documents?limit=10` and the ten newest `/documents/{id}` (so ~83% are `/documents/{id}`); p50/p95/p99 of successes, errors and 429s per route. `ASK` (at most 3) sequential `POST /ask` calls, the third a rerun of the second served by `llm_cache`. Never loads `/ask`. Output: one JSON line per result in the build log ([Performance](#performance)). `CONCURRENCY` has commas: pass the environment override as JSON (`file://`), not the shorthand |
 
 A build without `TARGET` fails on purpose.
 
@@ -208,7 +208,7 @@ Insights over the log lines the handlers already write; no custom metrics, no tr
 | ingest | invocations, errors, throttles; duration p95/max; alarm status |
 | data | Aurora `ServerlessDatabaseCapacity` (0 = paused) and `DatabaseConnections`; `IngestFailures` depth; Bedrock invocations per model or profile (account-wide: jobs included) |
 | Bedrock | throttles and server errors for Haiku `eu.*`/`global.*` and Cohere; their p95 latency; Haiku input/output tokens |
-| logs | per route: requests, p50/p95/max ms; responses by status; `POST /ask` per day: questions, p50/p95, tokens, LLM-cache hits, estimated USD (Haiku EU prices, prompt-cache writes not logged); cold starts, init time and memory from Lambda `REPORT` lines; recent 5xx; recent ingested files with their counts |
+| logs | per route: requests, p50/p95/max ms; responses by status; `POST /ask` per day: questions, p50/p95, tokens, LLM-cache hits, estimated USD (Haiku EU prices, prompt-cache writes not logged); cold starts, init time and memory from Lambda `REPORT` lines; recent 5xx; recent ingested files with their counts; requests outside `/ask` slower than 3 s (Aurora resumes) |
 
 Alarms have no actions (no SNS): they only turn red on the dashboard. `Api5xxAlarm`: at least one
 5xx from the Function URL in 5 minutes (500, 502 Lambda timeout, 503 database resuming).
@@ -218,6 +218,58 @@ Fields the log queries rely on (`handlers.api`): `handler`, `method`, `route` (t
 `/documents/{id}`), `status`, `ms`; for `/ask` also `answer_status`, `llm_steps`, `models`,
 `input_tokens`, `output_tokens`, `prompt_cache_read_tokens`, `llm_cache_hits`. Renaming one breaks
 a widget silently: change the query in `cdk/app.py` in the same commit.
+
+## Performance
+
+Measured 2026-10-26 with the `load-test` job (CodeBuild in eu-north-1, the Lambda's own Region;
+`ASK=3`, defaults otherwise), Aurora awake at 3-4 ACU, `api` reserved concurrency 4.
+
+| Concurrency | Succeeded | 429 | Other errors | p50 / p95 / p99 ms (successes) | Successes per s |
+|---|---|---|---|---|---|
+| 1 | 200 | 0 | 0 | 26 / 48 / 52 | ~36 |
+| 5 | 104 | 96 | 0 | 24 / 77 / 1,556 | ~49 |
+| 10 | 97 | 103 | 0 | 27 / 60 / 74 | ~190 |
+
+Per route at concurrency 1: `/health` 19/34 ms (p50/p95, the Lambda alone), `/documents?limit=10`
+49/65 ms (a page plus `count(*)` over 66,619 documents), `/documents/{id}` 26/35 ms. The p99 of
+1.6 s at concurrency 5 is new instances starting (cold starts) while the pool grows from 1 to 4.
+
+Cold start and resume, from the production logs of 10-24..10-26 (dashboard widgets "Cold starts"
+and "Slow requests outside /ask"):
+
+| What | Number |
+|---|---|
+| `api` cold start (init) | 55 cold starts: p50 1.29 s, p95 1.74 s, max 2.85 s; the job's first `/health` took 1.81 s |
+| Aurora resume from 0 ACU | 12 resumes seen as `GET /documents` taking 15.2-25.5 s, median ~18.5 s; all answered 200 (`db.connect` waited), none 503 |
+
+Aurora does **not** pause while warm `api` instances live: each keeps its database connection
+open (`db._conn`). After the test, 4 connections stayed open and capacity stayed at 2.5-3.5 ACU
+through 330 idle seconds, so the 300 s auto-pause starts counting only when Lambda reclaims the
+instances. AWS does not document how long an idle instance lives (minutes, not guaranteed); the
+dashboard's ACU graph shows when the cluster reaches 0 (14 Known gaps).
+
+Search latency over the full corpus:
+
+| Where | Number |
+|---|---|
+| From the Lambda: `POST /ask` rerun served by `llm_cache` (1 search, LLM steps 9 ms) | 0.74 s end to end: the seeded search (query embedding, dense + OR keyword SQL, MMR over 40 candidates), the cited chunks and the network |
+| From the Lambda: uncached `POST /ask`, time outside LLM calls (1 search each) | 1.5 s and 2.2 s: the search plus `llm_cache` writes and the cited chunks; LLM calls took 4.7 s (3 calls) and 2.5 s (2 calls) |
+| In Region (CodeBuild, retrieval eval of #31, 61 questions per configuration) | fixed/mmr p50 0.33 s, p95 0.73 s; fixed/hybrid (embedding memoized: dense + OR keyword SQL only) p50 0.13 s, p95 0.45 s; the first search of a question (with its Cohere embedding) p50 0.57 s, p95 1.6 s; outliers of 9-22 s are Cohere throttling retries |
+
+The OR keyword query over the full corpus is cheap: hybrid without the embedding is 0.13 s p50.
+
+What limits throughput:
+- **`api` reserved concurrency 4**: the 5th concurrent request gets 429 at once (~50% of
+  requests at 5 and 10 clients); nothing else failed. Succeeded requests stay fast, so the cap
+  is the limit for cheap routes (~190 successes/s at 10 clients).
+- **`POST /ask`: Bedrock quotas** before anything in AWS compute: Haiku 10 requests/min per
+  profile and 2-6 calls per question is ~2-5 questions/min per pool (`eu.*` then `global.*`, then
+  gpt-oss); every search embeds its query in the Cohere pool (20 requests/min). The 4 instances
+  also cap `/ask` at 4 questions at once.
+- **Aurora** (max 4 ACU) was not the limit: the cheap routes did not move capacity. Its cost is
+  the resume (~18 s) after a pause.
+- Cost of the run: 2 uncached `/ask` (~$0.03 of Haiku), 6 minutes of CodeBuild small; the rest
+  is free tier.
 
 ## Packaging
 

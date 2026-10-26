@@ -706,7 +706,14 @@ class AppStack(cdk.Stack):
                 'filter handler = "ingest"'
                 " | fields @timestamp, key, seconds, counts.inserted, counts.updated,"
                 " counts.unchanged, counts.duplicate, skipped | sort @timestamp desc | limit 20",
-                width=24,
+            ),
+            # A cheap route that takes seconds is almost always the database resuming from
+            # 0 ACU (15-25 s measured, llm-wiki/07 Performance).
+            logs_table(
+                "Slow requests outside /ask (> 3 s: Aurora resumes)",
+                [api_logs],
+                'filter handler = "api" and route != "/ask" and ms > 3000'
+                " | fields @timestamp, method, route, status, ms | sort @timestamp desc | limit 20",
             ),
         )
 

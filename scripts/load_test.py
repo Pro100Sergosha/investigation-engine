@@ -111,9 +111,6 @@ def main() -> None:
     parser.add_argument("--requests", type=int, default=200, help="requests per concurrency level")
     parser.add_argument("--concurrency", default="1,5,10", help="comma-separated levels")
     parser.add_argument(
-        "--idle", type=int, default=0, help="seconds to wait before timing an Aurora resume"
-    )
-    parser.add_argument(
         "--ask", type=int, default=0, help=f"sequential POST /ask calls, <= {MAX_ASK}"
     )
     args = parser.parse_args()
@@ -124,7 +121,7 @@ def main() -> None:
     def show(name: str, value: dict) -> None:
         print(json.dumps({"phase": name, **value}), flush=True)
 
-    # First requests: a cold Lambda (if idle for a while) and a resuming Aurora (if paused).
+    # First requests: a cold Lambda if none was warm, a resuming Aurora if it was paused.
     for path in ("health", "documents?limit=1"):
         status, seconds, _ = request(base + path)
         show("first", {"path": path, "status": status, "ms": round(seconds * 1000)})
@@ -138,12 +135,9 @@ def main() -> None:
         for route, summary in load(targets, args.requests, level).items():
             show(f"c={level}", {"route": route, **summary})
 
-    if args.idle:
-        # Aurora pauses after 300 idle seconds (min 0 ACU); the next query waits for the resume.
-        time.sleep(args.idle)
-        status, seconds, _ = request(base + "documents?limit=1")
-        show("resume", {"idle_s": args.idle, "status": status, "ms": round(seconds * 1000)})
-
+    # No Aurora resume phase: warm api instances keep their database connection open, so the
+    # cluster does not pause while they live (measured 10-26). Resumes are read from the api
+    # log instead (dashboard "Slow requests outside /ask").
     questions = [QUESTIONS[0], QUESTIONS[1], QUESTIONS[1]][: args.ask]
     for question in questions:
         show("ask", ask(base, question))

@@ -90,14 +90,13 @@ eval:  ## Job: run the eval set in CONFIG -> s3://$BUCKET/jobs/eval/<config>.jso
 	uv run python -m eval.run --config $(CONFIG) --bucket $$BUCKET $(if $(LIMIT),--limit $(LIMIT))
 
 # URL: the Function URL (output ApiUrl). Defaults: 200 requests at concurrency 1, 5 and 10, no
-# idle wait, no /ask. IDLE=330 times an Aurora resume; ASK<=3 sequential /ask calls (Bedrock spend).
+# /ask. ASK<=3 sequential /ask calls (Bedrock spend, ~$0.016 each uncached).
 REQUESTS ?= 200
 CONCURRENCY ?= 1,5,10
-IDLE ?= 0
 ASK ?= 0
-load-test:  ## Job: load test of the Function URL (URL=..., [REQUESTS= CONCURRENCY= IDLE= ASK=])
+load-test:  ## Job: load test of the Function URL (URL=..., [REQUESTS= CONCURRENCY= ASK=])
 	uv run python -u scripts/load_test.py --url $(URL) --requests $(REQUESTS) \
-	  --concurrency $(CONCURRENCY) --idle $(IDLE) --ask $(ASK)
+	  --concurrency $(CONCURRENCY) --ask $(ASK)
 
 diff-cicd:  ## Show what deploy-cicd would change
 	cd cdk && $(CDK) diff Investigation-Cicd-prod
