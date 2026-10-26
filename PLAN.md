@@ -23,7 +23,7 @@ verdicts agree with the author, the judge is the stricter one), AI_USAGE.md; eva
 prompt-cache tokens (#37: `agent` ~$0.016 per question, ~3x single-shot). The UI was checked on
 the public URL on 10-26: upload, duplicate, update, delete, metadata, a question with its source.
 The short-answer fix was dropped: the traces show it could win at most 2 of 25 EM points.
-Monitoring and load test (#PR, ADR 0033): CloudWatch dashboard from built-in metrics and Logs
+Monitoring and load test (#40, ADR 0033): CloudWatch dashboard from built-in metrics and Logs
 Insights; 200 GETs at 1/5/10 clients answer in ~26 ms p50, above 4 clients ~50% get 429 (the
 reserved concurrency); search latency from the Lambda measured (0.74 s).
 **Behind:** nothing; the mandatory part is done except the author's sections of AI_USAGE.md.
@@ -128,8 +128,8 @@ processing architecture and justify it)
 - [ ] Prompt-injection tests — not started (the prompt treats documents as data, nothing tests it)
 - [x] Caching and performance optimization — `llm_cache` in Postgres, prompt caching, 96 texts per embedding request, partial HNSW per strategy (#20, #23, #24)
 - [ ] Streaming answers — dropped: Python Lambda Function URLs do not stream
-- [ ] Detailed monitoring and observability — CloudWatch dashboard `investigation-engine`: 35 built-in metrics (Lambda, Function URL, Aurora ACU, SQS, Bedrock per model) + Logs Insights tables over the per-request log line, 2 alarms without actions; no custom metrics, no X-Ray (#PR, ADR 0033). **Left:** deployed by the merge, then open the dashboard and check every widget has data
-- [x] Performance testing on large data — `scripts/load_test.py` in CodeBuild against the deployed system over the 66k-document corpus (#PR): 200 GETs at 1/5/10 clients, p50 26 ms, no errors, ~50% 429 above 4 clients (reserved concurrency); cold start, Aurora resume and search latency from the Lambda measured (llm-wiki/07 Performance); bulk load timed, eval latency p50/p95
+- [ ] Detailed monitoring and observability — CloudWatch dashboard `investigation-engine`: 35 built-in metrics (Lambda, Function URL, Aurora ACU, SQS, Bedrock per model) + Logs Insights tables over the per-request log line, 2 alarms without actions; no custom metrics, no X-Ray (#40, ADR 0033). **Left:** deployed by the merge, then open the dashboard and check every widget has data
+- [x] Performance testing on large data — `scripts/load_test.py` in CodeBuild against the deployed system over the 66k-document corpus (#40): 200 GETs at 1/5/10 clients, p50 26 ms, no errors, ~50% 429 above 4 clients (reserved concurrency); cold start, Aurora resume and search latency from the Lambda measured (llm-wiki/07 Performance); bulk load timed, eval latency p50/p95
 
 ### 7. Deliverables
 - [x] GitHub repository with full code and history
@@ -330,7 +330,7 @@ worktree and branch, each ending in a PR that must pass CI. Rules:
 | 3 | **Done (#28):** Acme generator (spec -> Haiku -> 4 formats, every fact checked in the parsed file; ADR 0026) + `GROUND_TRUTH.md` + 42 Acme questions; corpus committed, `make acme-load` after merge | `scripts/gen_acme.py`, `data/acme/` | `llm.py`, jobs project | ground-truth check |
 | 3 | **Done (#26):** Eval runner + config sweep in the jobs project, HotpotQA questions (moved from wave 2: the runner defines their format): `make eval CONFIG=retrieval\|agent\|agent-fixed\|single-shot`, 30 questions, Qwen3 judge, Haiku pacing, memoized query embeddings (ADR 0027). Dry run on 3 questions done (10-26); full runs, trace in records, judge sees status and contradictions, search pacing (#31) | `eval/run.py`, `eval/questions.jsonl` | `agent.py`, dataset labels | dry run on 3 questions |
 | 4 | **Done (#34, #35, #36):** AI_USAGE.md, README, EVALUATION.md, one agent each; eval cost fix found on the way (#37) | `AI_USAGE.md`, `README.md`, `EVALUATION.md` | results | CI |
-| 5 | **Done (#PR):** monitoring dashboard + alarms (ADR 0033), load test job, performance numbers | `cdk/app.py` (`_dashboard`), `scripts/load_test.py` | deployed system | unit tests + one job run |
+| 5 | **Done (#40):** monitoring dashboard + alarms (ADR 0033), load test job, performance numbers | `cdk/app.py` (`_dashboard`), `scripts/load_test.py` | deployed system | unit tests + one job run |
 
 Wave 1 tasks are pure Python or infra and can all start immediately (Bedrock is not needed);
 wave 2 starts when infra is merged (Bedrock works since 2026-10-24, see ADR 0017 update).
