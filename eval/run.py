@@ -47,6 +47,9 @@ HAIKUS = (llm.HAIKU, llm.HAIKU_GLOBAL)
 # Haiku allows 10 requests/min per profile (ADR 0017): one every 6 s on average. Faster, and
 # llm.py silently falls back to gpt-oss, which would mix models into the results.
 HAIKU_SECONDS = 6.0
+# Every agent search embeds its query in the Cohere pool: 20 requests/min (ADR 0022). A rerun
+# served by llm_cache has no Haiku pauses, and its searches burst into ThrottlingException.
+SEARCH_SECONDS = 3.0
 
 JUDGE_SYSTEM = (
     "You grade one answer of a question-answering system against the gold answer. "
@@ -199,9 +202,11 @@ def run_answers(questions: list[dict], settings: dict, sleep=time.sleep) -> list
         records.append(record)
         outcome = record.get("status", record.get("error"))
         print(f"{q['id']}: {outcome} {record.get('answer', '')!r}")
-        # After an error the call count is unknown: assume every step was an uncached Haiku call.
+        # After an error the counts are unknown: assume every step was an uncached Haiku call
+        # and a search.
         calls = record.get("uncached_haiku_calls", settings["max_steps"])
-        sleep(pause(calls, time.monotonic() - start))
+        searches = record.get("searches", settings["max_steps"])
+        sleep(pause(calls, searches, time.monotonic() - start))
     return records
 
 
@@ -228,6 +233,7 @@ def answer_record(q: dict, answer, sources: dict[int, str], seconds: float) -> d
         ),
         "fallback": any(call["model"] not in HAIKUS for call in calls),
         "steps": len(answer.trace),
+        "searches": sum(1 for step in answer.trace if step.get("step") == "search"),
         "input_tokens": sum(call["usage"].get("inputTokens", 0) for call in calls),
         "output_tokens": sum(call["usage"].get("outputTokens", 0) for call in calls),
         "cost_usd": cost(calls),
@@ -277,12 +283,14 @@ def cost(calls: list[dict]) -> float:
     return round(total / 1_000_000, 6)
 
 
-def pause(uncached_haiku_calls: int, elapsed: float) -> float:
-    """Seconds to wait after a question so its uncached Haiku calls average >= 6 s each.
+def pause(uncached_haiku_calls: int, searches: int, elapsed: float) -> float:
+    """Seconds to wait after a question so its uncached Haiku calls average >= 6 s each and its
+    searches >= 3 s each, whichever is longer.
 
     Cached calls and the judge (Qwen, its own quota of 100/min) do not count.
     """
-    return max(0.0, HAIKU_SECONDS * uncached_haiku_calls - elapsed)
+    needed = max(HAIKU_SECONDS * uncached_haiku_calls, SEARCH_SECONDS * searches)
+    return max(0.0, needed - elapsed)
 
 
 # --- Judge ---

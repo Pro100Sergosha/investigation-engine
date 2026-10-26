@@ -271,10 +271,11 @@ def test_summary_means_skip_none_and_group_by_type():
     assert (summary["latency_p50"], summary["latency_p95"]) == (2.0, 10.0)
 
 
-def test_pause_spaces_uncached_haiku_calls_six_seconds_apart():
-    assert run.pause(3, 5.0) == 13.0
-    assert run.pause(1, 9.0) == 0.0
-    assert run.pause(0, 0.0) == 0.0
+def test_pause_spaces_uncached_haiku_calls_and_searches():
+    assert run.pause(3, 1, 5.0) == 13.0
+    assert run.pause(1, 0, 9.0) == 0.0
+    assert run.pause(0, 0, 0.0) == 0.0
+    assert run.pause(0, 4, 2.0) == 10.0  # all Haiku calls cached: searches still paced
 
 
 def test_cost_skips_cached_calls_and_prices_unknown_models_as_haiku():
