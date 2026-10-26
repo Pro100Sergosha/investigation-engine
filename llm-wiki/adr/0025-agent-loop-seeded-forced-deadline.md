@@ -139,3 +139,22 @@ tell apart from a real citation.
 **Plain-text delimiters (`<passage>...</passage>`)**: easier to read, but a document containing
 the closing tag ends its passage early. JSON escaping gives the same structure without that
 hole.
+
+## Update 2026-10-26
+
+The full eval (llm-wiki/09) found the contradiction output broken in practice: the model wrote
+each side of a conflict as its own `contradictions` entry citing one chunk, `grounding` dropped
+every such entry (it wants >= 2 distinct citations, ADR 0005), and the answer came back
+`answered` or `insufficient` (5 of 12 contradictory questions); the agent also answered from the
+first source (9 of 12 cited fewer than 2 documents). Contradiction recall was 0.25.
+
+The validator rule stays (one chunk cannot contradict itself). The prompt and the tool schema
+now say what a contradiction is: one entry per disagreement, its text names each value and its
+document, its citations come from both sides; before answering, check what every document on
+the same event says about the asked fact; for status `conflicting` the short answer lists the
+values. The prompt's example is a neutral "1998 or 2001", not a value from the question set.
+
+Measured on the next `agent` run: contradiction recall 0.25 -> 0.67, precision 0.75 -> 1.00,
+judge on contradictory questions 0.08 -> 0.58, overall judge 0.74 -> 0.82, no contradiction
+dropped by `grounding`, no answerable question flagged `conflicting`. Cost $0.38 for 72
+questions (was $0.41), p95 latency 45.6 s (was 40.0 s).

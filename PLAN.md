@@ -15,13 +15,11 @@ own small code instead.
 (66,555 HotpotQA + 64 Acme, `make acme-load` done). Haiku falls back `eu.*` -> `global.*` (#29,
 ADR 0028; `eu.*` answers `ServiceUnavailableException` since the morning of 10-26); search tuned
 (#30, ADR 0029). Full eval done (#31): `retrieval`, `agent`, `agent-structured`, `single-shot`,
-results in `eval/results/` and llm-wiki/09 Results. `agent`: judge 0.74, citation precision
-0.94, abstention P/R 0.77/0.91, contradiction P/R 0.75/0.25; the loop beats single-shot on
-multi-hop (0.87 vs 0.52).
+results in `eval/results/` and llm-wiki/09 Results; the loop beats single-shot on multi-hop
+(0.87 vs 0.52). Contradiction output fixed (#32, ADR 0025 update): `agent` judge 0.82, citation
+precision 0.94, abstention P/R 0.77/0.91, contradiction P/R 1.00/0.67 (was 0.75/0.25).
 **Behind:** nothing on the schedule; the day 5 goal (results for all configs) is met early.
-Next: fix contradiction output (one `contradictions` entry per conflict citing both sides, check a
-second source; llm-wiki/14) and rerun `agent`; tighten the short answer (EM 0.48 vs judge 0.74);
-judge spot-check of ~10 verdicts; UI check of upload/update/delete and `POST /ask`; then wave 4
+Next: tighten the short answer (EM 0.52 vs judge 0.82); judge spot-check of ~10 verdicts; UI check of upload/update/delete and `POST /ask`; then wave 4
 (EVALUATION.md, README, AI_USAGE.md).
 
 How status is kept (every PR that finishes or advances a task updates it in the same PR):
@@ -49,7 +47,7 @@ Search
 LLM / RAG
 - [x] RAG, multi-document synthesis, multi-step handling of complex questions — `agent.ask` loop with seeded search and sub-searches (#27); `POST /ask` on the public URL answered a HotpotQA comparison question (2 steps, 37 s, 2026-10-26)
 - [x] answers grounded in evidence, sources + citations — citation validator (#14) in the agent, `POST /ask` returns claims with cited `sources` (#27), checked on the public URL
-- [x] contradiction detection attempt — `conflicting` status (#14), the agent prompt asks to compare sources and report contradictions citing >= 2 documents (#27), 14 planted contradictions and 12 questions (#28); measured (#31): precision 0.75, recall 0.25 (`agent`); why it misses: llm-wiki/09 Results, 14 Known gaps
+- [x] contradiction detection attempt — `conflicting` status (#14), the agent prompt asks to compare sources and report contradictions citing >= 2 documents (#27), 14 planted contradictions and 12 questions (#28); measured (#31): precision 0.75, recall 0.25 (`agent`); one contradiction per conflict citing both sides (#32, ADR 0025 update): precision 1.00, recall 0.67; what it still misses: llm-wiki/09 Results, 14 Known gaps
 - [x] abstain when information is insufficient — `insufficient` status (#14), the agent abstains on no evidence, model errors and its 80 s deadline (#27); measured on 11 unanswerable questions (#31): precision 0.77, recall 0.91 (`agent`)
 - [ ] LLM error/limit handling (timeouts, 429, malformed output) — partial: `llm.py` retry, fallback, cache (#20); agent deadline, forced final answer, reprompt on malformed output, Bedrock errors -> `insufficient` (#27); Haiku `eu.*` -> `global.*` -> gpt-oss and a bounded query-embedding client (#29, ADR 0028); not measured under load
 - [x] >= 1 tool-calling mechanism — Converse tools `search`, `get_document`, `final_answer` in `agent.py` (#27), deployed
