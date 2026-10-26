@@ -293,7 +293,7 @@ prompt-injection tests (plant malicious text in a doc) and the 512 vs 1024 embed
 ## 6. Risks
 
 - **Haiku throughput: 10 requests/min per profile** (Bedrock quota of a new account). An eval sweep
-  takes ~2 h. Mitigation: account-level increase filed (support case opened), spread calls over the
+  takes ~50 min (three answer runs, 72 questions, measured 2026-10-26). Mitigation: account-level increase filed (support case opened), spread calls over the
   `eu.*` and `global.*` pools (`llm.py` moves to `global.*` when `eu.*` fails, ADR 0028), LLM
   cache, gpt-oss-120b (100 requests/min) as the last fallback.
 - **Cohere Embed V4 pool: 20 requests/min, 16.2M tokens/day** shared by the bulk load and query
