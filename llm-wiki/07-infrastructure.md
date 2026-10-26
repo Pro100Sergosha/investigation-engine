@@ -82,6 +82,7 @@ they call `ingest`, and a bucket in the data stack would make the stacks depend 
 | Queue `IngestFailures` | SQS, SQS-managed encryption, SSL enforced, 14 days retention. Lambda puts here every `ingest` event it gave up on (retries exhausted or older than 6 h): the original S3 event (`requestPayload`), `requestContext.condition` and the error (`responsePayload`). No alarm: the depth is visible in the SQS console. Rerun with `make redrive-ingest` ([Jobs](#jobs)) |
 | CodeBuild `investigation-jobs` | see [Jobs](#jobs) |
 | Custom resource `Schema` | Lambda `SchemaFn` (app image, `engine.handlers.schema`) + `cr.Provider`, see [Database schema](#database-schema) |
+| Dashboard `investigation-engine`, alarms `Api5xxAlarm`, `IngestFailuresAlarm` | see [Monitoring](#monitoring) |
 
 Environment of `api`, `ingest` and the jobs project (no secrets): `DB_HOST` (writer endpoint),
 `DB_NAME`, `BUCKET`; the jobs project also `INGEST_FAILURES_QUEUE` (queue URL) and
@@ -152,6 +153,8 @@ aws codebuild start-build --project-name investigation-jobs --profile investigat
 | `redrive-ingest` | `scripts/redrive_ingest.py`: for each message in `IngestFailures`, log the condition and error, invoke `ingest` asynchronously with the original S3 event, delete the message once the invoke is accepted; stops at the first empty receive. Safe to run twice: `ingest` skips what is stored |
 | `eval CONFIG=<name> [LIMIT=N]` | `eval/run.py`: the question set through `retrieval` (no LLM), `agent`, `agent-structured` or `single-shot`; results to `jobs/eval/<config>.json` ([09 Evaluation](09-evaluation.md)). The whole value goes in one variable: `"name=TARGET,value=eval CONFIG=agent LIMIT=3"` |
 
+| `load-test URL=<ApiUrl> [REQUESTS=200 CONCURRENCY=1,5,10 IDLE=0 ASK=0]` | `scripts/load_test.py` (stdlib only): first requests (cold Lambda, resuming Aurora), then `REQUESTS` GETs per concurrency level over `/health`, `/documents?limit=10`, `/documents/{id}`, p50/p95/p99, errors and 429s per route; `IDLE=330` waits until Aurora pauses and times the resume; `ASK` (at most 3) sequential `POST /ask` calls, the last a cached rerun. Never loads `/ask`. Output: one JSON line per result in the build log ([Performance](#performance)). `CONCURRENCY` has commas: pass the environment override as JSON (`file://`), not the shorthand |
+
 A build without `TARGET` fails on purpose.
 
 ## CI/CD
@@ -192,6 +195,30 @@ make smoke     # GET /health and GET /documents?limit=1 (the database path) on t
 `--require-approval never` (non-interactive shells cannot answer CDK's IAM prompt), so read the diff
 first. Claude Code's auto mode refuses IAM-changing deploys; the owner runs those.
 
+## Monitoring
+
+[ADR 0033](adr/0033-dashboard-built-in-metrics-logs-insights.md). CloudWatch dashboard
+`investigation-engine` (`AppStack._dashboard`; console: CloudWatch > Dashboards), default range
+one day. Only metrics AWS emits by itself (35 of the free tier's 50 per dashboard) and Logs
+Insights over the log lines the handlers already write; no custom metrics, no tracing.
+
+| Row | Widgets |
+|---|---|
+| api | Function URL requests, 4xx (a 429 is a throttle: reserved concurrency used up), 5xx, Lambda throttles; duration p50/p95/max; concurrent executions of api and ingest |
+| ingest | invocations, errors, throttles; duration p95/max; alarm status |
+| data | Aurora `ServerlessDatabaseCapacity` (0 = paused) and `DatabaseConnections`; `IngestFailures` depth; Bedrock invocations per model or profile (account-wide: jobs included) |
+| Bedrock | throttles and server errors for Haiku `eu.*`/`global.*` and Cohere; their p95 latency; Haiku input/output tokens |
+| logs | per route: requests, p50/p95/max ms; responses by status; `POST /ask` per day: questions, p50/p95, tokens, LLM-cache hits, estimated USD (Haiku EU prices, prompt-cache writes not logged); cold starts, init time and memory from Lambda `REPORT` lines; recent 5xx; recent ingested files with their counts |
+
+Alarms have no actions (no SNS): they only turn red on the dashboard. `Api5xxAlarm`: at least one
+5xx from the Function URL in 5 minutes (500, 502 Lambda timeout, 503 database resuming).
+`IngestFailuresAlarm`: at least one event in `IngestFailures`; run `make redrive-ingest`.
+
+Fields the log queries rely on (`handlers.api`): `handler`, `method`, `route` (the pattern, e.g.
+`/documents/{id}`), `status`, `ms`; for `/ask` also `answer_status`, `llm_steps`, `models`,
+`input_tokens`, `output_tokens`, `prompt_cache_read_tokens`, `llm_cache_hits`. Renaming one breaks
+a widget silently: change the query in `cdk/app.py` in the same commit.
+
 ## Packaging
 
 One image from `Dockerfile` (base `public.ecr.aws/lambda/python:3.12`), dependencies installed with
@@ -205,7 +232,9 @@ Target: inside the $100 credits until the interview. Full table with eu-north-1 
 [PLAN.md](../PLAN.md) (Deployment): ~$20-30 for the five days, ~$2-4 per month of demo. The main
 spend is Claude Haiku in evaluation sweeps; Aurora costs only while awake ($0.14 per ACU-hour).
 Embedding the corpus with Cohere Embed V4 costs ~$1.3 per full load. SQS (`IngestFailures`,
-on the Free plan list) is $0 at this volume (1M requests/month free).
+on the Free plan list) is $0 at this volume (1M requests/month free). The dashboard and its two
+alarms are inside CloudWatch's free tier (3 dashboards x 50 metrics, 10 alarms, 5 GB of Logs data
+including Logs Insights scans); a fourth dashboard or a 51st metric costs $3 per dashboard-month.
 Rules: no NAT Gateway, no custom CloudWatch metrics, no provisioned concurrency, no always-on
 database.
 

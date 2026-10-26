@@ -161,7 +161,7 @@ Each decision has an ADR in [llm-wiki/adr/](llm-wiki/adr/) with context, cost an
 | IaC | AWS CDK (Python), stacks split by lifecycle like binadar: `Investigation-Data-prod` (the Aurora cluster: stateful, rarely changes), `Investigation-prod` (Lambdas, documents bucket, jobs project, schema: changes on every merge), `Investigation-Cicd-prod` (CodeBuild, deployed by hand); `make diff` / `make deploy` | Same tool and workflow as binadar; a code deploy can never replace the database. Lambdas share one container image (`DockerImageFunction`, x86_64), without any ML runtime. |
 | AWS access | AWS *project* (new AWS experience) on the Free plan: $100 credits, closes on expiry (2027-04-24) instead of billing. CLI via `aws login --profile investigation`; no long-lived keys | Free plan is a hard requirement. IAM Identity Center and Organizations are not available on it (enabling them upgraded the first account to Paid, which was abandoned). Isolated from binadar's account. |
 | CI/CD | GitHub Actions `make check` on PRs; CodeBuild (via CodeConnections) comments `cdk diff` on PRs and deploys `main` | GitHub OIDC is denied by the Free-plan SCP (`iam:*Provider*`); see llm-wiki ADR 0012. |
-| Observability | JSON log line per request (route, latency, tokens, LLM model, cache hit) in CloudWatch Logs; no custom metrics | Free tier; custom metrics cost $0.30 each (binadar's lesson). Logs Insights for analysis. |
+| Observability | JSON log line per request (route, latency, tokens, LLM model, cache hit) in CloudWatch Logs; one CloudWatch dashboard `investigation-engine` (35 built-in metrics + Logs Insights tables over those lines), two alarms without actions; no custom metrics, no X-Ray | Free tier (3 dashboards x 50 metrics, 10 alarms); custom metrics cost $0.30 each (binadar's lesson). ADR 0033. |
 | Tagging | `Project=investigation-engine` on the CDK app, activated as a cost allocation tag | Spend visible in Cost Explorer. |
 | Secrets | No database password (IAM auth tokens, ADR 0021); GitHub token in SSM Parameter Store `SecureString` | Not in code, not in the image, not in plain Lambda env vars. No LLM API keys at all (Bedrock uses IAM). |
 | Region | `eu-north-1` (Stockholm) | Fixed by the AWS project: all Regional resources must live there. |
@@ -222,6 +222,7 @@ SSM: GitHub token   CloudWatch Logs: JSON line per request
 | CodeBuild | 100 min/month free, then ~$0.005/min | ~$1-2 | ~$0 |
 | S3, ECR | cents (ECR needs a lifecycle policy) | ~$0.1 | ~$0.2 |
 | CloudFormation, CodeConnections, SSM, CloudWatch Logs, IAM, KMS | free at this volume | $0 | $0 |
+| CloudWatch dashboard + 2 alarms, Logs Insights | free tier: 3 dashboards x 50 metrics (1 used, 35 metrics), 10 alarms, 5 GB Logs data incl. Insights scans; then $3 per dashboard-month | $0 | $0 |
 | **Total** | | **~$20-30** | **~$2-4** |
 
 ## 4. Evaluation design
