@@ -11,7 +11,7 @@ own small code instead.
 
 ## 0. Status
 
-**Updated 2026-10-26 (day 3 of 6).** Waves 0-3 merged (PRs #4-#30). Corpus: 66,619 documents
+**Updated 2026-10-26 (day 3 of 6).** Waves 0-3 merged (PRs #4-#32). Corpus: 66,619 documents
 (66,555 HotpotQA + 64 Acme, `make acme-load` done). Haiku falls back `eu.*` -> `global.*` (#29,
 ADR 0028; `eu.*` answers `ServiceUnavailableException` since the morning of 10-26); search tuned
 (#30, ADR 0029). Full eval done (#31): `retrieval`, `agent`, `agent-structured`, `single-shot`,
@@ -26,54 +26,113 @@ How status is kept (every PR that finishes or advances a task updates it in the 
 - this section: date, current day and wave, what is behind, what is next;
 - the wave table in section 5: the row gets `**Done (#PR):**`; the day table: `**Done:**` or
   `**In progress:**` with what is left;
-- the checklist below: `[x]` only when the requirement works end to end on the deployed system;
-  otherwise `[ ]` with a `partial:` note naming the merged pieces (PR numbers) and what is missing.
-  No note = not started.
+- the task checklist below: `[x]` only when the requirement works end to end on the deployed
+  system; otherwise `[ ]` with the merged pieces (PR numbers) and a **Left:** note, and the
+  "Left of the mandatory part" line at its top kept in step.
 
-## 1. Requirements checklist (from the task)
+## 1. Task checklist (mirrors [docs/task.pdf](docs/task.pdf))
 
-Ingestion
-- [x] >= 3 file formats (plan: PDF, DOCX, Markdown/HTML, JSONL) — `parsers.py` (#16), wired into `ingest` (#21); HotpotQA as JSONL shards, the Acme corpus in PDF/MD/DOCX/HTML (#28) loaded through `ingest` (`make acme-load`); answers of the full eval cite all four Acme formats (#31)
-- [ ] text + metadata extraction (source, title, date, doc type, service names) — partial: `ParsedDoc` metadata from parsers (#16), stored by `index.upsert` (#22) via `ingest` (#21); not checked on the deployed system
-- [x] chunking, >= 2 strategies compared — fixed + structure-aware chunkers (#6); compared by the eval (#31): Recall@10 0.89 vs 0.83, judge 0.74 vs 0.70 (llm-wiki/09)
-- [ ] duplicate handling — partial: sha256 of normalized text (#4), HotpotQA deduplicated in the dataset job (#7), `index.upsert` skips same-hash documents (#22), `ingest` calls it (#21); not checked on the deployed system
-- [ ] add / update / delete documents — partial: `index.upsert/delete` (#22), checked live on Aurora, API routes + `ingest` (#21); not checked through the UI
+One line per bullet of the task, in the task's order and with its section numbers. `[x]` = works
+end to end on the deployed system; `[ ]` = not yet, **Left:** says what is missing. Evidence
+(PRs, files, numbers) follows the dash.
 
-Search
-- [x] vector DB, embeddings, semantic search — Aurora + pgvector (#8, #10), Cohere Embed V4 (#19, #24), writes (#22), dense search (#23); 66,555 documents loaded, used by `POST /ask` on the public URL (#27)
-- [x] hybrid search (semantic + keyword) — dense + OR keyword + RRF in `search.py` (#23), the agent's default mode over the loaded corpus (#27); quality measured by the `retrieval` eval (#26, #31): fixed/hybrid Recall@10 0.89, MRR 0.79
-- [x] >= 1 own ranking/search algorithm (not only library calls) — RRF + MMR with per-document cap (#5), `search.py` mode `mmr` (#23), the agent's default over the loaded corpus (#27); weighted RRF and min-max MMR tuned by the retrieval eval (#30, ADR 0029)
+**Left of the mandatory part (sections 2-5, 7):** check upload / update / delete / duplicate /
+metadata and sources through the UI; README (architecture, run instructions, decisions,
+deployment, free-tier limits, cost and performance); EVALUATION.md (failure analysis + judge
+spot-check); AI_USAGE.md. Everything else in sections 2-5 is done.
 
-LLM / RAG
-- [x] RAG, multi-document synthesis, multi-step handling of complex questions — `agent.ask` loop with seeded search and sub-searches (#27); `POST /ask` on the public URL answered a HotpotQA comparison question (2 steps, 37 s, 2026-10-26)
-- [x] answers grounded in evidence, sources + citations — citation validator (#14) in the agent, `POST /ask` returns claims with cited `sources` (#27), checked on the public URL
-- [x] contradiction detection attempt — `conflicting` status (#14), the agent prompt asks to compare sources and report contradictions citing >= 2 documents (#27), 14 planted contradictions and 12 questions (#28); measured (#31): precision 0.75, recall 0.25 (`agent`); one contradiction per conflict citing both sides (#32, ADR 0025 update): precision 1.00, recall 0.67; what it still misses: llm-wiki/09 Results, 14 Known gaps
-- [x] abstain when information is insufficient — `insufficient` status (#14), the agent abstains on no evidence, model errors and its 80 s deadline (#27); measured on 11 unanswerable questions (#31): precision 0.77, recall 0.91 (`agent`)
-- [ ] LLM error/limit handling (timeouts, 429, malformed output) — partial: `llm.py` retry, fallback, cache (#20); agent deadline, forced final answer, reprompt on malformed output, Bedrock errors -> `insufficient` (#27); Haiku `eu.*` -> `global.*` -> gpt-oss and a bounded query-embedding client (#29, ADR 0028); not measured under load
-- [x] >= 1 tool-calling mechanism — Converse tools `search`, `get_document`, `final_answer` in `agent.py` (#27), deployed
+### 2. Main requirements
 
-Evaluation
-- [x] own automated eval, >= 40 questions: simple, multi-hop, multi-doc, unanswerable, contradictory — runner `eval/run.py` and 30 HotpotQA questions (20 multi-hop, 5 simple, 5 unanswerable) (#26), 42 Acme questions (15 multi-doc, 3 multi-hop, 12 contradictory, 6 unanswerable, 6 simple) (#28): 72 in total; full runs in CodeBuild against the deployed system, results committed (#31)
-- [x] retrieval + answer metrics: Recall@K, MRR, Answer Correctness, Citation Accuracy — pure metric functions (#15), runner with Qwen3 judge, citation precision, abstention/contradiction P/R (#26); measured (#31, llm-wiki/09 Results)
-- [x] >= 2 configurations compared — 6 retrieval configurations (fixed/structured x dense/hybrid/mmr) and 3 answer configurations (`agent`, `agent-structured`, `single-shot`) (#31)
-- [ ] error analysis: where it fails, why, how to improve — partial: findings from the traces in llm-wiki/09 Results and 14 Known gaps (#31); EVALUATION.md not written
+**Document processing** (accept, process and index documents of different formats; choose the
+processing architecture and justify it)
+- [x] At least three file formats — PDF, DOCX, HTML, Markdown, JSONL in `parsers.py` (#16), wired into `ingest` (#21); the Acme corpus in four formats loaded (#28), eval answers cite all four (#31)
+- [ ] Extract text and important metadata — `ParsedDoc` (source, title, date, doc type, service names) from the parsers (#16), stored by `index.upsert` (#22). **Left:** look at an uploaded file's metadata on the deployed system
+- [x] Chunking — `chunking.py`: fixed 300/50 and structure-aware (#6), both stored side by side
+- [ ] Handle duplicate information — sha256 of normalized text (#4), HotpotQA deduplicated in the dataset job (#7), `index.upsert` skips same-hash documents (#22). **Left:** upload the same file twice on the deployed system
+- [ ] Add new documents, update and delete existing ones — `index.upsert/delete` (#22, checked on Aurora), API routes + `ingest` (#21). **Left:** do all three through the UI
+- [x] Compare at least two chunking strategies — eval (#31): fixed vs structured Recall@10 0.89 vs 0.83, judge 0.74 vs 0.70 (llm-wiki/09)
+- [x] Choose and justify the processing architecture — S3 -> `ingest` Lambda -> Aurora, ADR 0018, 0022, 0024 (README summary is in section 7)
 
-Backend / UI
-- [ ] Python backend, functional UI: upload/manage docs, ask, inspect sources — partial: page served at `GET /` (#17), document routes (#21), `POST /ask` with cited sources and the short answer on the page (#27); not checked through the UI
+**Vector database and search**
+- [x] Vector database or a database with vector search — Aurora PostgreSQL 17 + pgvector `halfvec(1024)` (#8, #10, ADR 0002, 0021)
+- [x] Embeddings and semantic search (plain SQL text search does not count) — Cohere Embed V4 (#24, ADR 0022), dense search (#23); 66,619 documents indexed
+- [x] Hybrid search: semantic + keyword — dense + `tsvector` keyword + RRF in `search.py` (#23); fixed/hybrid Recall@10 0.89, MRR 0.79 (#31)
+- [x] At least one own search or ranking component (not only ready-made libraries) — hand-written weighted RRF + MMR with a per-document cap in `rank.py` (#5, #30, ADR 0003, 0029)
 
-Dataset
-- [x] >= 50,000 documents/records, reproducible subset with justification — dataset job (#7), 66,555 unique HotpotQA documents indexed with Cohere V4 (#24, loaded 2026-10-25); counts and rules in llm-wiki/05
-- [x] cross-document linking, source identity preserved, incomplete/contradictory data, repeatable eval — Acme corpus (#28): 64 documents referencing each other by id, 14 planted contradictions, 6 gaps, 42 labelled questions with `upload:` gold sources; indexed, evaluated (#31), reruns served by `llm_cache`
+**LLM integration and RAG**
+- [x] At least one LLM — Claude Haiku 4.5 on Bedrock, gpt-oss-120b fallback, Qwen3 judge (ADR 0017)
+- [x] RAG architecture — `agent.ask` over `search.py` (#27), `POST /ask` on the public URL
+- [x] Combine information from different documents — multi-doc questions: judge 0.93 (`agent`, #31)
+- [x] Process complex questions in several steps — agent loop with sub-searches (#27, ADR 0025); multi-hop judge 0.87 vs 0.52 for single-shot
+- [x] Answers based on the relevant evidence — claims must cite retrieved chunks, the validator drops the rest (#14); 0 claims dropped in 288 answers
+- [x] Sources and citation mechanism — claims with cited chunks and `sources` in `POST /ask` (#27); citation precision 0.94
+- [x] Attempt to detect contradictory information — `conflicting` status (#14), prompt fix (#32): contradiction precision 1.00, recall 0.67
+- [x] Abstain when information is insufficient — `insufficient` status (#14, #27): abstention precision 0.77, recall 0.91
+- [x] Handle LLM communication errors and limits — `llm.py` timeout, backoff on throttling, fallback, cache (#20); Haiku `eu.*` -> `global.*` -> gpt-oss (#29, ADR 0028); reprompt on malformed output, 80 s deadline, Bedrock errors -> `insufficient` (#27). Exercised for real: the #31 eval ran through the `eu.*` outage (130 of 192 calls answered by `global.*`, 0 errors)
+- [x] At least one tool-calling mechanism — Converse tools `search`, `get_document`, `final_answer` (#27)
 
-Deployment
-- [ ] public URL on free tier, DB integrated, data survives restart — partial: Function URL serves `/`, `/health` and the document routes (#21), smoke checks `GET /documents` on every deploy, Aurora with deletion protection (#10, #13); persistence across a redeploy not checked
-- [ ] secrets protected, deployment architecture + free-tier limits documented — partial: IAM auth tokens, no stored secrets (ADR 0021), `llm-wiki/07-infrastructure.md`; README DEPLOYMENT section not written
+**Evaluation**
+- [x] Own automated evaluation system — `eval/run.py` + `eval/metrics.py` in CodeBuild against the deployed system (#15, #26, #31, ADR 0027)
+- [x] At least 40 test questions — 72: 30 HotpotQA (#26) + 42 Acme (#28)
+- [x] Simple and multi-step questions — 11 simple, 23 multi-hop
+- [x] Questions that need several documents linked — 15 multi-doc
+- [x] Questions with no answer in the data — 11 unanswerable
+- [x] Questions based on contradictory information — 12 contradictory
+- [x] Quantitative evaluation of retrieval and answer quality — Recall@5/10, MRR, EM, F1, judge correctness, citation precision, abstention and contradiction P/R, cost, latency (llm-wiki/09 Results)
+- [x] Compare at least two configurations — 6 retrieval (fixed/structured x dense/hybrid/mmr) and 3 answer configs (`agent`, `agent-structured`, `single-shot`) (#31)
+- [ ] Analysis, not only results: where the system fails, why, how to improve — findings from the traces in llm-wiki/09 Results and 14 Known gaps (#31, #32). **Left:** EVALUATION.md, judge spot-check of ~10 verdicts
 
-Quality
-- [ ] modular code, error handling, automated tests, safe config, docs, perf + LLM cost notes — partial: module per stream, tests per module, CI; README, perf and LLM cost notes missing
+**Backend and user interface**
+- [x] Python backend — Lambda handlers with a hand-written router (`handlers.py`, #21, #27)
+- [ ] Functional UI where the user adds and manages documents, asks questions and inspects the sources of answers — page at `GET /` (#17), document routes (#21), `POST /ask` with sources and the short answer on the page (#27). **Left:** walk through all four in the browser on the public URL
 
-Bonus (only after core): LLM/embedding comparison, agentic RAG, reranker, prompt-injection tests,
-caching, streaming, observability, load test.
+### 3. Dataset
+- [x] Use the attached dataset (extra public or synthetic data allowed) — HotpotQA from the list + synthetic Acme corpus (ADR 0006)
+- [x] At least 50,000 documents or independent text records — 66,555 unique HotpotQA documents (#7, #24) + 64 Acme
+- [x] Find linked information across documents — Acme documents reference each other by id (#28); HotpotQA bridge questions
+- [x] Keep and identify sources — `source`, title and document id on every chunk; `upload:` gold sources in the Acme questions (#28)
+- [x] Handle incomplete and contradictory information — 14 planted contradictions, 6 gaps (#28), measured (#31, #32)
+- [x] Repeatable evaluation — fixed question files, results committed, reruns served by `llm_cache` (#31)
+- [x] Reproducible subset with justification — HotpotQA `distractor` validation split, dedup rules and counts in llm-wiki/05
+
+### 4. Free hosting and deployment
+- [x] Real deployment with a public URL — Lambda Function URL serves `/`, `/health`, documents and `/ask` (#21, #27)
+- [x] Hosting and database integrated — `POST /ask` on the public URL searches Aurora (#27)
+- [x] Data persists after an application restart — the corpus loaded on 10-25 is served after every redeploy since (#27-#32, each merge redeploys the Lambdas); Aurora has deletion protection (#10, #13)
+- [x] API keys and other secrets protected — no LLM keys (IAM), no database password (IAM auth tokens, ADR 0021), GitHub token in SSM SecureString
+- [ ] Describe the deployment architecture — section 3 here, llm-wiki/07. **Left:** README DEPLOYMENT section
+- [ ] Account for costs, resources and free-tier limits (sleep, request limits) — cost table in section 3, llm-wiki/07, eval cost in llm-wiki/09. **Left:** README section: Aurora resume ~15 s, Haiku 10 requests/min, Cohere 20 requests/min, credits
+- [x] Possible without buying paid infrastructure — AWS Free plan project, $100 credits, never upgraded (ADR 0011)
+
+### 5. Technical quality
+- [x] Clear, modular Python code — one module per stream (`parsers`, `chunking`, `index`, `search`, `rank`, `llm`, `agent`, `grounding`, `handlers`)
+- [x] Proper separation of responsibilities — DB only in `db.py`, LLM only in `llm.py`, env only in `config.py`, shared contracts in `models.py`
+- [x] Error handling — JSON errors from the router, LLM retry/fallback, failed ingest events in SQS + `make redrive-ingest` (#24)
+- [x] Automated tests — pytest per module, `make check` in CI on every PR
+- [x] Working integration with the database and external APIs — Aurora (IAM tokens), Bedrock (Haiku, Cohere, gpt-oss, Qwen), S3
+- [x] Safe management of environment configuration — `config.py` the only env reader, `.env.example`, no secrets in code or env vars
+- [ ] Technical documentation — llm-wiki (system as it is) + 29 ADRs. **Left:** README
+- [ ] Understanding of performance and LLM costs — eval: ~$0.006 per question, p50/p95 10.3/45.6 s (`agent`, llm-wiki/09); bulk load ~35-40 min. **Left:** README section; search latency from the Lambda not measured (14 Known gaps)
+
+### 6. Bonus (does not replace the core)
+- [ ] Compare several LLMs or embedding models — not done (Titan was replaced for throughput, not compared on quality); cheapest option: Cohere V4 512 vs 1024 dimensions
+- [x] Multi-agent or agentic RAG — own agent loop with tools (#27), beats single-shot on multi-hop (0.87 vs 0.52)
+- [ ] More advanced re-ranking — partial: weighted RRF + MMR (#5, #30); no cross-encoder reranker
+- [ ] Prompt-injection tests — not started (the prompt treats documents as data, nothing tests it)
+- [x] Caching and performance optimization — `llm_cache` in Postgres, prompt caching, 96 texts per embedding request, partial HNSW per strategy (#20, #23, #24)
+- [ ] Streaming answers — dropped: Python Lambda Function URLs do not stream
+- [ ] Detailed monitoring and observability — partial: one JSON log line per request in CloudWatch Logs; no dashboards or tracing
+- [ ] Performance testing on large data — partial: bulk load of 66k documents timed, eval latency p50/p95; no load test
+
+### 7. Deliverables
+- [x] GitHub repository with full code and history
+- [x] Live demo link — the Function URL
+- [ ] README: description, architecture, run instructions, justification of technical choices — not started
+- [ ] Evaluation Report: methodology, metrics, results, analysis — partial: llm-wiki/09. **Left:** EVALUATION.md
+- [ ] AI Usage Report: which AI tools, what they helped with, what was changed by hand — not started
+
+### 8. Interview and code defense (without AI)
+- [ ] Rehearse: explain the architecture, walk the RAG pipeline step by step, discuss any module in detail, find and fix a bug, add or change a feature live, justify the algorithms (rewrite RRF/MMR by hand) — day 6
 
 ## 2. Key decisions
 

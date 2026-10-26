@@ -102,7 +102,7 @@ A task is done when all of these are true:
 - [ ] ADRs are true for this change (see "Keeping docs true")
 - [ ] `llm-wiki/14-known-gaps.md` updated if a gap was opened or closed
 - [ ] `PLAN.md` status updated in the same PR (rules in its section 0): status section, wave row
-      `**Done (#PR):**`, day row, requirement checkbox or its `partial:` note
+      `**Done (#PR):**`, day row, task checklist box or its **Left:** note
 - [ ] Deployed and smoke-checked where the change touches deployed infrastructure
 
 ## Keeping docs true
@@ -126,7 +126,7 @@ system, or learns that a document is wrong, fixes the docs **in the same PR**, u
 - **Progress** lives only in `PLAN.md` (section 0 status, the day and wave tables, the section 1
   checklist). A PR number is known only after `gh pr create`: put `(#PR)` in, then push that
   edit to the same branch before merging. A requirement gets `[x]` only when it works end to end
-  on the deployed system; merged code that is not wired in stays `[ ]` with a `partial:` note.
+  on the deployed system; merged code that is not wired in stays `[ ]` with a **Left:** note.
 - Before finishing, grep the docs for the old name of whatever changed (model id, service, stack,
   file) and fix every stale mention.
 - If a PR cannot update a doc another open PR is editing, say so in the PR description so the
