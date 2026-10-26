@@ -41,6 +41,9 @@ PRICES = {
     llm.GPT_OSS: (0.15, 0.60),
     llm.QWEN: (0.22, 0.88),
 }
+# Bedrock prompt caching bills tokens written to the cache at 1.25x and read from it at 0.1x
+# the input price; Converse reports them apart from inputTokens.
+CACHE_WRITE, CACHE_READ = 1.25, 0.10
 # Either pool runs the same model: an answer from the global pool is not a fallback answer.
 HAIKUS = (llm.HAIKU, llm.HAIKU_GLOBAL)
 
@@ -279,7 +282,12 @@ def cost(calls: list[dict]) -> float:
             continue
         price_in, price_out = PRICES.get(call["model"], PRICES[llm.HAIKU])
         usage = call["usage"]
-        total += usage.get("inputTokens", 0) * price_in + usage.get("outputTokens", 0) * price_out
+        tokens_in = (
+            usage.get("inputTokens", 0)
+            + usage.get("cacheWriteInputTokens", 0) * CACHE_WRITE
+            + usage.get("cacheReadInputTokens", 0) * CACHE_READ
+        )
+        total += tokens_in * price_in + usage.get("outputTokens", 0) * price_out
     return round(total / 1_000_000, 6)
 
 

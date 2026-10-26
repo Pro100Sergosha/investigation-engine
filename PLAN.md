@@ -112,7 +112,7 @@ processing architecture and justify it)
 - [x] Working integration with the database and external APIs — Aurora (IAM tokens), Bedrock (Haiku, Cohere, gpt-oss, Qwen), S3
 - [x] Safe management of environment configuration — `config.py` the only env reader, `.env.example`, no secrets in code or env vars
 - [ ] Technical documentation — llm-wiki (system as it is) + 29 ADRs. **Left:** README
-- [ ] Understanding of performance and LLM costs — eval: ~$0.006 per question, p50/p95 10.3/45.6 s (`agent`, llm-wiki/09); bulk load ~35-40 min. **Left:** README section; search latency from the Lambda not measured (14 Known gaps)
+- [ ] Understanding of performance and LLM costs — eval: ~$0.016 per question for `agent` vs ~$0.005 for `single-shot` (prompt-cache tokens priced since #37), p50/p95 10.3/45.6 s (`agent`, llm-wiki/09); bulk load of 66,555 documents ~65 min (llm-wiki/05; ~35-40 min was the estimate). **Left:** README section; search latency from the Lambda not measured (14 Known gaps)
 
 ### 6. Bonus (does not replace the core)
 - [ ] Compare several LLMs or embedding models — not done (Titan was replaced for throughput, not compared on quality); cheapest option: Cohere V4 512 vs 1024 dimensions

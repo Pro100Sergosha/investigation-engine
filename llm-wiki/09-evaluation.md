@@ -67,7 +67,7 @@ left out of every score.
 | Citation precision | `metrics.citation_precision`: distinct sources of the cited chunks (claims and contradictions, mapped with `search.get_chunks`) that are gold; `None` when nothing is cited | answerable questions |
 | Abstention P/R | `metrics.abstention_precision_recall`: predicted = status `insufficient`, actual = type `unanswerable` | the whole run |
 | Contradiction P/R | `metrics.contradiction_precision_recall`: predicted = status `conflicting`, actual = type `contradictory` | the whole run |
-| Cost, tokens, latency | tokens from the trace's `"step": "llm"` entries; cost from uncached calls only, EU prices per 1M in/out: Haiku $1.10/$5.50, gpt-oss $0.15/$0.60, Qwen $0.22/$0.88 (judge included); p50/p95 of seconds per `ask` (nearest rank) | answer runs |
+| Cost, tokens, latency | tokens from the trace's `"step": "llm"` entries; cost from uncached calls only, EU prices per 1M in/out: Haiku $1.10/$5.50, gpt-oss $0.15/$0.60, Qwen $0.22/$0.88 (judge included); Bedrock prompt-cache tokens, reported apart from `inputTokens`, at 1.25x (`cacheWriteInputTokens`) and 0.1x (`cacheReadInputTokens`) the input price; p50/p95 of seconds per `ask` (nearest rank) | answer runs |
 | Fallback share | share of answers with any LLM step not answered by Haiku | answer runs |
 
 Every metric is also reported per question type (`by_type`).
@@ -131,10 +131,19 @@ Measured on the full set (72 questions, 61 answerable), first uncached runs, 202
 | `CONFIG` | Build time | Cost (Haiku + judge) |
 |---|---|---|
 | `retrieval` | ~5 min | ~$0 (Cohere, a few thousand tokens) |
-| `agent` | 22 min | $0.41 (~$0.006 per question) |
-| `agent-structured` | 19 min | $0.56 |
-| `single-shot` | 9 min | $0.37 |
+| `agent` (current prompt) | not recorded | $1.16 (~$0.016 per question) |
+| `agent`, prompt of #31 | 22 min | not recomputable, see below |
+| `agent-structured` | 19 min | $1.08 (~$0.015 per question) |
+| `single-shot` | 9 min | $0.37 (~$0.005 per question) |
 | judge | in the runs above | ~$0.0001 per question (~250 tokens) |
+
+Until 2026-10-26 the runner priced only `inputTokens` and `outputTokens` and missed the
+prompt-cache tokens, which in the loop are most of the input (`agent`: 219k input, 546k
+cache-write, 456k cache-read tokens). The costs above are repriced from the committed traces
+without a rerun. The first uncached run with the prompt of #31 was quoted at $0.41 under the
+old pricing; its records are not committed (the file holds a cached rerun), so its real cost is
+higher by an unknown amount. `single-shot` makes one call per question and writes no cache, so
+its cost was right. The loop costs ~3x single-shot per question.
 
 A rerun of the same configuration with the same prompts is served by `llm_cache`: cheap and fast,
 but its cost and latency columns are not the system's, and a few answers can differ: near-tied
@@ -164,9 +173,9 @@ Answers:
 
 | config | EM | F1 | judge | citation P | abstain P/R | conflict P/R | cost | p50/p95 s |
 |---|---|---|---|---|---|---|---|---|
-| `agent` (fixed, 6 steps) | 0.52 | 0.73 | 0.82 | 0.94 | 0.77/0.91 | 1.00/0.67 | $0.38 | 10.3/45.6 |
-| `agent`, prompt of #31 | 0.48 | 0.73 | 0.74 | 0.94 | 0.77/0.91 | 0.75/0.25 | $0.41 | 13.4/40.0 |
-| `agent-structured` | 0.52 | 0.73 | 0.70 | 0.93 | 0.83/0.91 | 0.80/0.33 | $0.56 | 6.7/22.8 |
+| `agent` (fixed, 6 steps) | 0.52 | 0.73 | 0.82 | 0.94 | 0.77/0.91 | 1.00/0.67 | $1.16 | 10.3/45.6 |
+| `agent`, prompt of #31 | 0.48 | 0.73 | 0.74 | 0.94 | 0.77/0.91 | 0.75/0.25 | > $0.41 | 13.4/40.0 |
+| `agent-structured` | 0.52 | 0.73 | 0.70 | 0.93 | 0.83/0.91 | 0.80/0.33 | $1.08 | 6.7/22.8 |
 | `single-shot` (1 step) | 0.32 | 0.53 | 0.62 | 0.94 | 0.48/0.91 | 0.75/0.25 | $0.37 | 5.8/11.4 |
 
 Judge correctness by type:
