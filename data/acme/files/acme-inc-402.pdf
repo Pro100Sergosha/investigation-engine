@@ -1,0 +1,74 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [6 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Title (Incident report: ledger reconciliation mismatch) /Author (Acme Payments) /CreationDate (D:20260416000000+00'00') >>
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 3253 >>
+stream
+BT /F2 16 Tf 56 766 Td (Incident report: ledger reconciliation mismatch) Tj ET
+BT /F1 10 Tf 56 746 Td (Document: INC-402) Tj ET
+BT /F1 10 Tf 56 726 Td (Date: 2026-04-16) Tj ET
+BT /F1 10 Tf 56 706 Td (Services: ledger) Tj ET
+BT /F2 12 Tf 56 684 Td (Summary) Tj ET
+BT /F1 10 Tf 56 664 Td (SEV3: On April 15, 2026, the daily reconciliation process detected a mismatch between ledger) Tj ET
+BT /F1 10 Tf 56 650 Td (entries and the NorthBank settlement file. The Ledger team identified that 312 ledger entries) Tj ET
+BT /F1 10 Tf 56 636 Td (were recorded on the wrong date due to a timezone handling error introduced in CHG-1072. The) Tj ET
+BT /F1 10 Tf 56 622 Td (settlement import was reading timestamps in UTC+2 as UTC, causing late-evening transactions to) Tj ET
+BT /F1 10 Tf 56 608 Td (shift to the following calendar day. CHG-1074 corrected the affected entries and fixed the) Tj ET
+BT /F1 10 Tf 56 594 Td (import logic.) Tj ET
+BT /F2 12 Tf 56 572 Td (Impact) Tj ET
+BT /F1 10 Tf 56 552 Td (The reconciliation mismatch affected 312 ledger entries, creating a discrepancy between Acme's) Tj ET
+BT /F1 10 Tf 56 538 Td (internal ledger and NorthBank's settlement records. This prevented the daily reconciliation) Tj ET
+BT /F1 10 Tf 56 524 Td (from completing successfully and raised concerns about data integrity. No merchant-facing) Tj ET
+BT /F1 10 Tf 56 510 Td (services were disrupted, and no payments were lost or duplicated. The issue was contained to) Tj ET
+BT /F1 10 Tf 56 496 Td (historical record accuracy.) Tj ET
+BT /F2 12 Tf 56 474 Td (Timeline) Tj ET
+BT /F1 10 Tf 56 454 Td (- 02:00 UTC: Daily reconciliation process ran and detected mismatched entries) Tj ET
+BT /F1 10 Tf 56 434 Td (- Investigation began by Sara Haddad to identify the source of the discrepancy) Tj ET
+BT /F1 10 Tf 56 414 Td (- Root cause traced to CHG-1072 and its timezone handling) Tj ET
+BT /F1 10 Tf 56 394 Td (- CHG-1074 deployed to correct the import logic and fix affected entries) Tj ET
+BT /F2 12 Tf 56 372 Td (Root Cause) Tj ET
+BT /F1 10 Tf 56 352 Td (CHG-1072 introduced a new NorthBank settlement file import process. The import code was reading) Tj ET
+BT /F1 10 Tf 56 338 Td (timestamps in UTC+2 as UTC, causing a two-hour offset. Transactions that occurred in the) Tj ET
+BT /F1 10 Tf 56 324 Td (evening UTC+2 time were recorded in the ledger on the following UTC day, creating a mismatch) Tj ET
+BT /F1 10 Tf 56 310 Td (with NorthBank's settlement file which used correct timezone conversion.) Tj ET
+BT /F2 12 Tf 56 288 Td (Resolution) Tj ET
+BT /F1 10 Tf 56 268 Td (CHG-1074 was deployed to fix the settlement import timezone handling. The 312 affected ledger) Tj ET
+BT /F1 10 Tf 56 254 Td (entries were corrected to reflect the proper transaction dates. The reconciliation process was) Tj ET
+BT /F1 10 Tf 56 240 Td (re-run and completed successfully.) Tj ET
+BT /F2 12 Tf 56 218 Td (Follow-up Actions) Tj ET
+BT /F1 10 Tf 56 198 Td (Review RB-04 for standard reconciliation mismatch procedures. Implement timezone validation in) Tj ET
+BT /F1 10 Tf 56 184 Td (settlement file imports to prevent similar issues. Consider adding automated timezone checks to) Tj ET
+BT /F1 10 Tf 56 170 Td (the deployment pipeline for changes affecting financial data processing.) Tj ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000212 00000 n 
+0000000314 00000 n 
+0000000456 00000 n 
+0000000592 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R /Info 5 0 R >>
+startxref
+3897
+%%EOF

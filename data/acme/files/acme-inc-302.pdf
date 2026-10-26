@@ -1,0 +1,71 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [6 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Title (Preliminary report: card-gateway authorization timeouts on 2026-03-12) /Author (Acme Payments) /CreationDate (D:20260312000000+00'00') >>
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 2845 >>
+stream
+BT /F2 16 Tf 56 766 Td (Preliminary report: card-gateway authorization timeouts on) Tj ET
+BT /F2 16 Tf 56 746 Td (2026-03-12) Tj ET
+BT /F1 10 Tf 56 726 Td (Document: INC-302) Tj ET
+BT /F1 10 Tf 56 706 Td (Date: 2026-03-12) Tj ET
+BT /F1 10 Tf 56 686 Td (Services: card-gateway) Tj ET
+BT /F2 12 Tf 56 664 Td (Summary) Tj ET
+BT /F1 10 Tf 56 644 Td (This is a preliminary SEV2 incident report. On 2026-03-12, card-gateway authorization requests) Tj ET
+BT /F1 10 Tf 56 630 Td (experienced a timeout of 8 seconds, causing payment processing failures. The Card Gateway team) Tj ET
+BT /F1 10 Tf 56 616 Td (identified slow responses from NorthBank as the likely cause and escalated to the NorthBank) Tj ET
+BT /F1 10 Tf 56 602 Td (operations desk for investigation. The full postmortem is documented in INC-301.) Tj ET
+BT /F2 12 Tf 56 580 Td (Impact) Tj ET
+BT /F1 10 Tf 56 560 Td (Merchants were unable to process card payments during the incident window. Authorization) Tj ET
+BT /F1 10 Tf 56 546 Td (requests to NorthBank failed when responses exceeded the timeout of 8 seconds threshold,) Tj ET
+BT /F1 10 Tf 56 532 Td (resulting in declined transactions and degraded service availability.) Tj ET
+BT /F2 12 Tf 56 510 Td (Timeline) Tj ET
+BT /F1 10 Tf 56 490 Td (- 14:32 UTC: card-gateway monitoring alerts triggered for elevated authorization timeout rates) Tj ET
+BT /F1 10 Tf 56 470 Td (- 14:35 UTC: Card Gateway team confirmed slow responses from NorthBank) Tj ET
+BT /F1 10 Tf 56 450 Td (- 14:40 UTC: Daniel Okafor initiated escalation to NorthBank operations desk) Tj ET
+BT /F1 10 Tf 56 430 Td (- 15:15 UTC: NorthBank operations desk acknowledged the issue) Tj ET
+BT /F2 12 Tf 56 408 Td (Root Cause) Tj ET
+BT /F1 10 Tf 56 388 Td (Slow responses from NorthBank caused authorization requests to exceed the timeout of 8 seconds,) Tj ET
+BT /F1 10 Tf 56 374 Td (resulting in request failures at card-gateway. The underlying cause at NorthBank's) Tj ET
+BT /F1 10 Tf 56 360 Td (infrastructure requires further investigation by their operations team.) Tj ET
+BT /F2 12 Tf 56 338 Td (Resolution) Tj ET
+BT /F1 10 Tf 56 318 Td (The Card Gateway team contacted the NorthBank operations desk to investigate the source of slow) Tj ET
+BT /F1 10 Tf 56 304 Td (responses. NorthBank operations worked to restore normal response times. Authorization timeouts) Tj ET
+BT /F1 10 Tf 56 290 Td (subsided as NorthBank's performance recovered.) Tj ET
+BT /F2 12 Tf 56 268 Td (Follow-up Actions) Tj ET
+BT /F1 10 Tf 56 248 Td (- Refer to RB-05 for standard procedures during NorthBank authorization timeouts) Tj ET
+BT /F1 10 Tf 56 228 Td (- Complete full incident analysis in INC-301) Tj ET
+BT /F1 10 Tf 56 208 Td (- Coordinate with NorthBank to understand root cause and preventive measures) Tj ET
+BT /F1 10 Tf 56 188 Td (- Review timeout thresholds and alerting sensitivity) Tj ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000212 00000 n 
+0000000314 00000 n 
+0000000478 00000 n 
+0000000614 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R /Info 5 0 R >>
+startxref
+3511
+%%EOF

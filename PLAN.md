@@ -31,7 +31,7 @@ How status is kept (every PR that finishes or advances a task updates it in the 
 ## 1. Requirements checklist (from the task)
 
 Ingestion
-- [ ] >= 3 file formats (plan: PDF, DOCX, Markdown/HTML, JSONL) — partial: `parsers.py` (#16), wired into `ingest` (#21); not checked on the deployed system
+- [ ] >= 3 file formats (plan: PDF, DOCX, Markdown/HTML, JSONL) — partial: `parsers.py` (#16), wired into `ingest` (#21); not checked on the deployed system; Acme corpus in PDF/MD/DOCX/HTML round-trips through `parsers.parse` (#28), not loaded yet (`make acme-load`)
 - [ ] text + metadata extraction (source, title, date, doc type, service names) — partial: `ParsedDoc` metadata from parsers (#16), stored by `index.upsert` (#22) via `ingest` (#21); not checked on the deployed system
 - [ ] chunking, >= 2 strategies compared — partial: fixed + structure-aware chunkers (#6); comparison needs the eval
 - [ ] duplicate handling — partial: sha256 of normalized text (#4), HotpotQA deduplicated in the dataset job (#7), `index.upsert` skips same-hash documents (#22), `ingest` calls it (#21); not checked on the deployed system
@@ -61,7 +61,7 @@ Backend / UI
 
 Dataset
 - [ ] >= 50,000 documents/records, reproducible subset with justification — partial: dataset job, 66,555 unique HotpotQA documents as JSONL shards (#7); not indexed
-- [ ] cross-document linking, source identity preserved, incomplete/contradictory data, repeatable eval — needs the Acme corpus (wave 3)
+- [ ] cross-document linking, source identity preserved, incomplete/contradictory data, repeatable eval — partial: Acme corpus (#28): 64 documents referencing each other by id, 14 planted contradictions, 6 gaps, 42 labelled questions with `upload:` gold sources; not indexed (`make acme-load`), no eval run
 
 Deployment
 - [ ] public URL on free tier, DB integrated, data survives restart — partial: Function URL serves `/`, `/health` and the document routes (#21), smoke checks `GET /documents` on every deploy, Aurora with deletion protection (#10, #13); persistence across a redeploy not checked
@@ -257,7 +257,7 @@ worktree and branch, each ending in a PR that must pass CI. Rules:
 | 2 | **Done (#24):** Cohere Embed V4 instead of Titan (ADR 0022): `embed_documents` (96 per request) / `embed_query`, `index.upsert_many` per shard, `ingest` capped at 2, IAM through the `eu.*` profile, failed ingest events in SQS + `make redrive-ingest` | `embed.py`, `index.py`, `handlers.py`, `cdk/app.py`, `scripts/redrive_ingest.py` | Bedrock (Cohere quota) | unit + live calls, `upsert_many` against Aurora |
 | 3 | **Done (#25):** contracts for wave 3: `Answer.answer` (short answer for EM/F1), `agent.ask(question, strategy, mode, max_steps)` stub with the trace contract | `models.py`, `agent.py` stub | wave 2 | - |
 | 3 | **Done (#27):** Agent loop + tools (ADR 0025): seeded search, `search` / `get_document` / `final_answer`, forced last step, 80 s deadline, `POST /ask`, reserved concurrency 4 on `api`, short answer in the UI | `agent.py`, `llm.py`, `grounding.py`, `handlers.py`, `cdk/app.py`, `static/index.html` | `llm.py`, `search.py`, `grounding.py` | two live questions |
-| 3 | Acme generator + `GROUND_TRUTH.md` + Acme questions | `scripts/gen_acme.py`, `data/acme/` | `llm.py`, jobs project | ground-truth check |
+| 3 | **Done (#28):** Acme generator (spec -> Haiku -> 4 formats, every fact checked in the parsed file; ADR 0026) + `GROUND_TRUTH.md` + 42 Acme questions; corpus committed, `make acme-load` after merge | `scripts/gen_acme.py`, `data/acme/` | `llm.py`, jobs project | ground-truth check |
 | 3 | Eval runner + config sweep in the jobs project, HotpotQA questions (moved from wave 2: the runner defines their format) | `eval/run.py`, `eval/questions.jsonl` | `agent.py`, dataset labels | dry run on 3 questions |
 | 4 | EVALUATION.md, README, AI_USAGE.md | docs | results | - |
 

@@ -1,0 +1,675 @@
+{
+  "company": {
+    "about": "Acme Payments is a fictional European payment processor: merchants call its API to accept card payments. Its domain is acmepay.example. The acquiring bank partner is NorthBank. Merchant portal logins use the SSO provider Sentinel ID. All times are UTC.",
+    "services": {
+      "payments-api": "public REST API that merchants call to create and capture payments (Payments Platform team)",
+      "ledger": "double-entry ledger that records every money movement, backed by the Postgres database ledger-db (Ledger team)",
+      "card-gateway": "sends card authorizations to NorthBank and runs 3-D Secure checks (Card Gateway team)",
+      "fraud-scorer": "scores every payment for fraud risk with a machine-learning model; high scores are declined (Risk team)",
+      "notifications": "sends webhooks and emails to merchants about payment events (Merchant Experience team)",
+      "merchant-portal": "web dashboard where merchants see payments, reports and settings (Merchant Experience team)"
+    },
+    "people": {
+      "Grace Adeyemi": "VP Engineering",
+      "Ravi Patel": "Head of SRE",
+      "Elena Petrova": "SRE, incident commander rotation",
+      "Lucas Moreau": "SRE, incident commander rotation",
+      "Maya Chen": "lead, Payments Platform team",
+      "Tomas Novak": "engineer, Payments Platform team",
+      "Oskar Lind": "lead, Ledger team",
+      "Sara Haddad": "engineer, Ledger team",
+      "Daniel Okafor": "lead, Card Gateway team",
+      "Lena Vogel": "engineer, Card Gateway team",
+      "Ines Duarte": "lead, Risk team",
+      "Marco Bellini": "data scientist, Risk team",
+      "Hannah Kim": "lead, Merchant Experience team",
+      "Jonas Berg": "engineer, Merchant Experience team"
+    }
+  },
+  "documents": [
+    {
+      "id": "CHG-1003",
+      "date": "2026-01-08",
+      "services": ["payments-api"],
+      "title": "Change CHG-1003: payments-api runtime upgrade to Python 3.12",
+      "summary": "Routine upgrade of the payments-api runtime from Python 3.11 to Python 3.12, rolled out with a canary before full traffic. Deployed by Tomas Novak.",
+      "facts": ["Python 3.11", "Python 3.12", "canary at 5% of traffic", "Tomas Novak", "approved by Maya Chen"],
+      "refs": []
+    },
+    {
+      "id": "STS-120",
+      "date": "2026-02-02",
+      "services": ["payments-api", "merchant-portal"],
+      "title": "Status: January 2026 availability report",
+      "summary": "Monthly public availability report for January 2026, with one bullet per service in the form 'service-name: NN.NN%', mentioning the one public incident of the month (elevated card declines on January 21).",
+      "facts": ["payments-api: 99.96%", "merchant-portal: 99.99%", "1 public incident"],
+      "refs": []
+    },
+    {
+      "id": "RB-10",
+      "date": "2026-01-06",
+      "services": ["payments-api", "ledger", "card-gateway", "fraud-scorer", "notifications", "merchant-portal"],
+      "title": "Runbook: incident command and severity levels",
+      "summary": "How Acme runs incidents: severity levels, the incident commander role (SRE rotation), communication duties and postmortems. Owned by Ravi Patel.",
+      "facts": ["SEV1", "SEV2", "SEV3", "first status page update within 15 minutes", "postmortem within 5 business days", "Ravi Patel"],
+      "refs": []
+    },
+    {
+      "id": "RB-05",
+      "date": "2026-01-05",
+      "services": ["card-gateway"],
+      "title": "Runbook: NorthBank authorization timeouts",
+      "summary": "What on-call does when card-gateway reports timeouts on authorization requests to NorthBank: check NorthBank latency, contact the NorthBank operations desk, switch to the secondary endpoint. The runbook states the current authorization timeout value.",
+      "facts": ["authorization timeout is 5 seconds", "NorthBank operations desk", "escalate after 15 minutes", "secondary endpoint"],
+      "refs": ["RB-01"]
+    },
+    {
+      "id": "RB-01",
+      "date": "2026-01-12",
+      "services": ["payments-api"],
+      "title": "Runbook: payments-api elevated error rate",
+      "summary": "First steps when payments-api returns too many 5xx errors: confirm the alert, check the dependencies (ledger and card-gateway), then follow the dependency runbook.",
+      "facts": ["payments-api-5xx", "error rate above 2% for 5 minutes", "ledger and card-gateway dashboards", "page the SRE on-call"],
+      "refs": ["RB-03", "RB-05"]
+    },
+    {
+      "id": "CHG-1007",
+      "date": "2026-01-14",
+      "services": ["card-gateway"],
+      "title": "Change CHG-1007: raise NorthBank authorization timeout",
+      "summary": "Raises the card-gateway timeout for authorization requests to NorthBank because NorthBank latency rose during evening peaks. Deployed by Lena Vogel.",
+      "facts": ["from 5 seconds to 8 seconds", "Lena Vogel", "approved by Daniel Okafor"],
+      "refs": ["RB-05"]
+    },
+    {
+      "id": "RB-04",
+      "date": "2026-01-20",
+      "services": ["ledger"],
+      "title": "Runbook: ledger reconciliation mismatches",
+      "summary": "The daily job compares ledger entries with the NorthBank settlement file. What to do when it reports mismatches: produce the report, find the cause, correct entries with a reviewed change.",
+      "facts": ["runs at 02:00 UTC", "NorthBank settlement file", "more than 10 mismatched entries", "reconctl report"],
+      "refs": []
+    },
+    {
+      "id": "CHG-1011",
+      "date": "2026-01-21",
+      "services": ["fraud-scorer"],
+      "title": "Change CHG-1011: release fraud-scorer model v3.4",
+      "summary": "Release of fraud-scorer model v3.4 to all traffic, replacing v3.3. Deployed by Marco Bellini. A status note on the record says it was rolled back after INC-201.",
+      "facts": ["v3.4", "deployed at 09:30 UTC", "Marco Bellini", "approved by Ines Duarte", "rolled back to v3.3"],
+      "refs": ["INC-201", "RB-06"]
+    },
+    {
+      "id": "STS-101",
+      "date": "2026-01-21",
+      "services": ["payments-api", "fraud-scorer"],
+      "title": "Status: elevated card declines",
+      "summary": "Public status entry: some legitimate card payments were declined. Updates: Investigating posted at 10:32 UTC; Identified (a faulty risk model update); Resolved posted at 11:45 UTC. States the peak decline rate.",
+      "facts": ["10:32 UTC", "decline rate peaked at 6.5%", "11:45 UTC", "Resolved"],
+      "refs": []
+    },
+    {
+      "id": "INC-201",
+      "date": "2026-01-22",
+      "services": ["fraud-scorer", "payments-api"],
+      "title": "Incident report: false declines after the fraud-scorer v3.4 release",
+      "summary": "SEV2 postmortem of the incident on January 21, 2026: fraud-scorer model v3.4, released by CHG-1011 that day, declined many legitimate card payments until it was rolled back to v3.3. Incident commander Lucas Moreau. The report says v3.4 was deployed at 10:15 UTC. It gives no reason for the model's behaviour (no thresholds, calibration, features or data): the model-level analysis is an open follow-up.",
+      "facts": ["SEV2", "v3.4", "v3.3", "deployed at 10:15 UTC", "from 2.1% to 9.8%", "rolled back at 11:40 UTC", "Lucas Moreau"],
+      "refs": ["CHG-1011", "RB-06", "STS-101"]
+    },
+    {
+      "id": "RB-06",
+      "date": "2026-01-25",
+      "services": ["fraud-scorer"],
+      "title": "Runbook: rolling back a fraud-scorer model",
+      "summary": "How to roll back fraud-scorer to the previous model version from the model registry when declines spike, and how to verify the rollback.",
+      "facts": ["fraudctl rollback", "model registry", "decline rate above 4%", "about 20 minutes"],
+      "refs": ["INC-201"]
+    },
+    {
+      "id": "CHG-1014",
+      "date": "2026-01-28",
+      "services": ["ledger"],
+      "title": "Change CHG-1014: index on ledger entries by created_at",
+      "summary": "Adds an index on the ledger entries table to speed up daily reports, built without locking the table. Deployed by Sara Haddad.",
+      "facts": ["created_at", "CREATE INDEX CONCURRENTLY", "Sara Haddad", "approved by Oskar Lind"],
+      "refs": []
+    },
+    {
+      "id": "RB-08",
+      "date": "2026-02-02",
+      "services": ["merchant-portal"],
+      "title": "Runbook: merchant portal SSO login failures",
+      "summary": "What to do when merchants cannot log in to merchant-portal through Sentinel ID: read the SSO error, compare the redirect URI with the one registered at Sentinel ID, roll back recent portal auth changes. Owned by Hannah Kim.",
+      "facts": ["Sentinel ID", "redirect URI", "invalid_redirect_uri", "Hannah Kim"],
+      "refs": []
+    },
+    {
+      "id": "STS-102",
+      "date": "2026-02-09",
+      "services": ["notifications"],
+      "title": "Status: delayed webhook notifications",
+      "summary": "Public status entry: payment webhooks to merchants were delayed. First update posted at 08:55 UTC; Resolved update says all delayed webhooks were redelivered and gives the duration.",
+      "facts": ["08:55 UTC", "about 2 hours", "redelivered", "Resolved"],
+      "refs": []
+    },
+    {
+      "id": "INC-202",
+      "date": "2026-02-10",
+      "services": ["notifications"],
+      "title": "Incident report: webhook deliveries failed after a certificate expiry",
+      "summary": "SEV2 postmortem: the TLS client certificate notifications uses to deliver webhooks expired, so deliveries failed until the certificate was renewed; failed webhooks were redelivered afterwards. Incident commander Elena Petrova. The report gives the certificate validity period.",
+      "facts": ["SEV2", "expired at 06:00 UTC", "detected at 08:47 UTC", "renewed at 09:10 UTC", "3 hours 10 minutes", "42,300 webhooks", "valid for 365 days", "Elena Petrova"],
+      "refs": ["RB-09", "CHG-1019", "STS-102"]
+    },
+    {
+      "id": "CHG-1019",
+      "date": "2026-02-11",
+      "services": ["notifications"],
+      "title": "Change CHG-1019: certificate expiry alert for webhook delivery",
+      "summary": "Follow-up to INC-202: an alert fires before any notifications TLS certificate expires and pages the Merchant Experience on-call.",
+      "facts": ["21 days before", "cert-expiry-webhooks", "approved by Hannah Kim"],
+      "refs": ["INC-202", "RB-09"]
+    },
+    {
+      "id": "RB-09",
+      "date": "2026-02-12",
+      "services": ["notifications"],
+      "title": "Runbook: rotating notifications TLS certificates",
+      "summary": "How to renew the TLS client certificate used for webhook delivery from the internal certificate authority, roll it out to notifications workers and verify it. States the certificate validity period.",
+      "facts": ["valid for 90 days", "21 days before", "certctl renew", "send a test webhook"],
+      "refs": ["CHG-1019"]
+    },
+    {
+      "id": "CHG-1022",
+      "date": "2026-02-17",
+      "services": ["merchant-portal"],
+      "title": "Change CHG-1022: new reports export page",
+      "summary": "Adds a reports page to merchant-portal where merchants export their payments. Deployed by Jonas Berg.",
+      "facts": ["CSV and XLSX", "Jonas Berg", "approved by Hannah Kim"],
+      "refs": []
+    },
+    {
+      "id": "RB-11",
+      "date": "2026-02-20",
+      "services": ["ledger"],
+      "title": "Runbook: ledger-db failover",
+      "summary": "How to fail ledger-db over to its replica, planned or unplanned, and what to check afterwards. Owned by Oskar Lind.",
+      "facts": ["ledgerctl failover", "promote the replica", "under 60 seconds", "Oskar Lind"],
+      "refs": []
+    },
+    {
+      "id": "INC-203",
+      "date": "2026-02-24",
+      "services": ["merchant-portal"],
+      "title": "Incident report: slow report exports in merchant portal",
+      "summary": "Minor SEV3: CSV exports of large payment reports in merchant-portal timed out because exports ran inside web requests. Workaround: smaller date ranges. Fixed later by CHG-1025.",
+      "facts": ["SEV3", "30-second request timeout", "more than 100,000 rows"],
+      "refs": ["CHG-1025", "STS-203"]
+    },
+    {
+      "id": "STS-203",
+      "date": "2026-02-24",
+      "services": ["merchant-portal"],
+      "title": "Status: report exports slow in merchant portal",
+      "summary": "Public status entry: large report exports in the merchant portal fail or are slow; merchants can export a smaller date range meanwhile; later Resolved.",
+      "facts": ["report exports", "smaller date range", "Resolved"],
+      "refs": []
+    },
+    {
+      "id": "CHG-1025",
+      "date": "2026-02-26",
+      "services": ["merchant-portal", "notifications"],
+      "title": "Change CHG-1025: run report exports as background jobs",
+      "summary": "Follow-up to INC-203: report exports run as background jobs and the merchant receives a download link by email from notifications. Deployed by Jonas Berg.",
+      "facts": ["background jobs", "download link", "Jonas Berg", "approved by Hannah Kim"],
+      "refs": ["INC-203"]
+    },
+    {
+      "id": "CHG-1028",
+      "date": "2026-02-27",
+      "services": ["fraud-scorer"],
+      "title": "Change CHG-1028: card velocity rule",
+      "summary": "Adds a rule next to the fraud model that sends payments for review when one card is used too often in a short time. Deployed by Marco Bellini.",
+      "facts": ["more than 5 payments in 10 minutes", "same card", "Marco Bellini", "approved by Ines Duarte"],
+      "refs": []
+    },
+    {
+      "id": "STS-210",
+      "date": "2026-02-28",
+      "services": ["ledger", "payments-api"],
+      "title": "Status: scheduled maintenance of the ledger database",
+      "summary": "Public maintenance notice: ledger database upgrade on 2026-03-02; payment confirmations may be delayed by up to 2 minutes; a later Completed update.",
+      "facts": ["2026-03-02", "02:00 to 03:00 UTC", "up to 2 minutes", "Completed"],
+      "refs": []
+    },
+    {
+      "id": "CHG-1030",
+      "date": "2026-03-02",
+      "services": ["ledger"],
+      "title": "Change CHG-1030: ledger-db Postgres minor upgrade",
+      "summary": "Minor version upgrade of ledger-db during the announced maintenance window. Deployed by Sara Haddad.",
+      "facts": ["Postgres 16.3 to 16.4", "02:00 UTC", "Sara Haddad", "approved by Oskar Lind"],
+      "refs": ["STS-210", "RB-11"]
+    },
+    {
+      "id": "STS-220",
+      "date": "2026-03-02",
+      "services": ["payments-api", "merchant-portal"],
+      "title": "Status: February 2026 availability report",
+      "summary": "Monthly public availability report for February 2026, with one bullet per service in the form 'service-name: NN.NN%', mentioning the public incidents of the month (delayed webhooks on February 9, slow report exports on February 24).",
+      "facts": ["payments-api: 99.99%", "merchant-portal: 99.97%", "2 public incidents"],
+      "refs": []
+    },
+    {
+      "id": "INC-304",
+      "date": "2026-03-03",
+      "services": ["payments-api"],
+      "title": "Incident report: payments-api latency from one merchant's retry loop",
+      "summary": "SEV3: one merchant's integration retried failed requests in a tight loop and raised payments-api latency for all merchants. Mitigated with a manual rate-limit override; CHG-1036 added a permanent per-merchant limit.",
+      "facts": ["SEV3", "merchant m_77812", "p99 latency of 4.2 seconds", "rate-limit override"],
+      "refs": ["RB-02", "CHG-1036"]
+    },
+    {
+      "id": "CHG-1033",
+      "date": "2026-03-03",
+      "services": ["card-gateway"],
+      "title": "Change CHG-1033: shorter log retention for card-gateway",
+      "summary": "Shortens how long card-gateway request logs are kept, to reduce stored card data under PCI DSS. Deployed by Lena Vogel.",
+      "facts": ["30 days to 14 days", "PCI DSS", "approved by Daniel Okafor"],
+      "refs": []
+    },
+    {
+      "id": "CHG-1036",
+      "date": "2026-03-04",
+      "services": ["payments-api"],
+      "title": "Change CHG-1036: per-merchant rate limit on payments-api",
+      "summary": "Follow-up to INC-304: payments-api limits each merchant's request rate; requests above the limit get HTTP 429. Deployed by Tomas Novak.",
+      "facts": ["50 requests per second", "HTTP 429", "Tomas Novak", "approved by Maya Chen"],
+      "refs": ["INC-304", "RB-02"]
+    },
+    {
+      "id": "RB-02",
+      "date": "2026-03-05",
+      "services": ["payments-api"],
+      "title": "Runbook: noisy merchant and rate limiting",
+      "summary": "What to do when one merchant floods payments-api: identify the merchant, apply a temporary override, contact the merchant. States the default per-merchant limit.",
+      "facts": ["50 requests per second", "rate-limit override", "HTTP 429", "contact the merchant"],
+      "refs": ["CHG-1036"]
+    },
+    {
+      "id": "CHG-1040",
+      "date": "2026-03-10",
+      "services": ["notifications"],
+      "title": "Change CHG-1040: new email provider for merchant notifications",
+      "summary": "Moves merchant notification emails to a new email provider, with sender authentication records set up first. Deployed by Jonas Berg.",
+      "facts": ["MailRelay", "SPF and DKIM", "Jonas Berg", "approved by Hannah Kim"],
+      "refs": []
+    },
+    {
+      "id": "CHG-1042",
+      "date": "2026-03-12",
+      "services": ["ledger"],
+      "title": "Change CHG-1042: ledger connection pool tuning",
+      "summary": "Reduces the ledger service's database connection pool to lower the number of idle connections on ledger-db. Deployed by Sara Haddad, marked low risk, no canary. A status note on the record says it was rolled back during INC-301.",
+      "facts": ["max_connections from 200 to 20", "deployed at 13:55 UTC", "Sara Haddad", "approved by Oskar Lind", "low risk", "rolled back at 14:41 UTC"],
+      "refs": ["INC-301"]
+    },
+    {
+      "id": "INC-302",
+      "date": "2026-03-12",
+      "services": ["card-gateway"],
+      "title": "Preliminary report: card-gateway authorization timeouts on 2026-03-12",
+      "summary": "Preliminary SEV2 report written by Daniel Okafor on the afternoon of March 12: card-gateway authorization requests timed out; the Card Gateway team attributed it to slow responses from NorthBank and contacted the NorthBank operations desk. Marked preliminary; the full postmortem is INC-301.",
+      "facts": ["preliminary", "slow responses from NorthBank", "timeout of 8 seconds", "NorthBank operations desk", "Daniel Okafor"],
+      "refs": ["RB-05", "INC-301"]
+    },
+    {
+      "id": "STS-301",
+      "date": "2026-03-12",
+      "services": ["payments-api"],
+      "title": "Status: card payments failing",
+      "summary": "Public status entry for the March 12 outage. Updates: Investigating posted at 14:20 UTC; Identified posted at 14:35 UTC, blaming a third-party card network; Monitoring; Resolved. States when the problem began, that it affected fewer than 300 merchants, and when service fully recovered.",
+      "facts": ["14:20 UTC", "began at 14:15 UTC", "third-party card network", "fewer than 300 merchants", "fully recovered at 15:10 UTC"],
+      "refs": []
+    },
+    {
+      "id": "CHG-1045",
+      "date": "2026-03-12",
+      "services": ["notifications"],
+      "title": "Change CHG-1045: emergency scale-up of notification workers",
+      "summary": "Emergency change during the March 12 outage: more notification workers to drain the webhook backlog. Deployed by Jonas Berg.",
+      "facts": ["emergency change", "from 8 to 24", "at 15:05 UTC", "Jonas Berg", "approved by Hannah Kim"],
+      "refs": ["INC-306", "RB-07"]
+    },
+    {
+      "id": "INC-306",
+      "date": "2026-03-13",
+      "services": ["notifications"],
+      "title": "Incident report: webhook backlog after the 2026-03-12 outage",
+      "summary": "Merchant Experience team report by Hannah Kim: during and after the March 12 outage payment webhooks queued up; CHG-1045 scaled notification workers at 15:05 UTC and the backlog was cleared by 16:30 UTC. Gives the number of delayed webhooks. It does not say when the outage itself began (that is in INC-301); its timeline has only the two times given.",
+      "facts": ["26,900 webhooks", "from 8 to 24", "at 15:05 UTC", "16:30 UTC", "Hannah Kim"],
+      "refs": ["INC-301", "CHG-1045", "RB-07"]
+    },
+    {
+      "id": "CHG-1047",
+      "date": "2026-03-13",
+      "services": ["ledger"],
+      "title": "Change CHG-1047: restore ledger pool size and add a config check",
+      "summary": "Follow-up to INC-301: restores the ledger connection pool and adds a deploy-time check that rejects pool sizes that are too small. Deployed by Oskar Lind.",
+      "facts": ["max_connections back to 200", "below 100", "Oskar Lind", "approved by Ravi Patel"],
+      "refs": ["INC-301", "CHG-1042", "RB-03"]
+    },
+    {
+      "id": "INC-301",
+      "date": "2026-03-14",
+      "services": ["payments-api", "ledger", "card-gateway", "notifications"],
+      "title": "Postmortem: card payment outage on 2026-03-12",
+      "summary": "SEV1 postmortem of the March 12, 2026 outage, written by Maya Chen. Card payments failed because the ledger connection pool was exhausted after CHG-1042 cut its size; payments-api returned errors, card-gateway saw timeouts while waiting for ledger writes, and webhooks were delayed. The report states that CHG-1042 was approved by Ravi Patel. CHG-1042 was rolled back; CHG-1047 restored the setting and added a check. Incident commander Elena Petrova. INC-302 is the Card Gateway team's related preliminary report.",
+      "facts": ["SEV1", "impact began at 14:02 UTC", "ledger connection pool exhaustion", "max_connections from 200 to 20", "approved by Ravi Patel", "rolled back at 14:41 UTC", "recovered at 14:58 UTC", "56 minutes", "1,240 merchants", "18,400 webhooks", "Elena Petrova"],
+      "refs": ["CHG-1042", "CHG-1047", "RB-03", "INC-302", "STS-301"]
+    },
+    {
+      "id": "RB-03",
+      "date": "2026-03-16",
+      "services": ["ledger"],
+      "title": "Runbook: ledger connection pool saturation",
+      "summary": "What to do when the ledger connection pool is nearly full: confirm with the pool metric, check recent ledger changes, roll back, then scale if needed. States the normal pool size. Owned by Oskar Lind.",
+      "facts": ["ledger_pool_in_use", "above 90%", "roll back the most recent ledger change", "max_connections is 200", "Oskar Lind"],
+      "refs": ["CHG-1047", "INC-301", "RB-01"]
+    },
+    {
+      "id": "CHG-1050",
+      "date": "2026-03-18",
+      "services": ["payments-api"],
+      "title": "Change CHG-1050: longer idempotency key retention",
+      "summary": "payments-api keeps idempotency keys longer so that merchant retries after long outages are still deduplicated. Deployed by Tomas Novak.",
+      "facts": ["24 hours to 72 hours", "Idempotency-Key", "Tomas Novak", "approved by Maya Chen"],
+      "refs": []
+    },
+    {
+      "id": "RB-07",
+      "date": "2026-03-20",
+      "services": ["notifications"],
+      "title": "Runbook: webhook backlog",
+      "summary": "What to do when undelivered webhooks pile up: check the queue depth metric, scale the notification workers, watch the backlog drain. Owned by Hannah Kim.",
+      "facts": ["webhook_queue_depth", "queue depth above 10,000", "scale workers to 24", "Hannah Kim"],
+      "refs": ["CHG-1045"]
+    },
+    {
+      "id": "CHG-1052",
+      "date": "2026-03-20",
+      "services": ["merchant-portal"],
+      "title": "Change CHG-1052: two-factor authentication for portal admins",
+      "summary": "merchant-portal requires a second factor for merchant admin users. Deployed by Jonas Berg.",
+      "facts": ["two-factor authentication", "admin users", "Jonas Berg", "approved by Hannah Kim"],
+      "refs": []
+    },
+    {
+      "id": "STS-305",
+      "date": "2026-03-20",
+      "services": ["card-gateway"],
+      "title": "Status: scheduled maintenance of the card processing connection",
+      "summary": "Public maintenance notice: Acme moves its connection to its acquiring bank to a new endpoint on 2026-04-03; no downtime expected; a later Completed update.",
+      "facts": ["2026-04-03", "22:00 to 23:00 UTC", "no downtime expected", "Completed"],
+      "refs": []
+    },
+    {
+      "id": "CHG-1055",
+      "date": "2026-03-25",
+      "services": ["card-gateway"],
+      "title": "Change CHG-1055: upgrade the 3-D Secure library",
+      "summary": "Upgrades the 3-D Secure library in card-gateway. Deployed by Lena Vogel. A status note added to the record the next day says the change was rolled back on 2026-03-26 during INC-303.",
+      "facts": ["3-D Secure", "2.4.1", "Lena Vogel", "approved by Daniel Okafor", "rolled back on 2026-03-26"],
+      "refs": ["INC-303"]
+    },
+    {
+      "id": "STS-303",
+      "date": "2026-03-26",
+      "services": ["card-gateway"],
+      "title": "Status: 3-D Secure verification failures for Visa cards",
+      "summary": "Public status entry: some Visa cardholders could not complete 3-D Secure verification; the cause was with our acquiring partner; later Resolved.",
+      "facts": ["3-D Secure", "Visa", "our acquiring partner", "Resolved"],
+      "refs": []
+    },
+    {
+      "id": "INC-303",
+      "date": "2026-03-27",
+      "services": ["card-gateway"],
+      "title": "Incident report: 3-D Secure challenge failures for Visa cards",
+      "summary": "SEV2 postmortem: 3-D Secure challenges for Visa cards failed on March 26. NorthBank confirmed a fault on the NorthBank side and fixed it. CHG-1055 from the day before was investigated and ruled out, and the report says CHG-1055 was not rolled back.",
+      "facts": ["SEV2", "between 09:12 and 11:03 UTC", "2.3% of card payments", "Visa", "fault on the NorthBank side", "CHG-1055 was not rolled back"],
+      "refs": ["CHG-1055", "RB-05", "STS-303"]
+    },
+    {
+      "id": "CHG-1058",
+      "date": "2026-03-30",
+      "services": ["fraud-scorer"],
+      "title": "Change CHG-1058: fraud-scorer model v3.5 in shadow mode",
+      "summary": "The Risk team's next model after the v3.4 rollback (INC-201): v3.5 scores payments in shadow mode, without affecting decisions, before any switch. Deployed by Marco Bellini.",
+      "facts": ["v3.5", "shadow mode", "7 days", "Marco Bellini", "approved by Ines Duarte"],
+      "refs": ["INC-201", "RB-06"]
+    },
+    {
+      "id": "CHG-1061",
+      "date": "2026-04-01",
+      "services": ["notifications"],
+      "title": "Change CHG-1061: webhook retry policy",
+      "summary": "notifications retries failed webhook deliveries more times, spread over a day. Deployed by Jonas Berg.",
+      "facts": ["from 5 to 8 retries", "over 24 hours", "exponential backoff", "approved by Hannah Kim"],
+      "refs": []
+    },
+    {
+      "id": "STS-320",
+      "date": "2026-04-01",
+      "services": ["payments-api", "merchant-portal"],
+      "title": "Status: March 2026 availability report",
+      "summary": "Monthly public availability report for March 2026, with one bullet per service in the form 'service-name: NN.NN%', mentioning the public incidents of the month (card payments failing on March 12, 3-D Secure failures on March 26).",
+      "facts": ["payments-api: 99.82%", "merchant-portal: 99.98%", "2 public incidents"],
+      "refs": []
+    },
+    {
+      "id": "STS-306",
+      "date": "2026-04-03",
+      "services": ["ledger", "payments-api"],
+      "title": "Status: scheduled ledger database failover test",
+      "summary": "Public maintenance notice: a planned failover test of the ledger database on 2026-04-06; payment confirmations may pause briefly; a later Completed update.",
+      "facts": ["2026-04-06", "01:00 UTC", "under one minute", "Completed"],
+      "refs": []
+    },
+    {
+      "id": "CHG-1064",
+      "date": "2026-04-03",
+      "services": ["card-gateway"],
+      "title": "Change CHG-1064: move to the new NorthBank TLS endpoint",
+      "summary": "card-gateway switches its NorthBank connection to a new TLS endpoint in the announced maintenance window. Deployed by Lena Vogel.",
+      "facts": ["auth2.northbank.example", "22:00 UTC", "Lena Vogel", "approved by Daniel Okafor"],
+      "refs": ["STS-305", "RB-05"]
+    },
+    {
+      "id": "CHG-1066",
+      "date": "2026-04-06",
+      "services": ["ledger"],
+      "title": "Change CHG-1066: ledger-db failover test",
+      "summary": "Planned failover test of ledger-db following the failover runbook, announced on the status page. Run by Sara Haddad.",
+      "facts": ["01:00 UTC", "failover completed in 41 seconds", "Sara Haddad", "approved by Oskar Lind"],
+      "refs": ["RB-11", "STS-306"]
+    },
+    {
+      "id": "CHG-1068",
+      "date": "2026-04-07",
+      "services": ["merchant-portal"],
+      "title": "Change CHG-1068: new Sentinel ID redirect URI",
+      "summary": "Changes the merchant-portal SSO redirect URI as part of moving the portal to a new domain. Deployed by Jonas Berg.",
+      "facts": ["https://portal.acmepay.example/auth/callback", "deployed at 08:30 UTC", "Jonas Berg", "approved by Hannah Kim"],
+      "refs": ["INC-401"]
+    },
+    {
+      "id": "STS-401",
+      "date": "2026-04-07",
+      "services": ["merchant-portal"],
+      "title": "Status: merchant portal login issues",
+      "summary": "Public status entry for April 7, 2026: merchants were unable to log in to the merchant portal; Investigating posted at 08:10 UTC; the API and payments were not affected; Resolved posted at 08:50 UTC. Only these two times.",
+      "facts": ["unable to log in", "08:10 UTC", "08:50 UTC", "about 45 minutes", "API and payments were not affected", "Resolved"],
+      "refs": []
+    },
+    {
+      "id": "INC-401",
+      "date": "2026-04-08",
+      "services": ["merchant-portal"],
+      "title": "Incident report: merchant portal login failures",
+      "summary": "SEV2 postmortem: merchants could not log in because the redirect URI set by CHG-1068 was not registered at Sentinel ID; fixed by registering the new redirect URI. Incident commander Lucas Moreau. The report says CHG-1068 was deployed at 07:55 UTC.",
+      "facts": ["SEV2", "deployed at 07:55 UTC", "redirect URI", "Sentinel ID", "45 minutes", "Lucas Moreau"],
+      "refs": ["CHG-1068", "RB-08", "STS-401"]
+    },
+    {
+      "id": "CHG-1070",
+      "date": "2026-04-09",
+      "services": ["card-gateway"],
+      "title": "Change CHG-1070: card-gateway autoscaling",
+      "summary": "card-gateway scales out on CPU instead of running a fixed number of instances. Deployed by Lena Vogel.",
+      "facts": ["minimum of 4 instances", "70% CPU", "Lena Vogel", "approved by Daniel Okafor"],
+      "refs": []
+    },
+    {
+      "id": "CHG-1072",
+      "date": "2026-04-14",
+      "services": ["ledger"],
+      "title": "Change CHG-1072: new NorthBank settlement file import",
+      "summary": "ledger imports the new version of the NorthBank settlement file used by the daily reconciliation. Deployed by Sara Haddad.",
+      "facts": ["settlement file", "version 2 format", "Sara Haddad", "approved by Oskar Lind"],
+      "refs": ["RB-04"]
+    },
+    {
+      "id": "INC-402",
+      "date": "2026-04-16",
+      "services": ["ledger"],
+      "title": "Incident report: ledger reconciliation mismatch",
+      "summary": "SEV3: the daily reconciliation on April 15 found ledger entries that did not match the NorthBank settlement file. Cause: the settlement import from CHG-1072 read timestamps in UTC+2 as UTC, so late-evening entries landed on the wrong day. Fixed by CHG-1074; the entries were corrected. Investigated by Sara Haddad.",
+      "facts": ["SEV3", "312 ledger entries", "UTC+2", "02:00 UTC", "Sara Haddad"],
+      "refs": ["CHG-1072", "CHG-1074", "RB-04"]
+    },
+    {
+      "id": "CHG-1074",
+      "date": "2026-04-16",
+      "services": ["ledger"],
+      "title": "Change CHG-1074: fix the settlement import time zone",
+      "summary": "Follow-up to INC-402: the settlement import converts UTC+2 timestamps to UTC, and a one-off script corrects the affected entries. Deployed by Sara Haddad.",
+      "facts": ["UTC+2", "corrects 297 ledger entries", "Sara Haddad", "approved by Oskar Lind"],
+      "refs": ["INC-402", "CHG-1072"]
+    },
+    {
+      "id": "CHG-1077",
+      "date": "2026-04-20",
+      "services": ["payments-api"],
+      "title": "Change CHG-1077: enable payment links",
+      "summary": "Turns on the payment links feature for a first group of merchants behind a feature flag. Deployed by Tomas Novak.",
+      "facts": ["payment_links", "feature flag", "10% of merchants", "approved by Maya Chen"],
+      "refs": []
+    },
+    {
+      "id": "STS-403",
+      "date": "2026-04-22",
+      "services": ["payments-api"],
+      "title": "Status: slower payment approvals",
+      "summary": "Public status entry: payment approvals were slower than usual for a while; payments were still processed; later Resolved.",
+      "facts": ["slower payment approvals", "still processed", "Resolved"],
+      "refs": []
+    },
+    {
+      "id": "INC-403",
+      "date": "2026-04-22",
+      "services": ["fraud-scorer", "payments-api"],
+      "title": "Incident report: fraud-scorer feature store lag",
+      "summary": "SEV3: the fraud-scorer feature store fell behind, so payment approvals waited on fresh features and became slower. Fixed by restarting the feature consumer; follow-up CHG-1080. Investigated by Marco Bellini.",
+      "facts": ["SEV3", "feature store", "lag of 12 minutes", "3 seconds slower", "Marco Bellini"],
+      "refs": ["CHG-1080", "RB-12", "STS-403"]
+    },
+    {
+      "id": "CHG-1080",
+      "date": "2026-04-23",
+      "services": ["fraud-scorer"],
+      "title": "Change CHG-1080: feature store consumer lag alert",
+      "summary": "Follow-up to INC-403: an alert pages the Risk on-call when the feature store consumer falls behind. Deployed by Marco Bellini.",
+      "facts": ["lag above 2 minutes", "Marco Bellini", "approved by Ines Duarte"],
+      "refs": ["INC-403", "RB-12"]
+    },
+    {
+      "id": "RB-12",
+      "date": "2026-04-24",
+      "services": ["fraud-scorer"],
+      "title": "Runbook: fraud-scorer feature store lag",
+      "summary": "What to do when the fraud-scorer feature store falls behind: check the lag metric, restart the feature consumer, watch it catch up. Owned by Ines Duarte.",
+      "facts": ["feature_lag_seconds", "lag above 2 minutes", "restart the feature consumer", "Ines Duarte"],
+      "refs": ["CHG-1080"]
+    }
+  ],
+  "contradictions": [
+    {"id": "C01", "what": "when the March 12 outage began", "claims": [{"doc": "INC-301", "value": "14:02 UTC"}, {"doc": "STS-301", "value": "14:15 UTC"}]},
+    {"id": "C02", "what": "root cause of the March 12 outage", "claims": [{"doc": "INC-301", "value": "ledger connection pool exhaustion"}, {"doc": "INC-302", "value": "slow responses from NorthBank"}, {"doc": "STS-301", "value": "third-party card network"}]},
+    {"id": "C03", "what": "number of merchants affected by the March 12 outage", "claims": [{"doc": "INC-301", "value": "1,240 merchants"}, {"doc": "STS-301", "value": "fewer than 300 merchants"}]},
+    {"id": "C04", "what": "when service recovered from the March 12 outage", "claims": [{"doc": "INC-301", "value": "14:58 UTC"}, {"doc": "STS-301", "value": "15:10 UTC"}]},
+    {"id": "C05", "what": "who approved CHG-1042", "claims": [{"doc": "CHG-1042", "value": "Oskar Lind"}, {"doc": "INC-301", "value": "Ravi Patel"}]},
+    {"id": "C06", "what": "number of webhooks delayed by the March 12 outage", "claims": [{"doc": "INC-301", "value": "18,400 webhooks"}, {"doc": "INC-306", "value": "26,900 webhooks"}]},
+    {"id": "C07", "what": "when fraud-scorer model v3.4 was deployed on January 21", "claims": [{"doc": "CHG-1011", "value": "09:30 UTC"}, {"doc": "INC-201", "value": "10:15 UTC"}]},
+    {"id": "C08", "what": "peak decline rate in the January 21 fraud-scorer incident", "claims": [{"doc": "INC-201", "value": "9.8%"}, {"doc": "STS-101", "value": "6.5%"}]},
+    {"id": "C09", "what": "duration of the February 9 webhook outage", "claims": [{"doc": "INC-202", "value": "3 hours 10 minutes"}, {"doc": "STS-102", "value": "about 2 hours"}]},
+    {"id": "C10", "what": "whether CHG-1055 was rolled back", "claims": [{"doc": "CHG-1055", "value": "rolled back on 2026-03-26"}, {"doc": "INC-303", "value": "CHG-1055 was not rolled back"}]},
+    {"id": "C11", "what": "card-gateway timeout for NorthBank authorization requests", "claims": [{"doc": "CHG-1007", "value": "8 seconds"}, {"doc": "RB-05", "value": "5 seconds"}]},
+    {"id": "C12", "what": "when CHG-1068 was deployed on April 7", "claims": [{"doc": "CHG-1068", "value": "08:30 UTC"}, {"doc": "INC-401", "value": "07:55 UTC"}]},
+    {"id": "C13", "what": "number of ledger entries affected by the April settlement import bug", "claims": [{"doc": "INC-402", "value": "312 ledger entries"}, {"doc": "CHG-1074", "value": "297 ledger entries"}]},
+    {"id": "C14", "what": "validity period of the webhook TLS certificates", "claims": [{"doc": "INC-202", "value": "365 days"}, {"doc": "RB-09", "value": "90 days"}]}
+  ],
+  "gaps": [
+    {"id": "G01", "what": "how much revenue Acme lost because of the March 12, 2026 outage", "forbidden": ["revenue"]},
+    {"id": "G02", "what": "whether merchants received SLA credits or any compensation for the March 12, 2026 outage", "forbidden": ["SLA credit", "service credit", "compensat"]},
+    {"id": "G03", "what": "why fraud-scorer model v3.4 declined legitimate payments (any model-level or data-level reason)", "forbidden": []},
+    {"id": "G04", "what": "NorthBank's technical root cause for the March 26, 2026 3-D Secure failures", "forbidden": []},
+    {"id": "G05", "what": "how many merchants could not log in during the April 7, 2026 merchant portal outage", "forbidden": []},
+    {"id": "G06", "what": "which person renewed the expired webhook certificate on February 9, 2026", "forbidden": []}
+  ],
+  "questions": [
+    {"type": "multi_doc", "question": "What caused the card payment outage on March 12, 2026, and how was it fixed?", "answer": "CHG-1042 cut ledger max_connections from 200 to 20, exhausting the ledger connection pool; CHG-1042 was rolled back at 14:41 UTC and CHG-1047 restored 200 with a check against values below 100", "gold": ["INC-301", "CHG-1042", "CHG-1047"]},
+    {"type": "multi_doc", "question": "Reconstruct the timeline of the March 12, 2026 outage, from the change that triggered it to recovery.", "answer": "13:55 UTC CHG-1042 deployed; 14:02 UTC impact began; 14:41 UTC CHG-1042 rolled back; 14:58 UTC recovered (the status page says 14:15 and 15:10 UTC)", "gold": ["CHG-1042", "INC-301", "STS-301"]},
+    {"type": "multi_doc", "question": "Which follow-up change was made after the February 9, 2026 webhook certificate incident, and what does it do?", "answer": "CHG-1019: an alert 21 days before a notifications TLS certificate expires", "gold": ["INC-202", "CHG-1019"]},
+    {"type": "multi_doc", "question": "Which incidents in 2026 were attributed, at least at first, to NorthBank?", "answer": "INC-302 (March 12 authorization timeouts, slow responses from NorthBank) and INC-303 (March 26 3-D Secure failures, fault on the NorthBank side)", "gold": ["INC-302", "INC-303"]},
+    {"type": "multi_doc", "question": "Which fraud-scorer model versions were involved in the January 21, 2026 incident, and which runbook describes the rollback?", "answer": "v3.4 was rolled back to v3.3; RB-06 (fraudctl rollback)", "gold": ["INC-201", "CHG-1011", "RB-06"]},
+    {"type": "multi_doc", "question": "Which change caused the April 7, 2026 merchant portal login outage, and what did it modify?", "answer": "CHG-1068, which changed the Sentinel ID redirect URI to https://portal.acmepay.example/auth/callback", "gold": ["INC-401", "CHG-1068"]},
+    {"type": "multi_doc", "question": "What caused the April 2026 ledger reconciliation mismatch, and which change fixed it?", "answer": "The CHG-1072 settlement import read UTC+2 timestamps as UTC; CHG-1074 fixed it", "gold": ["INC-402", "CHG-1072", "CHG-1074"]},
+    {"type": "multi_doc", "question": "What rate limit was introduced after the March 3, 2026 payments-api latency incident?", "answer": "50 requests per second per merchant, HTTP 429 above it (CHG-1036)", "gold": ["INC-304", "CHG-1036"]},
+    {"type": "multi_doc", "question": "What emergency change did the notifications team make during the March 12 outage, and when was the webhook backlog cleared?", "answer": "CHG-1045 scaled notification workers from 8 to 24 at 15:05 UTC; the backlog was cleared by 16:30 UTC", "gold": ["CHG-1045", "INC-306"]},
+    {"type": "multi_doc", "question": "What safeguard was added to the ledger after the March 12 outage, and what pool size does the runbook expect?", "answer": "CHG-1047 rejects max_connections below 100; RB-03 says max_connections is 200", "gold": ["CHG-1047", "RB-03"]},
+    {"type": "multi_doc", "question": "How was the slow report export problem of February 24, 2026 fixed?", "answer": "CHG-1025 moved report exports to background jobs that email a download link", "gold": ["INC-203", "CHG-1025"]},
+    {"type": "multi_doc", "question": "Which ledger database maintenance windows were announced for March and April 2026, and what was done in each?", "answer": "2026-03-02 02:00-03:00 UTC, Postgres 16.3 to 16.4 upgrade (CHG-1030); 2026-04-06 01:00 UTC, failover test (CHG-1066)", "gold": ["STS-210", "STS-306", "CHG-1030", "CHG-1066"]},
+    {"type": "multi_doc", "question": "What did the Risk team deploy after rolling back fraud-scorer v3.4, and how was it released?", "answer": "Model v3.5 in shadow mode for 7 days (CHG-1058)", "gold": ["CHG-1058", "INC-201"]},
+    {"type": "multi_doc", "question": "How did the April 6, 2026 ledger-db failover test compare with the failover runbook's target?", "answer": "It completed in 41 seconds, within the runbook's target of under 60 seconds", "gold": ["CHG-1066", "RB-11"]},
+    {"type": "multi_doc", "question": "What alerting was added after the April 22, 2026 fraud-scorer feature store incident?", "answer": "CHG-1080: an alert when the feature store consumer lag is above 2 minutes", "gold": ["INC-403", "CHG-1080"]},
+    {"type": "multi_hop", "question": "Who deployed the change that caused the March 12, 2026 outage, and at what time?", "answer": "Sara Haddad, at 13:55 UTC (CHG-1042)", "gold": ["INC-301", "CHG-1042"]},
+    {"type": "multi_hop", "question": "Which runbook covers the failure behind the March 12, 2026 outage, and which metric does it watch?", "answer": "RB-03, ledger_pool_in_use (above 90%)", "gold": ["INC-301", "RB-03"]},
+    {"type": "multi_hop", "question": "Who approved the change that caused the April 7, 2026 merchant portal login outage?", "answer": "Hannah Kim", "gold": ["INC-401", "CHG-1068"]},
+    {"type": "contradictory", "contradiction": "C01", "question": "When did the March 12, 2026 card payment outage begin?"},
+    {"type": "contradictory", "contradiction": "C02", "question": "Was the March 12, 2026 outage caused by Acme's own systems or by the card network?"},
+    {"type": "contradictory", "contradiction": "C03", "question": "How many merchants were affected by the March 12, 2026 outage?"},
+    {"type": "contradictory", "contradiction": "C05", "question": "Who approved change CHG-1042?"},
+    {"type": "contradictory", "contradiction": "C06", "question": "How many webhooks were delayed because of the March 12, 2026 outage?"},
+    {"type": "contradictory", "contradiction": "C07", "question": "At what time was fraud-scorer model v3.4 deployed on January 21, 2026?"},
+    {"type": "contradictory", "contradiction": "C08", "question": "What was the peak card decline rate during the January 21, 2026 fraud-scorer incident?"},
+    {"type": "contradictory", "contradiction": "C09", "question": "How long did the February 9, 2026 webhook delivery outage last?"},
+    {"type": "contradictory", "contradiction": "C10", "question": "Was change CHG-1055 rolled back?"},
+    {"type": "contradictory", "contradiction": "C11", "question": "What timeout does card-gateway use for NorthBank authorization requests?"},
+    {"type": "contradictory", "contradiction": "C12", "question": "At what time was change CHG-1068 deployed?"},
+    {"type": "contradictory", "contradiction": "C13", "question": "How many ledger entries were affected by the April 2026 settlement import bug?"},
+    {"type": "unanswerable", "gap": "G01", "question": "How much revenue did Acme lose because of the March 12, 2026 outage?"},
+    {"type": "unanswerable", "gap": "G02", "question": "Did Acme give SLA credits to the merchants affected by the March 12, 2026 outage?"},
+    {"type": "unanswerable", "gap": "G03", "question": "Why did fraud-scorer model v3.4 decline so many legitimate payments?"},
+    {"type": "unanswerable", "gap": "G04", "question": "What was NorthBank's technical root cause for the March 26, 2026 3-D Secure failures?"},
+    {"type": "unanswerable", "gap": "G05", "question": "How many merchants could not log in during the April 7, 2026 merchant portal outage?"},
+    {"type": "unanswerable", "gap": "G06", "question": "Which engineer renewed the expired webhook certificate on February 9, 2026?"},
+    {"type": "simple", "question": "What per-merchant rate limit does payments-api enforce?", "answer": "50 requests per second", "gold": ["CHG-1036", "RB-02"]},
+    {"type": "simple", "question": "What was the availability of payments-api in March 2026?", "answer": "99.82%", "gold": ["STS-320"]},
+    {"type": "simple", "question": "Which version of the 3-D Secure library did CHG-1055 install?", "answer": "2.4.1", "gold": ["CHG-1055"]},
+    {"type": "simple", "question": "At what time does the daily ledger reconciliation run?", "answer": "02:00 UTC", "gold": ["RB-04", "INC-402"]},
+    {"type": "simple", "question": "How many times does notifications retry a failed webhook delivery?", "answer": "8 retries over 24 hours", "gold": ["CHG-1061"]},
+    {"type": "simple", "question": "Which email provider sends Acme's merchant notification emails?", "answer": "MailRelay", "gold": ["CHG-1040"]}
+  ]
+}

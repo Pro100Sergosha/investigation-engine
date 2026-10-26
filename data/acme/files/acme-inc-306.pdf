@@ -1,0 +1,72 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [6 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Title (Incident report: webhook backlog after the 2026-03-12 outage) /Author (Acme Payments) /CreationDate (D:20260313000000+00'00') >>
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 2892 >>
+stream
+BT /F2 16 Tf 56 766 Td (Incident report: webhook backlog after the 2026-03-12 outage) Tj ET
+BT /F1 10 Tf 56 746 Td (Document: INC-306) Tj ET
+BT /F1 10 Tf 56 726 Td (Date: 2026-03-13) Tj ET
+BT /F1 10 Tf 56 706 Td (Services: notifications) Tj ET
+BT /F2 12 Tf 56 684 Td (Summary) Tj ET
+BT /F1 10 Tf 56 664 Td (During the March 12, 2026 outage, the notifications service experienced a significant backlog) Tj ET
+BT /F1 10 Tf 56 650 Td (of merchant webhooks. Payment events queued up faster than the notification workers could) Tj ET
+BT /F1 10 Tf 56 636 Td (process them. The Merchant Experience team scaled the notification worker fleet in response,) Tj ET
+BT /F1 10 Tf 56 622 Td (clearing the backlog within approximately 90 minutes.) Tj ET
+BT /F2 12 Tf 56 600 Td (Impact) Tj ET
+BT /F1 10 Tf 56 580 Td (A total of 26,900 webhooks were delayed during and after the outage. Merchants experienced) Tj ET
+BT /F1 10 Tf 56 566 Td (delayed notifications about payment events, which affected their ability to reconcile) Tj ET
+BT /F1 10 Tf 56 552 Td (transactions and update order statuses in real time. The backlog persisted until worker) Tj ET
+BT /F1 10 Tf 56 538 Td (capacity was increased.) Tj ET
+BT /F2 12 Tf 56 516 Td (Timeline) Tj ET
+BT /F1 10 Tf 56 496 Td (- 15:05 UTC: Notification workers scaled up via CHG-1045) Tj ET
+BT /F1 10 Tf 56 476 Td (- 16:30 UTC: Webhook backlog cleared) Tj ET
+BT /F1 10 Tf 56 456 Td (For details on the broader outage context, see INC-301.) Tj ET
+BT /F2 12 Tf 56 434 Td (Root Cause) Tj ET
+BT /F1 10 Tf 56 414 Td (The notifications service depends on the payments-api and ledger services to emit payment) Tj ET
+BT /F1 10 Tf 56 400 Td (events. When these services experienced issues during the March 12 outage, payment events) Tj ET
+BT /F1 10 Tf 56 386 Td (continued to be generated but the notification workers could not keep pace with the queue) Tj ET
+BT /F1 10 Tf 56 372 Td (depth. The worker fleet size was insufficient to handle the event volume during recovery.) Tj ET
+BT /F2 12 Tf 56 350 Td (Resolution) Tj ET
+BT /F1 10 Tf 56 330 Td (Hannah Kim and the Merchant Experience team executed CHG-1045 to scale the notification workers) Tj ET
+BT /F1 10 Tf 56 316 Td (from 8 to 24 instances at 15:05 UTC. This increase in capacity allowed the service to process) Tj ET
+BT /F1 10 Tf 56 302 Td (the accumulated webhooks. The backlog was fully cleared by 16:30 UTC.) Tj ET
+BT /F2 12 Tf 56 280 Td (Follow-up Actions) Tj ET
+BT /F1 10 Tf 56 260 Td (- Review RB-07 to ensure webhook backlog procedures are current and effective) Tj ET
+BT /F1 10 Tf 56 240 Td (- Evaluate baseline notification worker capacity to prevent similar backlogs during future) Tj ET
+BT /F1 10 Tf 56 226 Td (  incidents) Tj ET
+BT /F1 10 Tf 56 206 Td (- Consider implementing automated scaling policies for the notifications service based on) Tj ET
+BT /F1 10 Tf 56 192 Td (  queue depth thresholds) Tj ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000212 00000 n 
+0000000314 00000 n 
+0000000469 00000 n 
+0000000605 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R /Info 5 0 R >>
+startxref
+3549
+%%EOF

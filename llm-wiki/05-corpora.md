@@ -99,4 +99,58 @@ deleted and the corpus reloaded with Cohere ([14 Known gaps](14-known-gaps.md)).
 
 ## Acme (synthetic)
 
-Arrives in wave 3 (`acme` job, `scripts/gen_acme.py`, `data/acme/GROUND_TRUTH.md`).
+A fictional European payment processor, "Acme Payments", January-April 2026, for the questions
+HotpotQA cannot ask: investigations across documents, planted contradictions, missing facts
+([ADR 0026](adr/0026-acme-corpus-spec-driven-generation.md)). Six services (`payments-api`,
+`ledger`, `card-gateway`, `fraud-scorer`, `notifications`, `merchant-portal`), 14 people, the
+acquiring bank NorthBank. The centre is the task's own example: the card payment outage of
+**2026-03-12** (`CHG-1042` cut the ledger connection pool from 200 to 20), told by a postmortem,
+the change record, a preliminary report blaming NorthBank, a webhook backlog report, an
+emergency change, a follow-up change, a runbook and the public status page, which disagree.
+
+| | |
+|---|---|
+| documents | **64**: 11 incident reports (PDF), 28 change records (Markdown), 12 runbooks (DOCX), 13 status page entries (HTML); routine changes and maintenance notices are filler so retrieval is not trivial |
+| planted contradictions | **14** (start and end time, root cause, merchant and webhook counts, approver, deploy times, durations, a stale runbook timeout, rolled back or not, ...) |
+| gaps | **6** facts absent from every document (lost revenue, SLA credits, ...) |
+| questions | **42**: 15 multi_doc, 3 multi_hop, 12 contradictory, 6 unanswerable, 6 simple |
+| generation cost | 95 Haiku calls over four runs (64 documents, 22 retries, 9 after spec fixes), ~99k input + ~31k output tokens, **$0.28** ([ADR 0026](adr/0026-acme-corpus-spec-driven-generation.md)) |
+
+**Files** (`data/acme/`):
+
+| Path | What |
+|---|---|
+| `spec.json` | the hand-written scenario: company, documents (id, date, services, title, summary, required facts, references), contradictions, gaps, questions. The single source of truth |
+| `files/acme-<kind>-<id>.<ext>` | the corpus, e.g. `acme-inc-301.pdf`, `acme-chg-1042.md`, `acme-rb-03.docx`, `acme-sts-301.html` |
+| `.gitattributes` | `files/** -text`: the files are kept byte for byte (the PDFs are pure ASCII; CRLF on a Windows checkout would break their xref offsets) |
+| `GROUND_TRUTH.md` | generated from the spec: documents table, every contradiction with its values, every gap, question -> answer -> gold documents |
+| `questions.jsonl` | generated from the spec, the eval runner's input: `{"id": "acme-001", "question", "type", "answer" (null if unanswerable), "gold_sources": ["upload:acme-inc-301.pdf", ...]}`; a contradictory question's gold sources are the conflicting documents |
+
+**How it is generated** (`make acme`, CodeBuild `TARGET=acme`, `scripts/gen_acme.py`):
+1. `validate(spec)`: ids `INC|CHG|RB|STS-<digits>` unique, known services and references, each
+   contradiction value is a required fact of its document and the values differ, gold
+   documents exist, unanswerable questions have neither gold nor answer.
+2. Labels written from the spec (`make acme-labels` does only this, no AWS).
+3. Per document, one Haiku call through `llm.converse` (cached in Postgres): a system prompt with
+   the company, the rules (copy each required fact exactly, add no new times, numbers, people,
+   ids or causes, never mention the gaps) and the kind's shape; a user prompt with the document's
+   spec. 7 s between uncached calls (Haiku: 10 requests/min, shared).
+4. Render: title, `Document: <id>`, `Date:` and `Services: a, b` lines from the spec, then the
+   model's body (`##` headings, paragraphs, bullets), sanitized to ASCII. Markdown and HTML with
+   the standard library, DOCX with python-docx (title in the Title style and core properties,
+   creation date), PDF with a small hand-written writer (Helvetica, title and creation date in
+   the Info dictionary).
+5. **Check:** parse the file with `engine.parsers.parse` and require every fact and every
+   referenced id in the extracted text (case- and whitespace-insensitive); the words listed for
+   the gaps must be absent. One retry with the problems named; then the job fails listing the
+   documents.
+6. Upload `files/`, the labels and the spec to `s3://$BUCKET/jobs/acme/` (inert prefix). The
+   files are downloaded and committed; tests re-check every committed file against the spec.
+7. Read the files: the check proves the planted facts are present, not that nothing else was
+   invented. The first run's review found invented times in INC-306 and STS-401 and a leaked
+   gap in INC-201; their summaries now pin them.
+
+**Load:** `make acme-load` (CodeBuild `TARGET=acme-load`) copies `data/acme/files/` to
+`s3://$BUCKET/uploads/`: `ingest` parses and indexes each file like a UI upload, with
+`source = upload:<file name>`, the form `gold_sources` uses. Re-running it is harmless (same
+content hash -> skipped).
