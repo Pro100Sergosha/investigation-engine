@@ -49,7 +49,7 @@ LLM / RAG
 - [x] answers grounded in evidence, sources + citations — citation validator (#14) in the agent, `POST /ask` returns claims with cited `sources` (#27), checked on the public URL
 - [ ] contradiction detection attempt — partial: `conflicting` status (#14), the agent prompt asks to compare sources and report contradictions citing >= 2 documents (#27), 14 planted contradictions and 12 questions (#28); Acme not indexed yet, not measured
 - [ ] abstain when information is insufficient — partial: `insufficient` status (#14), the agent abstains on no evidence, model errors and its 80 s deadline (#27); not measured on unanswerable questions
-- [ ] LLM error/limit handling (timeouts, 429, malformed output) — partial: `llm.py` retry, fallback, cache (#20); agent deadline, forced final answer, reprompt on malformed output, Bedrock errors -> `insufficient` (#27); Haiku `eu.*` -> `global.*` -> gpt-oss and a bounded query-embedding client (#PR, ADR 0028); not measured under load
+- [ ] LLM error/limit handling (timeouts, 429, malformed output) — partial: `llm.py` retry, fallback, cache (#20); agent deadline, forced final answer, reprompt on malformed output, Bedrock errors -> `insufficient` (#27); Haiku `eu.*` -> `global.*` -> gpt-oss and a bounded query-embedding client (#29, ADR 0028); not measured under load
 - [x] >= 1 tool-calling mechanism — Converse tools `search`, `get_document`, `final_answer` in `agent.py` (#27), deployed
 
 Evaluation
