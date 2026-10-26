@@ -24,7 +24,7 @@ prompt-cache tokens (#37: `agent` ~$0.016 per question, ~3x single-shot). The UI
 the public URL on 10-26: upload, duplicate, update, delete, metadata, a question with its source.
 The short-answer fix was dropped: the traces show it could win at most 2 of 25 EM points.
 **Behind:** nothing; the mandatory part is done except the author's sections of AI_USAGE.md.
-Open Function URL protected (#PR, ADR 0030; live after merge): seed corpus read-only, admin
+Open Function URL protected (#39, ADR 0030; live after merge): seed corpus read-only, admin
 token in SSM, daily caps on `/ask` and uploads. Next: optional fixes from
 EVALUATION.md (repair malformed `claims` on the server, runner errors vs abstentions); defense
 rehearsal.
@@ -370,7 +370,7 @@ prompt-injection tests (plant malicious text in a doc) and the 512 vs 1024 embed
 - **Lambda cold start** (container pull, no model any more, ~1-2 s) plus Aurora resume. Document first-request latency. Provisioned concurrency costs money, not used.
 - **Credits and Free-plan expiry.** $100 total, the account closes on 2027-04-24 or when credits run out. Haiku in repeated eval sweeps is the main spend: cache everything, check spend in Billing.
 - **Public Function URL (auth `NONE`)**: anyone could delete the seed corpus or loop `POST /ask`
-  into the credits. Mitigation (#PR, ADR 0030): seed documents read-only (403), admin token
+  into the credits. Mitigation (#39, ADR 0030): seed documents read-only (403), admin token
   `x-admin-token` from SSM, 150 uncached `/ask` LLM calls and 50 upload URLs per UTC day (429),
   5 MB signed upload size, reserved concurrency 4. Left: the caps are global, one abuser blocks
   the day for reviewers (the admin token still works).
