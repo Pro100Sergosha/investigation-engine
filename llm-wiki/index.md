@@ -29,7 +29,7 @@ repository root, [README](../README.md), [EVALUATION](../EVALUATION.md) and
 | LLM calls, the agent, citations | [ADR 0017](adr/0017-bedrock-claude-haiku-llm.md), [ADR 0023](adr/0023-llm-client-own-retry-fallback-cache.md), [ADR 0005](adr/0005-agent-loop-with-citation-validation.md), [ADR 0025](adr/0025-agent-loop-seeded-forced-deadline.md), [ADR 0028](adr/0028-haiku-global-pool-before-gpt-oss.md) |
 | Datasets, Acme corpus, ingestion, jobs | [05 Corpora](05-corpora.md), [ADR 0006](adr/0006-hotpotqa-plus-synthetic-acme-corpus.md), [ADR 0026](adr/0026-acme-corpus-spec-driven-generation.md), [ADR 0018](adr/0018-cloud-only-ingestion-and-jobs.md), [ADR 0022](adr/0022-cohere-embed-v4-batched.md) |
 | Shared types or stream interfaces | [02 Architecture](02-architecture.md#contracts), [ADR 0014](adr/0014-shared-contracts-parallel-streams.md), `src/engine/models.py` |
-| The UI, HTTP routes | [04 API contract](04-api-contract.md) |
+| The UI, HTTP routes, API protection | [04 API contract](04-api-contract.md), [ADR 0030](adr/0030-read-only-seed-admin-token-daily-caps.md) |
 | Evaluation: questions, metrics, the runner, results | [09 Evaluation](09-evaluation.md), [ADR 0027](adr/0027-eval-runner-retrieval-sweep-qwen-judge.md), `eval/metrics.py` |
 | Something does not work yet or is temporary | [14 Known gaps](14-known-gaps.md) |
 
@@ -58,7 +58,7 @@ old one, and the old one gets `status: superseded` and `superseded_by: 00XX`. Te
 | [0005](adr/0005-agent-loop-with-citation-validation.md) | Own agent loop with tool calling and server-side citation validation |
 | [0006](adr/0006-hotpotqa-plus-synthetic-acme-corpus.md) | HotpotQA for scale and labels, synthetic Acme corpus for investigation |
 | [0007](adr/0007-serverless-lambda-no-vpc-public-rds.md) | Serverless on AWS, Lambdas outside a VPC, publicly reachable RDS. **Superseded by 0015** |
-| [0008](adr/0008-function-url-not-api-gateway.md) | Lambda Function URL instead of API Gateway, UI served by the same Lambda |
+| [0008](adr/0008-function-url-not-api-gateway.md) | Lambda Function URL instead of API Gateway, UI served by the same Lambda (protection part replaced by 0030) |
 | [0009](adr/0009-one-container-image-for-all-lambdas.md) | One container image for all Lambdas, x86_64. **Superseded by 0016** |
 | [0010](adr/0010-cdk-single-production-environment.md) | CDK in Python, production as the only environment (stack layout replaced by 0020) |
 | [0011](adr/0011-free-plan-aws-project.md) | A Free-plan AWS project in eu-north-1, accessed with `aws login` |
@@ -80,3 +80,4 @@ old one, and the old one gets `status: superseded` and `superseded_by: 00XX`. Te
 | [0027](adr/0027-eval-runner-retrieval-sweep-qwen-judge.md) | Own eval runner: retrieval sweep without an LLM, Qwen3 judge, Haiku pacing, results via S3 |
 | [0028](adr/0028-haiku-global-pool-before-gpt-oss.md) | Haiku falls back to its `global.*` pool before gpt-oss; a bounded client for query embeddings |
 | [0029](adr/0029-weighted-rrf-min-max-mmr-fixed-chunks.md) | Weighted RRF (k0=10, keyword at 0.5), min-max MMR relevance, fixed chunks by default, tuned by the retrieval eval |
+| [0030](adr/0030-read-only-seed-admin-token-daily-caps.md) | Public API: seed corpus read-only, admin token (`x-admin-token`, SSM SecureString), daily caps on `/ask` LLM calls and uploads, 5 MB signed upload size (replaces the protection part of 0008) |

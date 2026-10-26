@@ -24,7 +24,8 @@ prompt-cache tokens (#37: `agent` ~$0.016 per question, ~3x single-shot). The UI
 the public URL on 10-26: upload, duplicate, update, delete, metadata, a question with its source.
 The short-answer fix was dropped: the traces show it could win at most 2 of 25 EM points.
 **Behind:** nothing; the mandatory part is done except the author's sections of AI_USAGE.md.
-Next: protect the open Function URL (anyone can delete documents); optional fixes from
+Open Function URL protected (#PR, ADR 0030; live after merge): seed corpus read-only, admin
+token in SSM, daily caps on `/ask` and uploads. Next: optional fixes from
 EVALUATION.md (repair malformed `claims` on the server, runner errors vs abstentions); defense
 rehearsal.
 
@@ -163,7 +164,7 @@ Each decision has an ADR in [llm-wiki/adr/](llm-wiki/adr/) with context, cost an
 | CI/CD | GitHub Actions `make check` on PRs; CodeBuild (via CodeConnections) comments `cdk diff` on PRs and deploys `main` | GitHub OIDC is denied by the Free-plan SCP (`iam:*Provider*`); see llm-wiki ADR 0012. |
 | Observability | JSON log line per request (route, latency, tokens, LLM model, cache hit) in CloudWatch Logs; no custom metrics | Free tier; custom metrics cost $0.30 each (binadar's lesson). Logs Insights for analysis. |
 | Tagging | `Project=investigation-engine` on the CDK app, activated as a cost allocation tag | Spend visible in Cost Explorer. |
-| Secrets | No database password (IAM auth tokens, ADR 0021); GitHub token in SSM Parameter Store `SecureString` | Not in code, not in the image, not in plain Lambda env vars. No LLM API keys at all (Bedrock uses IAM). |
+| Secrets | No database password (IAM auth tokens, ADR 0021); GitHub token and the public API's admin token (ADR 0030) in SSM Parameter Store `SecureString` | Not in code, not in the image, not in plain Lambda env vars. No LLM API keys at all (Bedrock uses IAM). |
 | Region | `eu-north-1` (Stockholm) | Fixed by the AWS project: all Regional resources must live there. |
 | Tooling | Python 3.12, uv, ruff, pytest, boto3, AWS CDK (Node); Docker only inside CodeBuild | The laptop needs git and `aws login`, nothing else. |
 
@@ -368,6 +369,11 @@ prompt-injection tests (plant malicious text in a doc) and the 512 vs 1024 embed
 - **Defense without AI**. Keep code small and own; no framework magic you cannot rewrite on paper.
 - **Lambda cold start** (container pull, no model any more, ~1-2 s) plus Aurora resume. Document first-request latency. Provisioned concurrency costs money, not used.
 - **Credits and Free-plan expiry.** $100 total, the account closes on 2027-04-24 or when credits run out. Haiku in repeated eval sweeps is the main spend: cache everything, check spend in Billing.
+- **Public Function URL (auth `NONE`)**: anyone could delete the seed corpus or loop `POST /ask`
+  into the credits. Mitigation (#PR, ADR 0030): seed documents read-only (403), admin token
+  `x-admin-token` from SSM, 150 uncached `/ask` LLM calls and 50 upload URLs per UTC day (429),
+  5 MB signed upload size, reserved concurrency 4. Left: the caps are global, one abuser blocks
+  the day for reviewers (the admin token still works).
 - **Infra ate day 1.** Streams start on day 2 with one day less of buffer.
 
 Closed on 2026-10-24: Bedrock blocked during account verification (quotas opened by themselves);

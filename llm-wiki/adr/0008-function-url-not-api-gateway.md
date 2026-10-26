@@ -3,7 +3,7 @@ title: Lambda Function URL instead of API Gateway, UI served by the same Lambda
 status: accepted
 date: 2026-10-24
 supersedes: none
-superseded_by: none
+superseded_by: 0030 (protection only: read-only seed corpus, admin token, daily caps in the api)
 ---
 
 # ADR 0008: Lambda Function URL instead of API Gateway, UI served by the same Lambda
