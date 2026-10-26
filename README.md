@@ -29,7 +29,7 @@ Question `acme-022` from the evaluation set, `agent` configuration, run of 2026-
 | `answer` | "Oskar Lind or Ravi Patel" |
 | `contradictions` | "CHG-1042 approval: The change document states it was approved by Oskar Lind, lead of the Ledger team, but the postmortem INC-301 states it was approved by Ravi Patel." Cites chunks from `upload:acme-chg-1042.md` and `upload:acme-inc-301.pdf` |
 | gold answer | "conflicting: Oskar Lind (CHG-1042) vs Ravi Patel (INC-301)" |
-| work done | 2 searches, 2 Haiku calls, 11.8 s, $0.0022 |
+| work done | 2 searches, 2 Haiku calls, 11.8 s, $0.019 |
 
 The two sources are a Markdown change record and a PDF postmortem. The contradiction is a
 planted one ([data/acme/GROUND_TRUTH.md](data/acme/GROUND_TRUTH.md)).
@@ -143,7 +143,7 @@ Each row has an ADR with context, costs and rejected alternatives. The table is 
 | Bedrock only: Claude Haiku 4.5 agent, gpt-oss-120b fallback, Qwen3-235B judge | IAM instead of API keys, paid from credits, reliable tool calling; judge from another model family | [0017](llm-wiki/adr/0017-bedrock-claude-haiku-llm.md) |
 | One LLM client with its own retry, fallback and Postgres cache | only the client knows when retries are exhausted; reruns are served from the cache | [0023](llm-wiki/adr/0023-llm-client-own-retry-fallback-cache.md) |
 | Haiku `global.*` pool before gpt-oss | `eu.*` failed for every call on 2026-10-26; a second pool doubles the 10 requests/min quota | [0028](llm-wiki/adr/0028-haiku-global-pool-before-gpt-oss.md) |
-| Cohere Embed V4, 96 texts per request; failed ingest events in SQS | 96 texts per request load the corpus in ~35-40 min instead of ~18 h with Titan | [0022](llm-wiki/adr/0022-cohere-embed-v4-batched.md) |
+| Cohere Embed V4, 96 texts per request; failed ingest events in SQS | 96 texts per request loaded the corpus in ~65 min instead of ~18 h estimated with Titan | [0022](llm-wiki/adr/0022-cohere-embed-v4-batched.md) |
 | Aurora Serverless v2, scales to 0 ACU | idle cost is storage only, so the credits last until the interview | [0015](llm-wiki/adr/0015-aurora-serverless-data-api.md) |
 | Aurora express configuration with IAM-token connections | the only Aurora the Free plan creates: no VPC, no password, no secret | [0021](llm-wiki/adr/0021-aurora-express-iam-auth.md) |
 | Lambda Function URL, UI served by the same Lambda | API Gateway cuts requests at 30 s, the agent can take longer; same origin, no CORS | [0008](llm-wiki/adr/0008-function-url-not-api-gateway.md) |
@@ -329,22 +329,23 @@ Measured costs:
 |---|---|---|
 | Embedding the corpus once (Cohere) | ~$1.3 | [llm-wiki/05](llm-wiki/05-corpora.md) |
 | Generating the Acme corpus (95 Haiku calls) | $0.28 | [llm-wiki/05](llm-wiki/05-corpora.md) |
-| Eval `agent`, 72 questions, current prompt | $0.38 | [llm-wiki/09](llm-wiki/09-evaluation.md#results) |
-| Eval `agent`, prompt of #31, first uncached run | $0.41 (~$0.006 per question) | [llm-wiki/09](llm-wiki/09-evaluation.md#pacing-and-cost) |
-| Eval `agent-structured` | $0.56 | same |
-| Eval `single-shot` | $0.37 | same |
+| Eval `agent`, 72 questions | $1.16 (~$0.016 per question) | [llm-wiki/09](llm-wiki/09-evaluation.md#pacing-and-cost) |
+| Eval `agent-structured` | $1.08 (~$0.015 per question) | same |
+| Eval `single-shot` | $0.37 (~$0.005 per question) | same |
 | Eval `retrieval` | ~$0 (Cohere, a few thousand tokens) | same |
 | Judge | ~$0.0001 per question | same |
 
-Eval costs include the judge and count uncached calls only.
+Eval costs include the judge, count uncached calls only, and price Bedrock prompt-cache tokens
+(writes at 1.25x, reads at 0.1x the input price). The agent loop costs ~3x single-shot per
+question.
 
 ## Performance
 
 | What | Number | Source |
 |---|---|---|
-| Bulk load of 66,555 HotpotQA documents | expected ~35-40 min, bound by the Cohere pool (~700 requests of 96 texts); the real load's documents were created between 17:29 and 18:34 UTC on 2026-10-25 | [ADR 0022](llm-wiki/adr/0022-cohere-embed-v4-batched.md), [llm-wiki/05](llm-wiki/05-corpora.md) |
+| Bulk load of 66,555 HotpotQA documents | ~65 min, measured: documents created between 17:29 and 18:34 UTC on 2026-10-25. Bound by the Cohere pool (~700 requests of 96 texts); the estimate beforehand was ~35-40 min | [llm-wiki/05](llm-wiki/05-corpora.md), [ADR 0022](llm-wiki/adr/0022-cohere-embed-v4-batched.md) |
 | Database write | ~0.03 s per document | [llm-wiki/05](llm-wiki/05-corpora.md) |
-| Eval build time (72 questions) | `retrieval` ~5 min, `agent` 22 min, `agent-structured` 19 min, `single-shot` 9 min | [llm-wiki/09](llm-wiki/09-evaluation.md#pacing-and-cost) |
+| Eval build time (72 questions) | `retrieval` ~5 min, `agent-structured` 19 min, `single-shot` 9 min; `agent` with the current prompt not recorded (22 min with the prompt of #31) | [llm-wiki/09](llm-wiki/09-evaluation.md#pacing-and-cost) |
 | Prompt cache | steps 3-6 of a run read the history from the cache, ~35% cheaper per question | [llm-wiki/14](llm-wiki/14-known-gaps.md) |
 
 `ask` latency per configuration, seconds, 72 questions
