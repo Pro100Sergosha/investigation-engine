@@ -42,7 +42,7 @@ Ingestion
 Search
 - [x] vector DB, embeddings, semantic search — Aurora + pgvector (#8, #10), Cohere Embed V4 (#19, #24), writes (#22), dense search (#23); 66,555 documents loaded, used by `POST /ask` on the public URL (#27)
 - [x] hybrid search (semantic + keyword) — dense + OR keyword + RRF in `search.py` (#23), the agent's default mode over the loaded corpus (#27); quality measured by the `retrieval` eval (#26, not run yet)
-- [x] >= 1 own ranking/search algorithm (not only library calls) — RRF + MMR with per-document cap (#5), `search.py` mode `mmr` (#23), the agent's default over the loaded corpus (#27); weighted RRF and min-max MMR tuned by the retrieval eval (#PR, ADR 0029)
+- [x] >= 1 own ranking/search algorithm (not only library calls) — RRF + MMR with per-document cap (#5), `search.py` mode `mmr` (#23), the agent's default over the loaded corpus (#27); weighted RRF and min-max MMR tuned by the retrieval eval (#30, ADR 0029)
 
 LLM / RAG
 - [x] RAG, multi-document synthesis, multi-step handling of complex questions — `agent.ask` loop with seeded search and sub-searches (#27); `POST /ask` on the public URL answered a HotpotQA comparison question (2 steps, 37 s, 2026-10-26)
