@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install lint fmt test check synth diff diff-pr deploy verify smoke dataset dataset-stats acme acme-labels acme-load redrive-ingest diff-cicd deploy-cicd bootstrap
+.PHONY: help install lint fmt test check synth diff diff-pr deploy verify smoke dataset dataset-stats acme acme-labels acme-load redrive-ingest eval diff-cicd deploy-cicd bootstrap
 
 # CLI pinned here, library pinned in uv.lock. npx downloads it once and caches it.
 CDK := npx --yes aws-cdk@2.1146.1
@@ -84,6 +84,10 @@ acme-load:  ## Job: copy data/acme/files/ to s3://$BUCKET/uploads/ (ingest index
 
 redrive-ingest:  ## Job: rerun the ingest events in the IngestFailures queue (Lambda gave up)
 	uv run python scripts/redrive_ingest.py --queue-url $$INGEST_FAILURES_QUEUE --function $$INGEST_FUNCTION
+
+# CONFIG: retrieval (no LLM) | agent | agent-fixed | single-shot; LIMIT=N for a dry run.
+eval:  ## Job: run the eval set in CONFIG -> s3://$BUCKET/jobs/eval/<config>.json
+	uv run python -m eval.run --config $(CONFIG) --bucket $$BUCKET $(if $(LIMIT),--limit $(LIMIT))
 
 diff-cicd:  ## Show what deploy-cicd would change
 	cd cdk && $(CDK) diff Investigation-Cicd-prod

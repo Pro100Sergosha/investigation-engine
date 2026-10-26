@@ -1,5 +1,6 @@
 """Embeddings: Bedrock Cohere Embed V4 through the eu.* profile, 96 texts per request (ADR 0022)."""
 
+import functools
 import json
 
 import boto3
@@ -31,6 +32,10 @@ def embed_documents(texts: list[str]) -> list[list[float]]:
     return vectors
 
 
+# Memoized: the eval's retrieval sweep searches each question 6 times (2 strategies x 3 modes)
+# and the agent may repeat a query; one request per distinct text saves the shared Cohere pool.
+# 256 vectors are ~8 MB. Every caller gets the same list object: read it, never mutate it.
+@functools.lru_cache(maxsize=256)
 def embed_query(text: str) -> list[float]:
     """The vector of a search query (`search_query`), comparable with `embed_documents`."""
     return _embed([text], "search_query")[0]

@@ -12,9 +12,9 @@ owner: Pro100Sergosha
 Wave 2 (2026-10-25): the `api` Lambda serves the page and the document routes (llm-wiki/04);
 `ingest` parses, dedups, chunks, embeds (Cohere Embed V4, 96 texts per request) and stores every
 object put under `uploads/` or `bulk/`, and keeps the events it gave up on in an SQS queue; `search.py` runs dense + keyword -> RRF -> MMR; `llm.py` is the Bedrock client.
-Wave 3 (2026-10-26): `agent.ask` (tool-calling loop, ADR 0025) behind `POST /ask`. Not built:
-the Acme corpus, the evaluation runner. Everything marked *(planned)* is decided (see the ADRs)
-but not built.
+Wave 3 (2026-10-26): `agent.ask` (tool-calling loop, ADR 0025) behind `POST /ask`; the Acme corpus
+(`data/acme/`, ADR 0026); the evaluation runner (`eval/run.py`, [09 Evaluation](09-evaluation.md),
+built, not run yet). Everything marked *(planned)* is decided (see the ADRs) but not built.
 
 ## Contracts
 
@@ -31,7 +31,7 @@ the specification, with `NotImplementedError` bodies until their wave owners imp
 | `build_answer(raw, retrieved) -> Answer` | `grounding.py` | the citation validator and the status rules; passes the model's short `answer` through, "" when insufficient |
 | recall@k, reciprocal rank, EM, F1, citation precision, abstention P/R, contradiction P/R | `eval/metrics.py` | gold labels are document sources, not database ids |
 | `normalize`, `content_hash` | `index.py` | implemented: the dataset job and `ingest` must dedup identically |
-| `embed_documents(texts) -> list[list[float]]`, `embed_query(text) -> list[float]` | `embed.py` | implemented: Cohere Embed V4 (`eu.*` profile), 1024 floats of unit length, 96 texts per request (`search_document`), queries as `search_query`, adaptive retry on throttling |
+| `embed_documents(texts) -> list[list[float]]`, `embed_query(text) -> list[float]` | `embed.py` | implemented: Cohere Embed V4 (`eu.*` profile), 1024 floats of unit length, 96 texts per request (`search_document`), queries as `search_query` (memoized, 256 texts: the shared list must not be mutated), adaptive retry on throttling |
 | `upsert_many(docs) -> [(status, id)]`, `upsert(doc)`, `delete(id)` | `index.py` | implemented: dedup checks of the whole batch before any embedding (also within the batch), the distinct inputs of all docs to write embedded in one go, one transaction per doc; `upsert(doc)` is `upsert_many([doc])[0]`; chunks embedded as `<title>\n\n<chunk>` |
 | `search(query, k, strategy, mode)`, `get_document`, `list_documents`, `document_detail`, `get_chunks`, `document_chunks` | `search.py` | implemented, `k` 1-40: `mode` is `dense`, `hybrid` (RRF) or `mmr` (RRF + MMR), the evaluated configurations; `document_chunks(id, strategy)` serves the agent's `get_document` tool |
 | `converse(system, messages, tools, model, max_tokens, use_cache, tool_choice, deadline, cache_history) -> dict` | `llm.py` | implemented: retry, Haiku -> gpt-oss fallback, Postgres cache (ADR 0023); `deadline` stops retries and the fallback when a whole attempt (35 s) no longer fits (ADR 0025) |
@@ -74,7 +74,7 @@ browser ──HTTPS──> Lambda Function URL ──> api Lambda (container ima
                                                   gave up after 2 retries -> SQS IngestFailures
 
 CodeBuild investigation-jobs: dataset (HotpotQA shards -> S3 -> ingest) | redrive-ingest
-                              (IngestFailures -> ingest) | acme, eval (planned)
+                              (IngestFailures -> ingest) | eval CONFIG=... (llm-wiki/09) | acme, acme-load
 ```
 
 ## Data flow
