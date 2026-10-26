@@ -26,7 +26,7 @@ judge spot-check of ~10 verdicts; UI check of upload/update/delete and `POST /as
 
 How status is kept (every PR that finishes or advances a task updates it in the same PR):
 - this section: date, current day and wave, what is behind, what is next;
-- the wave table in section 5: the row gets `**Done (#31):**`; the day table: `**Done:**` or
+- the wave table in section 5: the row gets `**Done (#PR):**`; the day table: `**Done:**` or
   `**In progress:**` with what is left;
 - the checklist below: `[x]` only when the requirement works end to end on the deployed system;
   otherwise `[ ]` with a `partial:` note naming the merged pieces (PR numbers) and what is missing.
