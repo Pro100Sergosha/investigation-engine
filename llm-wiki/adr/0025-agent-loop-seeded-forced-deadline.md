@@ -158,3 +158,9 @@ Measured on the next `agent` run: contradiction recall 0.25 -> 0.67, precision 0
 judge on contradictory questions 0.08 -> 0.58, overall judge 0.74 -> 0.82, no contradiction
 dropped by `grounding`, no answerable question flagged `conflicting`. Cost $0.38 for 72
 questions (was $0.41), p95 latency 45.6 s (was 40.0 s).
+
+## Update 2026-10-26 (cost)
+
+The costs above ($0.38, was $0.41) left out Bedrock prompt-cache tokens (ADR 0027 update of
+the same date). Repriced from the committed traces, the current `agent` run cost $1.16 for 72
+questions (~$0.016 per question); the $0.41 run is not recomputable and was higher than quoted.

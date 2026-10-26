@@ -285,3 +285,9 @@ def test_cost_skips_cached_calls_and_prices_unknown_models_as_haiku():
         llm_step(model="some.new-model", tokens_in=0, tokens_out=1_000_000),
     ]
     assert run.cost(calls) == 1.10 + 5.50
+
+
+def test_cost_prices_prompt_cache_writes_and_reads():
+    step = llm_step(tokens_in=0, tokens_out=0)
+    step["usage"] |= {"cacheWriteInputTokens": 1_000_000, "cacheReadInputTokens": 1_000_000}
+    assert run.cost([step]) == round(1.10 * 1.25 + 1.10 * 0.10, 6)

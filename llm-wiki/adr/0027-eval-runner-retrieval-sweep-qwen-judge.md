@@ -109,3 +109,12 @@ two near-tied hits of the seeded search swapped places between runs (seen on
 `hp-5a7e36815542995ed0d166d4` and `hp-simple-4`), which changes the prompt, so a few answers
 changed. Cost and latency of a cached rerun are not the system's; the first, uncached run
 is the one to quote for them (llm-wiki/09).
+
+## Update 2026-10-26 (cost)
+
+`run.cost` priced only `inputTokens` and `outputTokens`. Converse reports prompt-cache tokens
+apart from them (`cacheWriteInputTokens`, `cacheReadInputTokens`), and in the agent loop they
+are most of the input, so the first full runs were quoted ~3x too cheap (`agent` $0.38 instead
+of $1.16). Cache writes are now priced at 1.25x and reads at 0.1x the input price, and the
+committed results were repriced from their traces without a rerun. Measured: ~$0.016 per
+question for `agent`, under the ~$0.02-0.035 estimated above.
