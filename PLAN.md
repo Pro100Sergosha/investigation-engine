@@ -12,7 +12,7 @@ own small code instead.
 ## 0. Status
 
 **Updated 2026-10-26 (day 3 of 6).** Waves 0-4 merged (PRs #4-#37). Corpus: 66,619 documents
-(66,555 HotpotQA + 64 Acme, `make acme-load` done). Haiku falls back `eu.*` -> `global.*` (#29,
+(66,555 HotpotQA + 64 Acme, `make acme-load` done; + 6 injected Acme documents, #42). Haiku falls back `eu.*` -> `global.*` (#29,
 ADR 0028; `eu.*` answers `ServiceUnavailableException` since the morning of 10-26); search tuned
 (#30, ADR 0029). Full eval done (#31): `retrieval`, `agent`, `agent-structured`, `single-shot`,
 results in `eval/results/` and llm-wiki/09 Results; the loop beats single-shot on multi-hop
@@ -33,7 +33,7 @@ abstention recall 0.82 vs 0.91, Haiku kept; no Bedrock reranker in eu-north-1.
 Open Function URL protected (#39, ADR 0030; live after merge): seed corpus read-only, admin
 token in SSM, daily caps on `/ask` and uploads. Next: optional fixes from
 EVALUATION.md (repair malformed `claims` on the server, runner errors vs abstentions); defense
-rehearsal.
+rehearsal. Prompt-injection tests done (#42): 8/8 injections resisted.
 
 How status is kept (every PR that finishes or advances a task updates it in the same PR):
 - this section: date, current day and wave, what is behind, what is next;
@@ -99,7 +99,7 @@ processing architecture and justify it)
 
 ### 3. Dataset
 - [x] Use the attached dataset (extra public or synthetic data allowed) — HotpotQA from the list + synthetic Acme corpus (ADR 0006)
-- [x] At least 50,000 documents or independent text records — 66,555 unique HotpotQA documents (#7, #24) + 64 Acme
+- [x] At least 50,000 documents or independent text records — 66,555 unique HotpotQA documents (#7, #24) + 70 Acme (6 of them injected, #42)
 - [x] Find linked information across documents — Acme documents reference each other by id (#28); HotpotQA bridge questions
 - [x] Keep and identify sources — `source`, title and document id on every chunk; `upload:` gold sources in the Acme questions (#28)
 - [x] Handle incomplete and contradictory information — 14 planted contradictions, 6 gaps (#28), measured (#31, #32)
@@ -129,7 +129,7 @@ processing architecture and justify it)
 - [x] Compare several LLMs or embedding models — EVALUATION.md section 8 (#43, ADR 0032): gpt-oss-120b vs Haiku 4.5 as the answering model (`agent-gpt-oss`: judge 0.89 vs 0.82, contradiction recall 0.92 vs 0.67, abstention recall 0.82 vs 0.91, $0.0024 vs $0.016 per question; Haiku kept); Cohere V4 prefixes at 1024/512/256 dimensions (exact Recall@10 0.92/0.89/0.88, truncation checked against Cohere's own output, cosine >= 0.9996; 1024 kept)
 - [x] Multi-agent or agentic RAG — own agent loop with tools (#27), beats single-shot on multi-hop (0.87 vs 0.52)
 - [ ] More advanced re-ranking — partial: weighted RRF + MMR (#5, #30); no cross-encoder reranker: Bedrock has no rerank model in eu-north-1, only in eu-central-1 and us-west-2 (ADR 0032)
-- [ ] Prompt-injection tests — not started (the prompt treats documents as data, nothing tests it)
+- [x] Prompt-injection tests — #42: 6 injected Acme documents loaded, 8 `injection` questions, `metrics.injection_resisted` + canaries, `dropped_citations` in the grounding trace; `agent` resisted 8/8, judge 7/7, $0.09 (EVALUATION.md section 9; fencing unchanged after the audit)
 - [x] Caching and performance optimization — `llm_cache` in Postgres, prompt caching, 96 texts per embedding request, partial HNSW per strategy (#20, #23, #24)
 - [ ] Streaming answers — dropped: Python Lambda Function URLs do not stream
 - [ ] Detailed monitoring and observability — CloudWatch dashboard `investigation-engine`: 35 built-in metrics (Lambda, Function URL, Aurora ACU, SQS, Bedrock per model) + Logs Insights tables over the per-request log line, 2 alarms without actions; no custom metrics, no X-Ray (#40, ADR 0033). **Left:** deployed by the merge, then open the dashboard and check every widget has data

@@ -443,7 +443,7 @@ Bonus items not done (PLAN.md section 1, "6. Bonus"), listed as future work:
 | Item | State |
 |---|---|
 | More advanced re-ranking | partial: weighted RRF + MMR; no cross-encoder reranker, because Bedrock has no rerank model in eu-north-1 ([ADR 0032](llm-wiki/adr/0032-model-embedding-comparison-no-reranker.md)) |
-| Prompt-injection tests | not started: the prompt treats documents as data, nothing tests it |
+| Prompt-injection tests | done: 6 injected Acme documents, 8 `injection` questions, canary metric; 8/8 resisted (EVALUATION.md section 9) |
 | Streaming answers | dropped: Python Lambda Function URLs do not stream |
 
 Done bonus items: agentic RAG (own loop with tools), caching and performance work (`llm_cache`,

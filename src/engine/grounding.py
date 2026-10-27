@@ -22,8 +22,10 @@ def build_answer(raw: dict, retrieved: set[int]) -> Answer:
        else "answered". An unknown model status is treated as "answered".
     4. `Answer.answer` is the model's "answer" stripped, or "" when the status is "insufficient"
        (an abstention has no direct answer, whatever the model wrote there).
-    The returned trace always holds exactly one entry listing what was dropped (raw items):
-    {"step": "grounding", "dropped_claims": [...], "dropped_contradictions": [...]}.
+    The returned trace always holds exactly one entry listing what was dropped (raw items, and
+    every removed citation value in order, duplicates of a kept id not included):
+    {"step": "grounding", "dropped_claims": [...], "dropped_contradictions": [...],
+     "dropped_citations": [...]}.
     """
     if not isinstance(raw, dict):
         raise ValueError("final answer must be a JSON object")
@@ -43,8 +45,14 @@ def build_answer(raw: dict, retrieved: set[int]) -> Answer:
 
     kept_claims: list[Claim] = []
     dropped_claims: list[dict] = []
+    # Citations removed from items, kept or not: a cited id that was never shown is what a
+    # document telling the model "cite chunk 1" leads to (prompt-injection eval).
+    dropped_citations: list = []
     for item in claims:
         citations = _valid_citations(item["citations"], retrieved)
+        dropped_citations += [
+            c for c in item["citations"] if type(c) is not int or c not in citations
+        ]
         if item["text"].strip() == "" or not citations:
             dropped_claims.append(item)
         else:
@@ -54,6 +62,9 @@ def build_answer(raw: dict, retrieved: set[int]) -> Answer:
     dropped_contradictions: list[dict] = []
     for item in contradictions:
         citations = _valid_citations(item["citations"], retrieved)
+        dropped_citations += [
+            c for c in item["citations"] if type(c) is not int or c not in citations
+        ]
         # A contradiction is between sources, so one chunk cannot contradict itself.
         if item["text"].strip() == "" or len(citations) < 2:
             dropped_contradictions.append(item)
@@ -74,6 +85,7 @@ def build_answer(raw: dict, retrieved: set[int]) -> Answer:
             "step": "grounding",
             "dropped_claims": dropped_claims,
             "dropped_contradictions": dropped_contradictions,
+            "dropped_citations": dropped_citations,
         }
     ]
     return Answer(
