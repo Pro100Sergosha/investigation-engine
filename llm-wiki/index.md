@@ -30,7 +30,7 @@ repository root, [README](../README.md), [EVALUATION](../EVALUATION.md) and
 | Datasets, Acme corpus, ingestion, jobs | [05 Corpora](05-corpora.md), [ADR 0006](adr/0006-hotpotqa-plus-synthetic-acme-corpus.md), [ADR 0026](adr/0026-acme-corpus-spec-driven-generation.md), [ADR 0018](adr/0018-cloud-only-ingestion-and-jobs.md), [ADR 0022](adr/0022-cohere-embed-v4-batched.md) |
 | Shared types or stream interfaces | [02 Architecture](02-architecture.md#contracts), [ADR 0014](adr/0014-shared-contracts-parallel-streams.md), `src/engine/models.py` |
 | The UI, HTTP routes | [04 API contract](04-api-contract.md) |
-| Evaluation: questions, metrics, the runner, results | [09 Evaluation](09-evaluation.md), [ADR 0027](adr/0027-eval-runner-retrieval-sweep-qwen-judge.md), `eval/metrics.py` |
+| Evaluation: questions, metrics, the runner, results | [09 Evaluation](09-evaluation.md), [ADR 0027](adr/0027-eval-runner-retrieval-sweep-qwen-judge.md), [ADR 0032](adr/0032-model-embedding-comparison-no-reranker.md), `eval/metrics.py` |
 | Something does not work yet or is temporary | [14 Known gaps](14-known-gaps.md) |
 
 ## Document index
@@ -80,3 +80,4 @@ old one, and the old one gets `status: superseded` and `superseded_by: 00XX`. Te
 | [0027](adr/0027-eval-runner-retrieval-sweep-qwen-judge.md) | Own eval runner: retrieval sweep without an LLM, Qwen3 judge, Haiku pacing, results via S3 |
 | [0028](adr/0028-haiku-global-pool-before-gpt-oss.md) | Haiku falls back to its `global.*` pool before gpt-oss; a bounded client for query embeddings |
 | [0029](adr/0029-weighted-rrf-min-max-mmr-fixed-chunks.md) | Weighted RRF (k0=10, keyword at 0.5), min-max MMR relevance, fixed chunks by default, tuned by the retrieval eval |
+| [0032](adr/0032-model-embedding-comparison-no-reranker.md) | LLM and embedding-size comparison by the eval (gpt-oss config, Matryoshka prefix scan); keep Haiku and 1024 dimensions; no Bedrock reranker (none in eu-north-1) |

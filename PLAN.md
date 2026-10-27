@@ -23,6 +23,8 @@ verdicts agree with the author, the judge is the stricter one), AI_USAGE.md; eva
 prompt-cache tokens (#37: `agent` ~$0.016 per question, ~3x single-shot). The UI was checked on
 the public URL on 10-26: upload, duplicate, update, delete, metadata, a question with its source.
 The short-answer fix was dropped: the traces show it could win at most 2 of 25 EM points.
+Model comparison bonus (#PR, ADR 0032): embedding prefixes 1024/512/256 measured, 1024 kept;
+no Bedrock reranker in eu-north-1; `agent-gpt-oss` results still to be committed.
 **Behind:** nothing; the mandatory part is done except the author's sections of AI_USAGE.md.
 Next: protect the open Function URL (anyone can delete documents); optional fixes from
 EVALUATION.md (repair malformed `claims` on the server, runner errors vs abstentions); defense
@@ -119,9 +121,9 @@ processing architecture and justify it)
 - [x] Understanding of performance and LLM costs — README (#35), EVALUATION.md (#36): ~$0.016 per question for `agent` vs ~$0.005 for `single-shot` (prompt-cache tokens priced since #37), p50/p95 10.3/45.6 s; bulk load of 66,555 documents ~65 min (llm-wiki/05; ~35-40 min was the estimate); search latency from the Lambda not measured (14 Known gaps)
 
 ### 6. Bonus (does not replace the core)
-- [ ] Compare several LLMs or embedding models — not done (Titan was replaced for throughput, not compared on quality); cheapest option: Cohere V4 512 vs 1024 dimensions
+- [ ] Compare several LLMs or embedding models — embedding size measured (#PR, ADR 0032): Cohere V4 prefixes at 1024/512/256 dimensions, exact search Recall@10 0.92/0.89/0.88, truncation checked against Cohere's own output (cosine >= 0.9996), 1024 kept; `agent-gpt-oss` config added and run. **Left:** commit `eval/results/agent-gpt-oss.json` and fill EVALUATION.md section 8 (only the 3-question dry run is reported)
 - [x] Multi-agent or agentic RAG — own agent loop with tools (#27), beats single-shot on multi-hop (0.87 vs 0.52)
-- [ ] More advanced re-ranking — partial: weighted RRF + MMR (#5, #30); no cross-encoder reranker
+- [ ] More advanced re-ranking — partial: weighted RRF + MMR (#5, #30); no cross-encoder reranker: Bedrock has no rerank model in eu-north-1, only in eu-central-1 and us-west-2 (ADR 0032)
 - [ ] Prompt-injection tests — not started (the prompt treats documents as data, nothing tests it)
 - [x] Caching and performance optimization — `llm_cache` in Postgres, prompt caching, 96 texts per embedding request, partial HNSW per strategy (#20, #23, #24)
 - [ ] Streaming answers — dropped: Python Lambda Function URLs do not stream
@@ -246,7 +248,7 @@ Configurations compared:
 1. chunking A (fixed 300 words, 50 overlap) vs B (structure-aware: headings/paragraphs, size cap)
 2. dense only vs hybrid RRF vs hybrid RRF + MMR
 3. single-shot RAG vs agent loop
-4. (bonus, cheap) Cohere V4 embeddings at 512 vs 1024 dimensions (`output_dimension`; needs a second vector column or a reload)
+4. (bonus) Cohere V4 embeddings at 1024 vs 512 vs 256 dimensions: done as Matryoshka prefixes of the stored vectors, exact search, no reload (`CONFIG=embeddings`, ADR 0032); Haiku vs gpt-oss-120b as the answering model (`CONFIG=agent-gpt-oss`)
 
 Runs in the CodeBuild jobs project (`TARGET="eval CONFIG=<name>"`, configs `retrieval`, `agent`, `agent-structured`, `single-shot`); output: `eval/results/<config>.json` (via S3, committed by PR) + generated `EVALUATION.md` table and a failure analysis section.
 
@@ -349,7 +351,7 @@ Reference phases (original estimates):
 8. **Docs + defense prep (1 d)** — README, AI_USAGE.md, rehearse: walk the pipeline, rewrite RRF/MMR by hand, add a small feature without AI.
 
 Core total ~12 days. Bonus only after phase 8: next best value is
-prompt-injection tests (plant malicious text in a doc) and the 512 vs 1024 embedding comparison.
+prompt-injection tests (plant malicious text in a doc) and the 512 vs 1024 embedding comparison (done: ADR 0032).
 
 ## 6. Risks
 

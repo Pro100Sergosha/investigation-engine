@@ -149,6 +149,7 @@ Each row has an ADR with context, costs and rejected alternatives. The table is 
 | Lambda Function URL, UI served by the same Lambda | API Gateway cuts requests at 30 s, the agent can take longer; same origin, no CORS | [0008](llm-wiki/adr/0008-function-url-not-api-gateway.md) |
 | Nothing runs on the author's computer: S3-triggered ingest, CodeBuild jobs | data and evaluation rebuild from the repository alone, not from one machine's state; builds run up to 8 h, Lambda 15 min | [0018](llm-wiki/adr/0018-cloud-only-ingestion-and-jobs.md) |
 | Own eval runner: retrieval sweep without an LLM, Qwen3 judge, pacing | retrieval configs compared for ~$0; pacing keeps runs inside the Haiku and Cohere quotas | [0027](llm-wiki/adr/0027-eval-runner-retrieval-sweep-qwen-judge.md) |
+| Keep 1024 dimensions and Haiku; no reranker | 512/256-dimension prefixes (Matryoshka, checked) lose 0.03-0.04 Recall@10, all on Acme; no Bedrock rerank model in eu-north-1 | [0032](llm-wiki/adr/0032-model-embedding-comparison-no-reranker.md) |
 | CDK in Python, production as the only environment | infrastructure in the backend's language, diffable in review | [0010](llm-wiki/adr/0010-cdk-single-production-environment.md) |
 | Stacks split by lifecycle | a code deploy can never replace the database | [0020](llm-wiki/adr/0020-data-stack-split-by-lifecycle.md) |
 | AWS Free-plan project, `aws login`, no long-lived keys | free hosting is a requirement; spend is capped by construction | [0011](llm-wiki/adr/0011-free-plan-aws-project.md) |
@@ -220,7 +221,7 @@ From [llm-wiki/09-evaluation.md](llm-wiki/09-evaluation.md#running). The whole v
 ```bash
 aws codebuild start-build --project-name investigation-jobs --profile investigation \
   --environment-variables-override "name=TARGET,value=eval CONFIG=agent LIMIT=3"
-# full runs: value=eval CONFIG=retrieval | agent | agent-structured | single-shot
+# full runs: value=eval CONFIG=retrieval | embeddings | agent | agent-structured | single-shot | agent-gpt-oss
 ```
 
 - `retrieval` uses no LLM; the other three run the agent and the Qwen3 judge.
@@ -402,8 +403,8 @@ Bonus items not done (PLAN.md section 1, "6. Bonus"), listed as future work:
 
 | Item | State |
 |---|---|
-| Compare several LLMs or embedding models | not done; Titan was replaced for throughput, not compared on quality. Cheapest next step: Cohere V4 at 512 vs 1024 dimensions |
-| More advanced re-ranking | partial: weighted RRF + MMR; no cross-encoder reranker |
+| Compare several LLMs or embedding models | partial ([EVALUATION.md](EVALUATION.md) section 8): Cohere V4 at 1024/512/256 dimensions measured (Recall@10 0.92/0.89/0.88 exact, 1024 kept); gpt-oss-120b instead of Haiku runs as `CONFIG=agent-gpt-oss`, only its 3-question dry run is reported so far |
+| More advanced re-ranking | partial: weighted RRF + MMR; no cross-encoder reranker, because Bedrock has no rerank model in eu-north-1 ([ADR 0032](llm-wiki/adr/0032-model-embedding-comparison-no-reranker.md)) |
 | Prompt-injection tests | not started: the prompt treats documents as data, nothing tests it |
 | Streaming answers | dropped: Python Lambda Function URLs do not stream |
 | Detailed monitoring and observability | partial: one JSON log line per request; no dashboards or tracing |
