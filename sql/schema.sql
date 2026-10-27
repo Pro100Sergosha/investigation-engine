@@ -64,6 +64,15 @@ CREATE TABLE IF NOT EXISTS llm_cache (
     created_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- Counters per UTC day behind the public API's daily caps (engine.handlers, ADR 0030): Bedrock
+-- calls of POST /ask that missed llm_cache, and upload URLs handed out. A few bytes per day.
+CREATE TABLE IF NOT EXISTS daily_usage (
+    day date NOT NULL,
+    counter text NOT NULL,
+    n int NOT NULL,
+    PRIMARY KEY (day, counter)
+);
+
 -- The role the Lambdas and jobs log in as, by IAM token (rds_iam), with data access only: it
 -- cannot create, alter or drop tables, so an injected statement cannot destroy the schema.
 DO $$

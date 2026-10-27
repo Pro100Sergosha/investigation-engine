@@ -72,7 +72,7 @@ One path for UI uploads and the bulk corpus ([ADR 0018](llm-wiki/adr/0018-cloud-
 
 | Step | What happens | Code |
 |---|---|---|
-| 1. Upload URL | `POST /documents/upload-url` checks the file name (`[A-Za-z0-9._-]{1,100}`, suffix `.pdf .docx .html .htm .md .jsonl`) and returns a presigned S3 `PUT` URL for `uploads/<name>`, valid 5 minutes. The bulk corpus arrives as JSONL shards under `bulk/` instead | [handlers.py](src/engine/handlers.py) |
+| 1. Upload URL | `POST /documents/upload-url` checks the file name (`[A-Za-z0-9._-]{1,100}`, suffix `.pdf .docx .html .htm .md .jsonl`, not `acme-*`) and size (at most 5 MB) and returns a presigned S3 `PUT` URL for `uploads/<name>` with that size signed, valid 5 minutes. The bulk corpus arrives as JSONL shards under `bulk/` instead | [handlers.py](src/engine/handlers.py) |
 | 2. S3 event | `ObjectCreated` on `uploads/` or `bulk/` invokes `ingest` asynchronously; at most 2 run at once | [cdk/app.py](cdk/app.py) |
 | 3. Parse | PDF (pypdf), DOCX (python-docx), HTML, Markdown and JSONL (standard library) -> `ParsedDoc` with source, title, date, type and metadata | [parsers.py](src/engine/parsers.py) |
 | 4. Dedup | sha256 of normalized text. Same hash as any stored document -> skipped. Same source with a new hash -> update: `version + 1`, chunks replaced in one transaction | [index.py](src/engine/index.py) |
@@ -147,6 +147,7 @@ Each row has an ADR with context, costs and rejected alternatives. The table is 
 | Aurora Serverless v2, scales to 0 ACU | idle cost is storage only, so the credits last until the interview | [0015](llm-wiki/adr/0015-aurora-serverless-data-api.md) |
 | Aurora express configuration with IAM-token connections | the only Aurora the Free plan creates: no VPC, no password, no secret | [0021](llm-wiki/adr/0021-aurora-express-iam-auth.md) |
 | Lambda Function URL, UI served by the same Lambda | API Gateway cuts requests at 30 s, the agent can take longer; same origin, no CORS | [0008](llm-wiki/adr/0008-function-url-not-api-gateway.md) |
+| Public API: seed corpus read-only, admin token from SSM, daily caps | reviewers test add/update/delete on their own uploads without accounts; nobody can wipe the corpus or drain the credits | [0030](llm-wiki/adr/0030-read-only-seed-admin-token-daily-caps.md) |
 | Nothing runs on the author's computer: S3-triggered ingest, CodeBuild jobs | data and evaluation rebuild from the repository alone, not from one machine's state; builds run up to 8 h, Lambda 15 min | [0018](llm-wiki/adr/0018-cloud-only-ingestion-and-jobs.md) |
 | Own eval runner: retrieval sweep without an LLM, Qwen3 judge, pacing | retrieval configs compared for ~$0; pacing keeps runs inside the Haiku and Cohere quotas | [0027](llm-wiki/adr/0027-eval-runner-retrieval-sweep-qwen-judge.md) |
 | CDK in Python, production as the only environment | infrastructure in the backend's language, diffable in review | [0010](llm-wiki/adr/0010-cdk-single-production-environment.md) |
@@ -283,9 +284,23 @@ only for the repository owner, so nobody else's code runs in the account.
 | LLM and embedding access | none: Bedrock is called with the Lambda's IAM role, no API keys |
 | Database | no password exists. Each caller signs a 15-minute IAM auth token for its database user (`app`: data access only; `postgres`: schema only) |
 | GitHub token for the PR diff comment | SSM Parameter Store SecureString `/investigation/github-token`, fine-grained, this repository only |
-| Lambda environment | only non-secret values (`DB_HOST`, `DB_NAME`, `BUCKET`), read only in [config.py](src/engine/config.py) |
+| Admin token of the public API | SSM SecureString `/investigation/admin-token` (random, created with the CLI), read by `api` once per container, compared with `hmac.compare_digest`, never logged |
+| Lambda environment | only non-secret values (`DB_HOST`, `DB_NAME`, `BUCKET`, `ADMIN_TOKEN_PARAM` = the parameter's name), read only in [config.py](src/engine/config.py) |
 
 Locally, `.env` is gitignored and [.env.example](.env.example) is the template.
+
+### Public API protection
+
+The Function URL has no auth, because reviewers must add, update and delete documents from the
+page without accounts ([ADR 0030](llm-wiki/adr/0030-read-only-seed-admin-token-daily-caps.md),
+[API contract](llm-wiki/04-api-contract.md#protection)):
+
+- the seed corpus (HotpotQA and the `acme-*` files) is read-only: `DELETE` is 403, and so is
+  an upload under an `acme-*` name. Your own uploads can be updated and deleted;
+- `POST /ask` is 429 after 150 Bedrock calls per UTC day (calls served from the LLM cache are
+  free and not counted), upload URLs after 50 per day; an upload is at most 5 MB (the size is
+  signed into the presigned URL);
+- a secret `x-admin-token` header (SSM SecureString) lifts both rules for the author.
 
 ### Persistence
 
@@ -304,7 +319,9 @@ billing. It has never been upgraded ([ADR 0011](llm-wiki/adr/0011-free-plan-aws-
 | Claude Haiku 4.5 | 10 requests/min per profile (`eu.*` and `global.*`) | an eval sweep of three answer runs takes ~50 min; requested increase not approved yet |
 | Cohere Embed V4 | 20 requests/min, 300k tokens/min, 16.2M tokens/day per profile pool | the bulk load and query embeddings share it; at most one full reload (~11M tokens) per day |
 | Qwen3-235B (judge), gpt-oss-120b | 100 requests/min | not paced |
-| `api` reserved concurrency | 4 | a fifth request at once gets 429 from Lambda; caps what the unauthenticated `POST /ask` can spend |
+| `api` reserved concurrency | 4 | a fifth request at once gets 429 from Lambda; caps how fast the unauthenticated `POST /ask` can spend |
+| Public `POST /ask` | 150 Bedrock calls per UTC day (~65 questions, ~$1; worst case ~$5) | then 429 until 00:00 UTC; the admin token is not capped |
+| Public uploads | 50 upload URLs per UTC day, 5 MB per file | then 429; a larger file is refused before upload |
 | `ingest` reserved concurrency | 2 | two workers fill the Cohere pool |
 | Lambda timeouts | `api` 90 s (agent deadline 80 s), `ingest` 15 min | long jobs go to CodeBuild |
 
@@ -381,8 +398,9 @@ Known gaps ([llm-wiki/14-known-gaps.md](llm-wiki/14-known-gaps.md) has the full 
   document, before `final_answer`.
 - **Short answers are loose**: EM 0.52 vs F1 0.73 vs judge 0.82; short answers carry extra words.
 - **Malformed `final_answer`**: 5 of 72 answers need a reprompt (Haiku sends `claims` as a string).
-- **No auth on the Function URL**: anyone with the URL can upload and delete documents. Planned:
-  a custom domain with a secret header.
+- **No auth on the Function URL**: the seed corpus is read-only and spend is capped per day, but
+  anyone can delete other visitors' uploads, and the caps are global: one abuser uses up the
+  day for everyone. Next step if that happens: per-visitor limits behind a custom domain.
 - **The database endpoint is public** (express configuration): IAM-only auth and TLS, no password.
 - **Fallback leaves the EU silently**: when `eu.*` fails, questions go to Haiku's `global.*` pool,
   then to gpt-oss-120b. The trace records the model per call.

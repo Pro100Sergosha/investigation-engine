@@ -23,13 +23,15 @@ smoke check code against. `handlers.api` serves every route below. The UI's stub
 
   | Status | When |
   |---|---|
-  | 400 | invalid JSON body or not an object, bad `limit`/`offset`, bad filename, `question` missing, not a string, blank or over 1000 characters (after stripping) |
-  | 429 | from Lambda itself, not our JSON: more than 4 requests at once (reserved concurrency of `api`, ADR 0025). The UI says "busy, try again in a minute" |
+  | 400 | invalid JSON body or not an object, bad `limit`/`offset`, bad filename or `size`, `question` missing, not a string, blank or over 1000 characters (after stripping) |
+  | 403 | without the admin token: `DELETE` of a seed document, or an upload URL for a file name starting with `acme-` ([Protection](#protection)) |
+  | 429 | our JSON `{"error": ...}`: a daily cap is used up (`/ask` LLM calls, upload URLs; resets 00:00 UTC), the UI shows the message. Without our JSON, from Lambda itself: more than 4 requests at once (reserved concurrency of `api`, ADR 0025); the UI says "busy, try again in a minute" |
   | 404 | unknown route, malformed id, unknown document or chunk id |
   | 503 | `{"error": "database is resuming, retry in ~15 s"}`: a pg8000 `InterfaceError` or `OSError` escaped `db.connect`'s retries (cluster resuming from 0 ACU, or unreachable). The UI waits 15 s and retries once |
   | 500 | `{"error": "internal error"}` for anything else; the traceback goes to CloudWatch only |
 
-- Logs: one JSON line per request, `{"handler": "api", "method", "route", "status", "ms"}`;
+- Logs: one JSON line per request, `{"handler": "api", "method", "route", "admin", "status",
+  "ms"}` (`admin`: the request carried the right admin token; the token itself is never logged);
   `route` is the pattern (`/documents/{id}`), not the raw path. `POST /ask` adds
   `answer_status`, `llm_steps`, `models` (the models that answered, sorted), `input_tokens`,
   `output_tokens`, `prompt_cache_read_tokens` (Bedrock prompt cache) and `llm_cache_hits`
@@ -45,7 +47,7 @@ smoke check code against. `handlers.api` serves every route below. The UI's stub
 | `GET /health` | - | `{"status": "ok"}` |
 | `GET /documents?limit=50&offset=0` | `limit` 1-200, default 50; `offset` 0-10^9, default 0 | `{"documents": [Document], "total": int}`, newest first |
 | `GET /documents/{id}` | - | `Document` plus `"text": str` and `"metadata": {}` |
-| `POST /documents/upload-url` | `{"filename": str}` | `{"url": str, "key": str}` |
+| `POST /documents/upload-url` | `{"filename": str, "size": int}` (bytes, 1 - 5 MB) | `{"url": str, "key": str}` |
 | `DELETE /documents/{id}` | - | `{"deleted": id}` |
 | `GET /chunks/{id}` | - | `Source` plus `"ord": int` |
 | `POST /ask` | `{"question": str}`, 1-1000 characters after stripping | `Answer` |
@@ -80,13 +82,17 @@ validator dropped.
 
 ## Upload, update and delete
 
-1. The UI asks `POST /documents/upload-url` with the file name. The server accepts only
-   `[A-Za-z0-9._-]{1,100}` with a supported suffix (`.pdf .docx .html .htm .md .jsonl`,
-   case-insensitive), else 400, and returns a presigned S3 `PUT` URL for key
-   `uploads/<filename>` (valid 5 minutes). The URL is SigV4 on the regional virtual-hosted
-   endpoint (`<bucket>.s3.eu-north-1.amazonaws.com`): with the global endpoint a recently
-   created bucket answers the browser's preflight/PUT with a 307 redirect, which breaks CORS.
-   Only `host` is signed, so the browser may send any `Content-Type` and no custom headers.
+1. The UI asks `POST /documents/upload-url` with the file name and size. The server accepts
+   only `[A-Za-z0-9._-]{1,100}` with a supported suffix (`.pdf .docx .html .htm .md .jsonl`,
+   case-insensitive) and an integer `size` of 1 byte to 5 MB, else 400; a name starting with
+   `acme-` is 403 and the 51st URL of a UTC day is 429 ([Protection](#protection)). It returns a
+   presigned S3 `PUT` URL for key `uploads/<filename>` (valid 5 minutes). The URL is SigV4 on
+   the regional virtual-hosted endpoint (`<bucket>.s3.eu-north-1.amazonaws.com`): with the
+   global endpoint a recently created bucket answers the browser's preflight/PUT with a 307
+   redirect, which breaks CORS. `host` and `content-length` are signed: S3 refuses a body of
+   any other size (a presigned PUT cannot carry a size range), and the browser sets
+   `Content-Length` from the file by itself. No `Content-Type` is signed, so the browser may
+   send any and no custom headers.
 2. The browser `PUT`s the file body to `url`. The S3 event triggers `ingest`, which parses,
    dedups, chunks, embeds and stores it with `source = "upload:<filename>"`. A `.jsonl` upload
    is read as a shard instead: one document per line, `source = "upload:<filename>:<line
@@ -96,6 +102,30 @@ validator dropped.
 Update = upload a file with the same name: same `source`, new content hash -> `version + 1`, its
 chunks replaced in one transaction. Same content hash as any existing document (under any
 source) -> skipped as a duplicate. Delete removes the document and its chunks (cascade).
+
+## Protection
+
+The Function URL has no auth ([ADR 0030](adr/0030-read-only-seed-admin-token-daily-caps.md)).
+`handlers.py` enforces:
+
+- **Seed corpus read-only.** Seed = `source` not starting with `upload:` (HotpotQA) or starting
+  with `upload:acme-` (Acme, loaded through `uploads/` by `make acme-load`). `DELETE` of a seed
+  document is 403; so is an upload URL for a file name starting with `acme-` (re-uploading it
+  would update the seed document). Every other upload can be updated and deleted by anyone.
+- **Admin token.** Header `x-admin-token`, compared with `hmac.compare_digest` against the SSM
+  SecureString `/investigation/admin-token` (read once per container, only when the header is
+  present). With it the seed rules and the daily caps do not apply.
+- **Daily caps** (UTC day, table `daily_usage`, [03](03-data-model.md)): `POST /ask` is 429
+  once 150 Bedrock calls that missed `llm_cache` were made that day (checked before a question,
+  counted after it, admin calls included); upload URLs are 429 after 50 a day. Reserved
+  concurrency 4 still limits requests in flight.
+
+```bash
+# admin: read the token (never paste it anywhere), then e.g. delete a seed document
+TOKEN="$(PYTHONUTF8=1 aws ssm get-parameter --profile investigation --name /investigation/admin-token \
+  --with-decryption --query Parameter.Value --output text)"
+curl -X DELETE -H "x-admin-token: $TOKEN" "$URL/documents/<id>"
+```
 
 ## Ingest
 
