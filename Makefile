@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install lint fmt test check synth diff diff-pr deploy verify smoke dataset dataset-stats acme acme-labels acme-load redrive-ingest eval diff-cicd deploy-cicd bootstrap
+.PHONY: help install lint fmt test check synth diff diff-pr deploy verify smoke dataset dataset-stats acme acme-labels acme-load redrive-ingest eval load-test diff-cicd deploy-cicd bootstrap
 
 # CLI pinned here, library pinned in uv.lock. npx downloads it once and caches it.
 CDK := npx --yes aws-cdk@2.1146.1
@@ -85,10 +85,20 @@ acme-load:  ## Job: copy data/acme/files/ to s3://$BUCKET/uploads/ (ingest index
 redrive-ingest:  ## Job: rerun the ingest events in the IngestFailures queue (Lambda gave up)
 	uv run python scripts/redrive_ingest.py --queue-url $$INGEST_FAILURES_QUEUE --function $$INGEST_FUNCTION
 
-# CONFIG: retrieval (no LLM) | agent | agent-structured | single-shot; LIMIT=N for a dry run;
+# CONFIG: retrieval | embeddings (no LLM) | agent | agent-structured | single-shot |
+# agent-gpt-oss; LIMIT=N for a dry run;
 # TYPE=<question type> for a subset (TYPE=injection -> <config>-injection.json).
 eval:  ## Job: run the eval set in CONFIG -> s3://$BUCKET/jobs/eval/<config>.json
 	uv run python -m eval.run --config $(CONFIG) --bucket $$BUCKET $(if $(LIMIT),--limit $(LIMIT)) $(if $(TYPE),--type $(TYPE))
+
+# URL: the Function URL (output ApiUrl). Defaults: 200 requests at concurrency 1, 5 and 10, no
+# /ask. ASK<=3 sequential /ask calls (Bedrock spend, ~$0.016 each uncached).
+REQUESTS ?= 200
+CONCURRENCY ?= 1,5,10
+ASK ?= 0
+load-test:  ## Job: load test of the Function URL (URL=..., [REQUESTS= CONCURRENCY= ASK=])
+	uv run python -u scripts/load_test.py --url $(URL) --requests $(REQUESTS) \
+	  --concurrency $(CONCURRENCY) --ask $(ASK)
 
 diff-cicd:  ## Show what deploy-cicd would change
 	cd cdk && $(CDK) diff Investigation-Cicd-prod

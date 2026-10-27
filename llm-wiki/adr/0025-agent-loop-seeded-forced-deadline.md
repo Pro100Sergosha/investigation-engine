@@ -167,7 +167,7 @@ questions (~$0.016 per question); the $0.41 run is not recomputable and was high
 
 ## Update 2026-10-27 (prompt injection)
 
-An audit for the prompt-injection tests (EVALUATION.md section 8) confirmed the fencing as
+An audit for the prompt-injection tests (EVALUATION.md section 9) confirmed the fencing as
 decided: every passage, `title` included, reaches the model as an escaped JSON line, server
 notes stay outside it, and the system prompt names passages as untrusted data. Nothing was
 changed without a measured failure. `grounding.build_answer` now also lists the citations it

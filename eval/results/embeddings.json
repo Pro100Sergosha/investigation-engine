@@ -1,0 +1,3964 @@
+{
+  "config": "embeddings",
+  "settings": {
+    "k": 10,
+    "grid": [
+      "fixed/dense-exact@1024",
+      "fixed/dense-exact@512",
+      "fixed/dense-exact@256"
+    ]
+  },
+  "question_counts": {
+    "multi_hop": 23,
+    "simple": 11,
+    "unanswerable": 11,
+    "multi_doc": 15,
+    "contradictory": 12
+  },
+  "summary": {
+    "fixed/dense-exact@1024": {
+      "n": 61,
+      "errors": 0,
+      "recall@5": 0.8115,
+      "recall@10": 0.9208,
+      "mrr": 0.8813,
+      "by_type": {
+        "contradictory": {
+          "recall@5": 0.6944,
+          "recall@10": 0.9583,
+          "mrr": 0.7577
+        },
+        "multi_doc": {
+          "recall@5": 0.8778,
+          "recall@10": 0.9111,
+          "mrr": 0.9
+        },
+        "multi_hop": {
+          "recall@5": 0.7391,
+          "recall@10": 0.8696,
+          "mrr": 0.8768
+        },
+        "simple": {
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "mrr": 1.0
+        }
+      },
+      "seconds_p50": 0.618,
+      "seconds_p95": 0.816,
+      "native_cosine": null,
+      "native_cosine_min": null
+    },
+    "fixed/dense-exact@512": {
+      "n": 61,
+      "errors": 0,
+      "recall@5": 0.8115,
+      "recall@10": 0.888,
+      "mrr": 0.8653,
+      "by_type": {
+        "contradictory": {
+          "recall@5": 0.6944,
+          "recall@10": 0.8333,
+          "mrr": 0.6625
+        },
+        "multi_doc": {
+          "recall@5": 0.8778,
+          "recall@10": 0.8778,
+          "mrr": 0.9
+        },
+        "multi_hop": {
+          "recall@5": 0.7391,
+          "recall@10": 0.8696,
+          "mrr": 0.8841
+        },
+        "simple": {
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "mrr": 1.0
+        }
+      },
+      "seconds_p50": 0.564,
+      "seconds_p95": 0.843,
+      "native_cosine": 1.0,
+      "native_cosine_min": 0.9998
+    },
+    "fixed/dense-exact@256": {
+      "n": 61,
+      "errors": 0,
+      "recall@5": 0.8197,
+      "recall@10": 0.8798,
+      "mrr": 0.8507,
+      "by_type": {
+        "contradictory": {
+          "recall@5": 0.6806,
+          "recall@10": 0.875,
+          "mrr": 0.6632
+        },
+        "multi_doc": {
+          "recall@5": 0.8556,
+          "recall@10": 0.8778,
+          "mrr": 0.9333
+        },
+        "multi_hop": {
+          "recall@5": 0.7826,
+          "recall@10": 0.8261,
+          "mrr": 0.8522
+        },
+        "simple": {
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "mrr": 0.9394
+        }
+      },
+      "seconds_p50": 0.529,
+      "seconds_p95": 0.695,
+      "native_cosine": 1.0,
+      "native_cosine_min": 0.9996
+    }
+  },
+  "records": [
+    {
+      "id": "hp-5a8b20335542996c9b8d5fb3",
+      "type": "multi_hop",
+      "question": "What distinction is held by the former NBA player who was a member of the Charlotte Hornets during their 1992-93 season and was head coach for the WNBA team Charlotte Sting?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "hotpotqa:1992–93 Charlotte Hornets season",
+            "hotpotqa:Muggsy Bogues",
+            "hotpotqa:1991–92 Charlotte Hornets season",
+            "hotpotqa:1996–97 Charlotte Hornets season",
+            "hotpotqa:Charlotte Hornets",
+            "hotpotqa:Lenny Wilkens",
+            "hotpotqa:Lionel Hollins",
+            "hotpotqa:Sam Cassell",
+            "hotpotqa:List of Charlotte Hornets seasons",
+            "hotpotqa:2014–15 Charlotte Hornets season"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 1.221
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "hotpotqa:Muggsy Bogues",
+            "hotpotqa:1992–93 Charlotte Hornets season",
+            "hotpotqa:Lionel Hollins",
+            "hotpotqa:Charlotte Hornets",
+            "hotpotqa:1991–92 Charlotte Hornets season",
+            "hotpotqa:List of Charlotte Hornets seasons",
+            "hotpotqa:1996–97 Charlotte Hornets season",
+            "hotpotqa:Lenny Wilkens",
+            "hotpotqa:Charlotte Hornets all-time roster",
+            "hotpotqa:Michael Carter-Williams"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.623,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "hotpotqa:Muggsy Bogues",
+            "hotpotqa:1992–93 Charlotte Hornets season",
+            "hotpotqa:1991–92 Charlotte Hornets season",
+            "hotpotqa:Lionel Hollins",
+            "hotpotqa:List of Charlotte Hornets seasons",
+            "hotpotqa:Anthony Mason (basketball)",
+            "hotpotqa:1996–97 Charlotte Hornets season",
+            "hotpotqa:2014–15 Charlotte Hornets season",
+            "hotpotqa:Tamika Catchings",
+            "hotpotqa:Charlotte Hornets all-time roster"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.759,
+          "native_cosine": 0.9999
+        }
+      }
+    },
+    {
+      "id": "hp-5ade99235542997c77adee7f",
+      "type": "multi_hop",
+      "question": "Where is the headquarter of the American multinational chemical corporation who's part is Dow AgroSciences?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "hotpotqa:Dow Chemical Company",
+            "hotpotqa:Dow AgroSciences",
+            "hotpotqa:Henkel",
+            "hotpotqa:Enlist Weed Control System",
+            "hotpotqa:Bates v. Dow Agrosciences LLC",
+            "hotpotqa:CropLife International",
+            "hotpotqa:Merck Group",
+            "hotpotqa:Chevron Corporation",
+            "hotpotqa:Ashland Inc.",
+            "hotpotqa:Alden B. Dow Office and Lake Jackson City Hall"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.596
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "hotpotqa:Dow Chemical Company",
+            "hotpotqa:Dow AgroSciences",
+            "hotpotqa:Henkel",
+            "hotpotqa:Bates v. Dow Agrosciences LLC",
+            "hotpotqa:CropLife International",
+            "hotpotqa:Enlist Weed Control System",
+            "hotpotqa:Chevron Corporation",
+            "hotpotqa:Ashland Inc.",
+            "hotpotqa:Merck Group",
+            "hotpotqa:General Mills"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.713,
+          "native_cosine": 0.9999
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "hotpotqa:Dow Chemical Company",
+            "hotpotqa:Dow AgroSciences",
+            "hotpotqa:Enlist Weed Control System",
+            "hotpotqa:Bates v. Dow Agrosciences LLC",
+            "hotpotqa:Henkel",
+            "hotpotqa:CropLife International",
+            "hotpotqa:Chevron Corporation",
+            "hotpotqa:Ashland Inc.",
+            "hotpotqa:Halliburton",
+            "hotpotqa:Citgo"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.555,
+          "native_cosine": 0.9999
+        }
+      }
+    },
+    {
+      "id": "hp-5ac1b1345542994ab5c67dd0",
+      "type": "multi_hop",
+      "question": "Sinch when has the rank held by Sir Charles Comyn Egertong been the highest in the British Army?  ",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "hotpotqa:Charles Egerton (Indian Army officer)",
+            "hotpotqa:Field marshal (United Kingdom)",
+            "hotpotqa:General (United Kingdom)",
+            "hotpotqa:Lieutenant colonel (United Kingdom)",
+            "hotpotqa:Field marshal",
+            "hotpotqa:Lieutenant colonel",
+            "hotpotqa:Field marshal (India)",
+            "hotpotqa:Herbert Lumsden",
+            "hotpotqa:Stapleton Cotton, 1st Viscount Combermere",
+            "hotpotqa:Lieutenant field marshal"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.718
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "hotpotqa:Charles Egerton (Indian Army officer)",
+            "hotpotqa:Field marshal (United Kingdom)",
+            "hotpotqa:General (United Kingdom)",
+            "hotpotqa:Field marshal",
+            "hotpotqa:Field marshal (India)",
+            "hotpotqa:Lieutenant colonel (United Kingdom)",
+            "hotpotqa:Herbert Lumsden",
+            "hotpotqa:List of Generalobersts",
+            "hotpotqa:Robert Cotton Money",
+            "hotpotqa:John Dill"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.698,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "hotpotqa:Charles Egerton (Indian Army officer)",
+            "hotpotqa:Field marshal (United Kingdom)",
+            "hotpotqa:Field marshal",
+            "hotpotqa:Field marshal (India)",
+            "hotpotqa:Lieutenant colonel (United Kingdom)",
+            "hotpotqa:John Dill",
+            "hotpotqa:Commander Regional Forces (United Kingdom)",
+            "hotpotqa:General (United Kingdom)",
+            "hotpotqa:Robert Cotton Money",
+            "hotpotqa:Herbert Lumsden"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.863,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "hp-5ac401bb55429919431738f4",
+      "type": "multi_hop",
+      "question": "Who worked on the origins of Mickey Mouse and created Oswald the Lucky Rabbit?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "hotpotqa:Ub Iwerks",
+            "hotpotqa:Oswald the Lucky Rabbit",
+            "hotpotqa:Poor Papa",
+            "hotpotqa:Don Iwerks",
+            "hotpotqa:Epic Mickey",
+            "hotpotqa:Mickey Mouse",
+            "hotpotqa:Julius the Cat",
+            "hotpotqa:Building a Building",
+            "hotpotqa:Get a Horse!",
+            "hotpotqa:Les Clark"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.726
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "hotpotqa:Ub Iwerks",
+            "hotpotqa:Oswald the Lucky Rabbit",
+            "hotpotqa:Don Iwerks",
+            "hotpotqa:Poor Papa",
+            "hotpotqa:Epic Mickey",
+            "hotpotqa:Mickey Mouse",
+            "hotpotqa:Julius the Cat",
+            "hotpotqa:Building a Building",
+            "hotpotqa:Floyd Gottfredson",
+            "hotpotqa:Les Clark"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.694,
+          "native_cosine": 0.9998
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "hotpotqa:Ub Iwerks",
+            "hotpotqa:Oswald the Lucky Rabbit",
+            "hotpotqa:Don Iwerks",
+            "hotpotqa:Poor Papa",
+            "hotpotqa:Epic Mickey",
+            "hotpotqa:Mickey Mouse",
+            "hotpotqa:Building a Building",
+            "hotpotqa:Get a Horse!",
+            "hotpotqa:Floyd Gottfredson",
+            "hotpotqa:Julius the Cat"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 0.5,
+          "rr": 1.0,
+          "seconds": 0.547,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "hp-5ab6993f554299110f219a2b",
+      "type": "multi_hop",
+      "question": "What is name of the mountains near this autonomous community, in which Spanish politician Felipe Alcaraz was born?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "hotpotqa:Felipe Alcaraz",
+            "hotpotqa:Picos de Europa National Park",
+            "hotpotqa:Granada",
+            "hotpotqa:Naranjo de Bulnes",
+            "hotpotqa:Riaño, León",
+            "hotpotqa:Navarre",
+            "hotpotqa:Miguel Ángel Revilla",
+            "hotpotqa:José María Barreda",
+            "hotpotqa:Sierra Nevada National Park (Spain)",
+            "hotpotqa:Guadarrama National Park"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.604
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "hotpotqa:Felipe Alcaraz",
+            "hotpotqa:Granada",
+            "hotpotqa:José María Barreda",
+            "hotpotqa:Andalusia",
+            "hotpotqa:Riaño, León",
+            "hotpotqa:Picos de Europa National Park",
+            "hotpotqa:Navarre",
+            "hotpotqa:Guadarrama National Park",
+            "hotpotqa:Naranjo de Bulnes",
+            "hotpotqa:Sierra Nevada National Park (Spain)"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.656,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "hotpotqa:Felipe Alcaraz",
+            "hotpotqa:Andalusia",
+            "hotpotqa:Granada",
+            "hotpotqa:José María Barreda",
+            "hotpotqa:Riaño, León",
+            "hotpotqa:Navarre",
+            "hotpotqa:Haiyang Mountains",
+            "hotpotqa:Miguel Ángel Revilla",
+            "hotpotqa:Taxation in Spain",
+            "hotpotqa:Asturian Valley cattle"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.513,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "hp-5a8e3ea95542995a26add48d",
+      "type": "multi_hop",
+      "question": "The director of the romantic comedy \"Big Stone Gap\" is based in what New York city?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "hotpotqa:Big Stone Gap (film)",
+            "hotpotqa:Sex and the City (film)",
+            "hotpotqa:The Big Split",
+            "hotpotqa:Morris S. Levy",
+            "hotpotqa:Manhattan Romance",
+            "hotpotqa:Ed's Next Move",
+            "hotpotqa:Going the Distance (2010 film)",
+            "hotpotqa:Paul Feig",
+            "hotpotqa:Chronically Metropolitan",
+            "hotpotqa:Jennifer Prediger"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 0.5,
+          "rr": 1.0,
+          "seconds": 0.649
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "hotpotqa:Big Stone Gap (film)",
+            "hotpotqa:The Big Split",
+            "hotpotqa:Morris S. Levy",
+            "hotpotqa:Jennifer Prediger",
+            "hotpotqa:Charlie Ahearn",
+            "hotpotqa:Going the Distance (2010 film)",
+            "hotpotqa:The Big Knife (play)",
+            "hotpotqa:Sex and the City (film)",
+            "hotpotqa:Paul Feig",
+            "hotpotqa:Francisco Lupini Basagoiti"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 0.5,
+          "rr": 1.0,
+          "seconds": 0.564,
+          "native_cosine": 0.9999
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "hotpotqa:Big Stone Gap (film)",
+            "hotpotqa:Maid in Manhattan",
+            "hotpotqa:One Big Affair",
+            "hotpotqa:The Big Split",
+            "hotpotqa:ATL (film)",
+            "hotpotqa:Going the Distance (2010 film)",
+            "hotpotqa:The Bridges of Madison County (film)",
+            "hotpotqa:There's Always Woodstock",
+            "hotpotqa:Gregg Rogell",
+            "hotpotqa:The Big Knife (play)"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 0.5,
+          "rr": 1.0,
+          "seconds": 0.527,
+          "native_cosine": 0.9999
+        }
+      }
+    },
+    {
+      "id": "hp-5a85fc995542996432c5715f",
+      "type": "multi_hop",
+      "question": "Who won more academy awards,  Joseph L. Mankiewicz or Tony Kaye?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "hotpotqa:Joseph L. Mankiewicz",
+            "hotpotqa:Tony Kaye (director)",
+            "hotpotqa:Tony Richardson",
+            "hotpotqa:Francis Mankiewicz",
+            "hotpotqa:Sam Mintz",
+            "hotpotqa:Tony Kaye (musician)",
+            "hotpotqa:Joseph Anthony",
+            "hotpotqa:Benny Kay",
+            "hotpotqa:F. Keogh Gleason",
+            "hotpotqa:The Quiet American (1958 film)"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.741
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "hotpotqa:Joseph L. Mankiewicz",
+            "hotpotqa:Francis Mankiewicz",
+            "hotpotqa:Sam Mintz",
+            "hotpotqa:Tony Kaye (director)",
+            "hotpotqa:Tony Richardson",
+            "hotpotqa:The Quiet American (1958 film)",
+            "hotpotqa:Joseph Anthony",
+            "hotpotqa:Benny Kay",
+            "hotpotqa:Jonathan Kaufer",
+            "hotpotqa:Tony Kaye (musician)"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.515,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "hotpotqa:Joseph L. Mankiewicz",
+            "hotpotqa:Tony Kaye (director)",
+            "hotpotqa:Francis Mankiewicz",
+            "hotpotqa:Tony Richardson",
+            "hotpotqa:Joseph Anthony",
+            "hotpotqa:The High and the Mighty (film)",
+            "hotpotqa:The Man Who Died Twice",
+            "hotpotqa:Tommy Noonan",
+            "hotpotqa:Sleuth (1972 film)",
+            "hotpotqa:Julius Caesar (1953 film)"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.596,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "hp-5adf8c375542995534e8c7dd",
+      "type": "multi_hop",
+      "question": "In what year was the 1965 World Series MVP elected to the Baseball Hall of Fame?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "hotpotqa:1965 World Series",
+            "hotpotqa:Sandy Koufax",
+            "hotpotqa:Tom Seaver",
+            "hotpotqa:Bob Gibson",
+            "hotpotqa:Babe Ruth",
+            "hotpotqa:Baseball Hall of Fame balloting, 1971",
+            "hotpotqa:Mickey Mantle",
+            "hotpotqa:Carlton Fisk",
+            "hotpotqa:1968 Detroit Tigers season",
+            "hotpotqa:Jeff Bagwell"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.577
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "hotpotqa:1965 World Series",
+            "hotpotqa:Tom Seaver",
+            "hotpotqa:Baseball Hall of Fame balloting, 1971",
+            "hotpotqa:Sandy Koufax",
+            "hotpotqa:Mickey Mantle",
+            "hotpotqa:Bob Gibson",
+            "hotpotqa:1968 Detroit Tigers season",
+            "hotpotqa:Babe Ruth",
+            "hotpotqa:Dizzy Dean",
+            "hotpotqa:Jeff Bagwell"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.517,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "hotpotqa:Mickey Mantle",
+            "hotpotqa:1965 World Series",
+            "hotpotqa:Sandy Koufax",
+            "hotpotqa:Tom Seaver",
+            "hotpotqa:1968 Detroit Tigers season",
+            "hotpotqa:Babe Ruth",
+            "hotpotqa:Carlton Fisk",
+            "hotpotqa:Bill Freehan",
+            "hotpotqa:Jerry Witte",
+            "hotpotqa:Jerry Lucas"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 0.5,
+          "seconds": 0.524,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "hp-5adbf44355429944faac23ce",
+      "type": "multi_hop",
+      "question": "In which county does the  8th Military Police Brigade  of the United States Army's Barracks located?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "hotpotqa:8th Military Police Brigade (United States)",
+            "hotpotqa:16th Military Police Brigade (United States)",
+            "hotpotqa:14th Military Police Brigade",
+            "hotpotqa:18th Military Police Brigade (United States)",
+            "hotpotqa:Fort Bragg",
+            "hotpotqa:Schofield Barracks",
+            "hotpotqa:709th Military Police Battalion",
+            "hotpotqa:49th Military Police Brigade (United States)",
+            "hotpotqa:95th Military Police Battalion",
+            "hotpotqa:720th Military Police Battalion"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.624
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "hotpotqa:8th Military Police Brigade (United States)",
+            "hotpotqa:Fort Bragg",
+            "hotpotqa:Schofield Barracks",
+            "hotpotqa:16th Military Police Brigade (United States)",
+            "hotpotqa:14th Military Police Brigade",
+            "hotpotqa:18th Military Police Brigade (United States)",
+            "hotpotqa:720th Military Police Battalion",
+            "hotpotqa:Texas's 8th congressional district",
+            "hotpotqa:709th Military Police Battalion",
+            "hotpotqa:759th Military Police Battalion"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 1.023,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "hotpotqa:8th Military Police Brigade (United States)",
+            "hotpotqa:Fort Bragg",
+            "hotpotqa:Schofield Barracks",
+            "hotpotqa:Mason, Michigan",
+            "hotpotqa:Texas's 8th congressional district",
+            "hotpotqa:16th Military Police Brigade (United States)",
+            "hotpotqa:Holcut, Mississippi",
+            "hotpotqa:18th Military Police Brigade (United States)",
+            "hotpotqa:14th Military Police Brigade",
+            "hotpotqa:Warren, Michigan"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.615,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "hp-5ab296a6554299194fa93415",
+      "type": "multi_hop",
+      "question": "Is Cartagena or Chess more popular around the world?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "hotpotqa:Cartagena (board game)",
+            "hotpotqa:Chess",
+            "hotpotqa:Chess in Armenia",
+            "hotpotqa:Cartamundi",
+            "hotpotqa:Belize National Youth Chess Foundation",
+            "hotpotqa:Leo Colovini",
+            "hotpotqa:Chess City",
+            "hotpotqa:Chess problem",
+            "hotpotqa:Magnus Carlsen",
+            "hotpotqa:FC Cartagena"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.594
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "hotpotqa:Cartagena (board game)",
+            "hotpotqa:Chess",
+            "hotpotqa:Chess in Armenia",
+            "hotpotqa:Cartamundi",
+            "hotpotqa:Chess problem",
+            "hotpotqa:Belize National Youth Chess Foundation",
+            "hotpotqa:Komikan",
+            "hotpotqa:Chess City",
+            "hotpotqa:Chess Life",
+            "hotpotqa:Magnus Carlsen"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.583,
+          "native_cosine": 0.9998
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "hotpotqa:Cartagena (board game)",
+            "hotpotqa:Chess",
+            "hotpotqa:Komikan",
+            "hotpotqa:Cartamundi",
+            "hotpotqa:TeamChess",
+            "hotpotqa:Carat (board game)",
+            "hotpotqa:Asia Poker",
+            "hotpotqa:Leo Colovini",
+            "hotpotqa:FC Cartagena",
+            "hotpotqa:Pichenotte"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.523,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "hp-5ae3d0bb5542990afbd1e1e5",
+      "type": "multi_hop",
+      "question": "are Dee Dee Ramone and Alex Band both singers, songwriters and musicians?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "hotpotqa:Dee Dee Ramone",
+            "hotpotqa:Dee Dee Ramone and the Chinese Dragons",
+            "hotpotqa:Dee Dee Ramone I.C.L.C.",
+            "hotpotqa:The Ramainz",
+            "hotpotqa:Animal Boy",
+            "hotpotqa:Alex Band",
+            "hotpotqa:Rockaway Beach (song)",
+            "hotpotqa:Dum Dum Girls",
+            "hotpotqa:Youth Gone Mad Featuring Dee Dee Ramone",
+            "hotpotqa:Alex Wolff"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.618
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "hotpotqa:Dee Dee Ramone",
+            "hotpotqa:Dee Dee Ramone I.C.L.C.",
+            "hotpotqa:Animal Boy",
+            "hotpotqa:Youth Gone Mad Featuring Dee Dee Ramone",
+            "hotpotqa:Dee Dee Ramone and the Chinese Dragons",
+            "hotpotqa:Alex Band",
+            "hotpotqa:Rockaway Beach (song)",
+            "hotpotqa:The Ramainz",
+            "hotpotqa:Chelsea Horror Hotel",
+            "hotpotqa:Live at the De De De Der"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.615,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "hotpotqa:Dee Dee Ramone",
+            "hotpotqa:Dee Dee Ramone I.C.L.C.",
+            "hotpotqa:Alex Band",
+            "hotpotqa:Alex Wolff",
+            "hotpotqa:Youth Gone Mad Featuring Dee Dee Ramone",
+            "hotpotqa:Rockaway Beach (song)",
+            "hotpotqa:The Ramainz",
+            "hotpotqa:Dee Dee Ramone and the Chinese Dragons",
+            "hotpotqa:Mary Ramsey",
+            "hotpotqa:Animal Boy"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.573,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "hp-5a735bae55429901807dafef",
+      "type": "multi_hop",
+      "question": "Which indigenous people of the Ryukyu Islands were massacred in the Mudan incident of 1871?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "hotpotqa:Mudan incident (1871)",
+            "hotpotqa:Japanese invasion of Taiwan (1874)",
+            "hotpotqa:Ryukyuan people",
+            "hotpotqa:Okinawa diet",
+            "hotpotqa:Government of the Ryukyu Islands",
+            "hotpotqa:Mendocino War",
+            "hotpotqa:Yaeyama language",
+            "hotpotqa:Indigenous Australians",
+            "hotpotqa:Port Arthur massacre (China)",
+            "hotpotqa:Ganghwa massacre"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.644
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "hotpotqa:Mudan incident (1871)",
+            "hotpotqa:Japanese invasion of Taiwan (1874)",
+            "hotpotqa:Ryukyuan people",
+            "hotpotqa:Ganghwa massacre",
+            "hotpotqa:Yaeyama language",
+            "hotpotqa:Guanche mummies",
+            "hotpotqa:Government of the Ryukyu Islands",
+            "hotpotqa:Bubi people",
+            "hotpotqa:Port Arthur massacre (China)",
+            "hotpotqa:Okinawa diet"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.581,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "hotpotqa:Mudan incident (1871)",
+            "hotpotqa:Ryukyuan people",
+            "hotpotqa:Japanese invasion of Taiwan (1874)",
+            "hotpotqa:Bubi people",
+            "hotpotqa:Guanche mummies",
+            "hotpotqa:Dugu",
+            "hotpotqa:Ganghwa massacre",
+            "hotpotqa:Port Arthur massacre (China)",
+            "hotpotqa:1990–98 Indonesian military operations in Aceh",
+            "hotpotqa:1998 Ryukyu Islands earthquake"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.505,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "hp-5a80caac554299260e20a161",
+      "type": "multi_hop",
+      "question": "Were both Prince and Patty Jenkins have been inducted into the Rock and Roll Hall of Fame?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "hotpotqa:Prince (musician)",
+            "hotpotqa:Patty Jenkins",
+            "hotpotqa:Brenda Bennett",
+            "hotpotqa:Rock and Roll Hall of Fame",
+            "hotpotqa:Pattie Howard",
+            "hotpotqa:Music of Ohio",
+            "hotpotqa:Peggy Jones (musician)",
+            "hotpotqa:Patti Page",
+            "hotpotqa:David Bowie",
+            "hotpotqa:Land (1975–2002)"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.609
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "hotpotqa:Prince (musician)",
+            "hotpotqa:Patty Jenkins",
+            "hotpotqa:Brenda Bennett",
+            "hotpotqa:Peggy Jones (musician)",
+            "hotpotqa:Pattie Howard",
+            "hotpotqa:Patti Page",
+            "hotpotqa:Birthday (Katy Perry song)",
+            "hotpotqa:Music of Ohio",
+            "hotpotqa:Rock 'n Soul Part 1",
+            "hotpotqa:Rock and Roll Hall of Fame"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.609,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "hotpotqa:Prince (musician)",
+            "hotpotqa:Marvin Gaye",
+            "hotpotqa:Pattie Howard",
+            "hotpotqa:Daryl Hall",
+            "hotpotqa:Duke of Earl",
+            "hotpotqa:Invincible (Hedley song)",
+            "hotpotqa:Patty Jenkins",
+            "hotpotqa:Brenda Bennett",
+            "hotpotqa:A Tribute to Richard Rodgers",
+            "hotpotqa:Peggy Jones (musician)"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.574,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "hp-5a8c493e554299653c1aa020",
+      "type": "multi_hop",
+      "question": "John ruskin named his album due to a removal of what?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "hotpotqa:Ruskin",
+            "hotpotqa:John Ruskin (painting)",
+            "hotpotqa:Modern Painters",
+            "hotpotqa:Ruskin College",
+            "hotpotqa:Remix",
+            "hotpotqa:The Passion of John Ruskin",
+            "hotpotqa:Deconstructed (Bush album)",
+            "hotpotqa:Ruskin Colony",
+            "hotpotqa:The Seven Lamps of Architecture",
+            "hotpotqa:Album musical"
+          ],
+          "recall@5": 0.0,
+          "recall@10": 0.0,
+          "rr": 0.0,
+          "seconds": 0.883
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "hotpotqa:Ruskin",
+            "hotpotqa:John Ruskin (painting)",
+            "hotpotqa:Remix",
+            "hotpotqa:Soviet sale of Hermitage paintings",
+            "hotpotqa:Modern Painters",
+            "hotpotqa:Ruskin College",
+            "hotpotqa:The Rake's Progress",
+            "hotpotqa:Public Castration Is a Good Idea",
+            "hotpotqa:Deconstructed (Bush album)",
+            "hotpotqa:Docking (animal)"
+          ],
+          "recall@5": 0.0,
+          "recall@10": 0.0,
+          "rr": 0.0,
+          "seconds": 0.555,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "hotpotqa:Ruskin",
+            "hotpotqa:Skynyrd's First and... Last",
+            "hotpotqa:Celts and Cobras",
+            "hotpotqa:Old and in the Way (album)",
+            "hotpotqa:King Crimson on Broadway",
+            "hotpotqa:Nashville Rehearsals",
+            "hotpotqa:Live at the Boarding House",
+            "hotpotqa:Public Castration Is a Good Idea",
+            "hotpotqa:Nicola (album)",
+            "hotpotqa:I Gotta Rash/We Are Thee Goblins from Canada"
+          ],
+          "recall@5": 0.0,
+          "recall@10": 0.5,
+          "rr": 0.1,
+          "seconds": 0.529,
+          "native_cosine": 0.9999
+        }
+      }
+    },
+    {
+      "id": "hp-5a8ae0ae55429950cd6afbc2",
+      "type": "multi_hop",
+      "question": "What airline was a monopoly with a hub at Sheremetyevo International Airport?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "hotpotqa:Sheremetyevo International Airport",
+            "hotpotqa:Aeroflot",
+            "hotpotqa:Avianova (Russia)",
+            "hotpotqa:Rossiya Airlines",
+            "hotpotqa:Nordwind Airlines",
+            "hotpotqa:VIM Airlines",
+            "hotpotqa:Aeroflot Flight 217",
+            "hotpotqa:Enkor",
+            "hotpotqa:Pulkovo Airport",
+            "hotpotqa:AirBridgeCargo"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 0.5,
+          "rr": 0.5,
+          "seconds": 0.626
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "hotpotqa:Aeroflot",
+            "hotpotqa:Sheremetyevo International Airport",
+            "hotpotqa:Avianova (Russia)",
+            "hotpotqa:Rossiya Airlines",
+            "hotpotqa:Nordwind Airlines",
+            "hotpotqa:VIM Airlines",
+            "hotpotqa:Aeroflot Flight 217",
+            "hotpotqa:Enkor",
+            "hotpotqa:AirBridgeCargo",
+            "hotpotqa:Pulkovo Airport"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 0.5,
+          "rr": 1.0,
+          "seconds": 0.611,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "hotpotqa:Aeroflot",
+            "hotpotqa:Sheremetyevo International Airport",
+            "hotpotqa:Avianova (Russia)",
+            "hotpotqa:Rossiya Airlines",
+            "hotpotqa:Pulkovo Airport",
+            "hotpotqa:VIM Airlines",
+            "hotpotqa:Vnukovo International Airport",
+            "hotpotqa:AirBridgeCargo",
+            "hotpotqa:Aviaenergo",
+            "hotpotqa:Nordwind Airlines"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 0.5,
+          "rr": 1.0,
+          "seconds": 0.59,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "hp-5a8da97c554299068b959d84",
+      "type": "multi_hop",
+      "question": "Which university offers more campuses in the Philippines, Fairleigh Dickinson University or the Western Institute of Technology?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "hotpotqa:Western Institute of Technology (Philippines)",
+            "hotpotqa:Fairleigh Dickinson University",
+            "hotpotqa:Fairleigh Dickinson University Press",
+            "hotpotqa:Western University of Health Sciences",
+            "hotpotqa:Fairleigh Dickinson Knights",
+            "hotpotqa:Larry Arico",
+            "hotpotqa:Weifang University",
+            "hotpotqa:Fairleigh S. Dickinson",
+            "hotpotqa:Illinois Institute of Technology",
+            "hotpotqa:Polytechnic University of the Philippines"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.608
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "hotpotqa:Western Institute of Technology (Philippines)",
+            "hotpotqa:Fairleigh Dickinson University",
+            "hotpotqa:Fairleigh Dickinson University Press",
+            "hotpotqa:Western University of Health Sciences",
+            "hotpotqa:Weifang University",
+            "hotpotqa:Fairleigh Dickinson Knights",
+            "hotpotqa:Larry Arico",
+            "hotpotqa:Illinois Institute of Technology",
+            "hotpotqa:Institute of Traditional Judaism",
+            "hotpotqa:Fairleigh S. Dickinson"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.579,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "hotpotqa:Western Institute of Technology (Philippines)",
+            "hotpotqa:Fairleigh Dickinson University",
+            "hotpotqa:Fairleigh Dickinson University Press",
+            "hotpotqa:Western University of Health Sciences",
+            "hotpotqa:Larry Arico",
+            "hotpotqa:Weifang University",
+            "hotpotqa:Polytechnic University of the Philippines",
+            "hotpotqa:Campuses of Fordham University",
+            "hotpotqa:Northwestern International University",
+            "hotpotqa:University of New Haven"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.508,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "hp-5a88a42f554299206df2b317",
+      "type": "multi_hop",
+      "question": "What literary style describes the 1968 book that features a 1939 international Harvester school bus?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "hotpotqa:Further (bus)",
+            "hotpotqa:The Electric Kool-Aid Acid Test",
+            "hotpotqa:The Wheels on the Bus",
+            "hotpotqa:Night (book)",
+            "hotpotqa:International Harvester S-Series (bus chassis)",
+            "hotpotqa:A Clockwork Orange (novel)",
+            "hotpotqa:Farmall H",
+            "hotpotqa:High School (1968 film)",
+            "hotpotqa:Wheels (novel)",
+            "hotpotqa:Blood and Guts in High School"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.659
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "hotpotqa:Further (bus)",
+            "hotpotqa:The Electric Kool-Aid Acid Test",
+            "hotpotqa:International Harvester S-Series (bus chassis)",
+            "hotpotqa:Night (book)",
+            "hotpotqa:Farmall H",
+            "hotpotqa:High School (1968 film)",
+            "hotpotqa:The Wheels on the Bus",
+            "hotpotqa:Little Big Man (novel)",
+            "hotpotqa:Farmall M",
+            "hotpotqa:Wheels (novel)"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.543,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "hotpotqa:Dispatches (book)",
+            "hotpotqa:Further (bus)",
+            "hotpotqa:Diary of a Wimpy Kid",
+            "hotpotqa:Hiroshima (book)",
+            "hotpotqa:The Electric Kool-Aid Acid Test",
+            "hotpotqa:My Name Is Aram",
+            "hotpotqa:The Outsiders (novel)",
+            "hotpotqa:Little Big Man (novel)",
+            "hotpotqa:Deus Irae",
+            "hotpotqa:Vulcan's Hammer"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 0.5,
+          "seconds": 0.51,
+          "native_cosine": 0.9998
+        }
+      }
+    },
+    {
+      "id": "hp-5a81d54a55429903bc27b9d4",
+      "type": "multi_hop",
+      "question": "Were Jeff Martin and Kyle Patrick both in The Click Five?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "hotpotqa:Kyle Patrick",
+            "hotpotqa:The Click Five",
+            "hotpotqa:Don't Let Me Go",
+            "hotpotqa:Kevin Martin (FCC)",
+            "hotpotqa:Jeff Martin 777",
+            "hotpotqa:Jeff Martin (Canadian musician)",
+            "hotpotqa:Martin (TV series)",
+            "hotpotqa:Flipside (The Click Five song)",
+            "hotpotqa:Jeff Martin (game designer)",
+            "hotpotqa:Five Finger Death Punch"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.599
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "hotpotqa:Kyle Patrick",
+            "hotpotqa:The Click Five",
+            "hotpotqa:Don't Let Me Go",
+            "hotpotqa:Jeff Martin 777",
+            "hotpotqa:Jeff Martin (Canadian musician)",
+            "hotpotqa:Flipside (The Click Five song)",
+            "hotpotqa:Kevin Martin (FCC)",
+            "hotpotqa:Dean Martin",
+            "hotpotqa:Martin (TV series)",
+            "hotpotqa:Pizzicato Five"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.556,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "hotpotqa:Kyle Patrick",
+            "hotpotqa:The Click Five",
+            "hotpotqa:Kevin Martin (FCC)",
+            "hotpotqa:Billy Martin (lawyer)",
+            "hotpotqa:Jeff Martin (Canadian musician)",
+            "hotpotqa:Kickin' It",
+            "hotpotqa:Billy Martin (tennis)",
+            "hotpotqa:Dean Martin",
+            "hotpotqa:Kelly's Heroes",
+            "hotpotqa:Martin (TV series)"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.528,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "hp-5add1aa65542990d50227de1",
+      "type": "multi_hop",
+      "question": "Who was the director of the 2007 American fantasy comedy film in which the actor best known for playing Michael Scott on the the American version of \"The Office\" starred?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "hotpotqa:Steve Carell",
+            "hotpotqa:Evan Almighty",
+            "hotpotqa:Superbad (film)",
+            "hotpotqa:Blades of Glory",
+            "hotpotqa:David Koechner",
+            "hotpotqa:TMNT (film)",
+            "hotpotqa:Scott Neustadter",
+            "hotpotqa:Office Christmas Party",
+            "hotpotqa:Fred Claus",
+            "hotpotqa:Jason Bateman"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.598
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "hotpotqa:Steve Carell",
+            "hotpotqa:Evan Almighty",
+            "hotpotqa:Blades of Glory",
+            "hotpotqa:TMNT (film)",
+            "hotpotqa:David Koechner",
+            "hotpotqa:Superbad (film)",
+            "hotpotqa:Office Christmas Party",
+            "hotpotqa:Fred Claus",
+            "hotpotqa:Michael Stephenson (filmmaker)",
+            "hotpotqa:Epic Movie"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.583,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "hotpotqa:Steve Carell",
+            "hotpotqa:Evan Almighty",
+            "hotpotqa:Shrek the Third",
+            "hotpotqa:Blades of Glory",
+            "hotpotqa:Tim Allen",
+            "hotpotqa:Epic Movie",
+            "hotpotqa:Office Christmas Party",
+            "hotpotqa:Scott Patterson",
+            "hotpotqa:Underdog (film)",
+            "hotpotqa:TMNT (film)"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.534,
+          "native_cosine": 0.9999
+        }
+      }
+    },
+    {
+      "id": "hp-5a7e36815542995ed0d166d4",
+      "type": "multi_hop",
+      "question": "What two casinos border the hotel that hosted WrestleMania IX?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "hotpotqa:WrestleMania IX",
+            "hotpotqa:MotorCity Casino Hotel",
+            "hotpotqa:Caesars Palace",
+            "hotpotqa:Wynn Las Vegas",
+            "hotpotqa:TEN Atlantic City",
+            "hotpotqa:Tropicana – Las Vegas Boulevard intersection",
+            "hotpotqa:Stratosphere Las Vegas",
+            "hotpotqa:Palms Casino Resort",
+            "hotpotqa:Treasure Island Hotel and Casino",
+            "hotpotqa:The Orleans"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 0.5,
+          "rr": 0.3333333333333333,
+          "seconds": 0.686
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "hotpotqa:MotorCity Casino Hotel",
+            "hotpotqa:WrestleMania IX",
+            "hotpotqa:Camelot Hotel/Casino",
+            "hotpotqa:Stratosphere Las Vegas",
+            "hotpotqa:Aria Resort and Casino",
+            "hotpotqa:Caesars Palace",
+            "hotpotqa:Wynn Las Vegas",
+            "hotpotqa:The Orleans",
+            "hotpotqa:Alon Las Vegas",
+            "hotpotqa:Encore Las Vegas"
+          ],
+          "recall@5": 0.0,
+          "recall@10": 0.5,
+          "rr": 0.16666666666666666,
+          "seconds": 0.843,
+          "native_cosine": 0.9999
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "hotpotqa:Camelot Hotel/Casino",
+            "hotpotqa:Caesars Palace",
+            "hotpotqa:Alon Las Vegas",
+            "hotpotqa:New York-New York Hotel and Casino",
+            "hotpotqa:MGM Grand Las Vegas",
+            "hotpotqa:Excalibur Hotel and Casino",
+            "hotpotqa:Stratosphere Las Vegas",
+            "hotpotqa:MotorCity Casino Hotel",
+            "hotpotqa:Aria Resort and Casino",
+            "hotpotqa:Palms Casino Resort"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 0.5,
+          "rr": 0.5,
+          "seconds": 0.507,
+          "native_cosine": 0.9999
+        }
+      }
+    },
+    {
+      "id": "hp-simple-1",
+      "type": "simple",
+      "question": "Who directed the 2008 film The Forbidden Kingdom?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "hotpotqa:The Forbidden Kingdom",
+            "hotpotqa:Forbidden Quest",
+            "hotpotqa:Wanted (2008 film)",
+            "hotpotqa:Fated to Love You (2008 TV series)",
+            "hotpotqa:One Missed Call (2008 film)",
+            "hotpotqa:Kung Fu Panda",
+            "hotpotqa:The Good, the Bad, the Weird",
+            "hotpotqa:Ip Man (film)",
+            "hotpotqa:The Curious Case of Benjamin Button (film)",
+            "hotpotqa:Expelled: No Intelligence Allowed"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.634
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "hotpotqa:The Forbidden Kingdom",
+            "hotpotqa:Forbidden Quest",
+            "hotpotqa:One Missed Call (2008 film)",
+            "hotpotqa:My Kingdom (film)",
+            "hotpotqa:Bigga than Ben",
+            "hotpotqa:Fatal Contact (film)",
+            "hotpotqa:Wanted (2008 film)",
+            "hotpotqa:In the Name of the King",
+            "hotpotqa:Kung Fu Panda",
+            "hotpotqa:The Curious Case of Benjamin Button (film)"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.94,
+          "native_cosine": 0.9999
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "hotpotqa:The Forbidden Kingdom",
+            "hotpotqa:Forbidden Quest",
+            "hotpotqa:Baadshah (1999 film)",
+            "hotpotqa:In the Name of the King",
+            "hotpotqa:The Cottage (film)",
+            "hotpotqa:My Kingdom (film)",
+            "hotpotqa:Smeep Kang",
+            "hotpotqa:Bigga than Ben",
+            "hotpotqa:One Missed Call (2008 film)",
+            "hotpotqa:Shadowless Sword"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.5,
+          "native_cosine": 0.9999
+        }
+      }
+    },
+    {
+      "id": "hp-simple-2",
+      "type": "simple",
+      "question": "How many monks live at Mariastern Abbey near Banja Luka today?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "hotpotqa:Mariastern Abbey, Banja Luka",
+            "hotpotqa:Banja Luka",
+            "hotpotqa:Neresheim Abbey",
+            "hotpotqa:Cârța Monastery",
+            "hotpotqa:Zbraslav Monastery",
+            "hotpotqa:Säckingen Abbey",
+            "hotpotqa:Kreuzlingen Abbey",
+            "hotpotqa:Styria (Slovenia)",
+            "hotpotqa:Bajaga i Instruktori",
+            "hotpotqa:Achel Abbey"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.629
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "hotpotqa:Mariastern Abbey, Banja Luka",
+            "hotpotqa:Banja Luka",
+            "hotpotqa:Styria (Slovenia)",
+            "hotpotqa:Višegrad",
+            "hotpotqa:Serbo-Byzantine architecture",
+            "hotpotqa:Zbraslav Monastery",
+            "hotpotqa:Bajaga i Instruktori",
+            "hotpotqa:Silja Walter",
+            "hotpotqa:Bosniac National Council",
+            "hotpotqa:Goran Todić"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.519,
+          "native_cosine": 0.9999
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "hotpotqa:Mariastern Abbey, Banja Luka",
+            "hotpotqa:Great Lavra",
+            "hotpotqa:Gaboš",
+            "hotpotqa:Vuk Rađenović",
+            "hotpotqa:Banja Luka",
+            "hotpotqa:Albanians in Montenegro",
+            "hotpotqa:Life of St. Sava (by Teodosije)",
+            "hotpotqa:Zbraslav Monastery",
+            "hotpotqa:Cârța Monastery",
+            "hotpotqa:Styria (Slovenia)"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.524,
+          "native_cosine": 0.9999
+        }
+      }
+    },
+    {
+      "id": "hp-simple-3",
+      "type": "simple",
+      "question": "Who made the 1998 surfing film In God's Hands?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "hotpotqa:In God's Hands (film)",
+            "hotpotqa:Surf's Up (film)",
+            "hotpotqa:Phil Edwards (surfer)",
+            "hotpotqa:Surfwise",
+            "hotpotqa:Five Summer Stories",
+            "hotpotqa:Surfer (advertisement)",
+            "hotpotqa:Bruce Brown",
+            "hotpotqa:Point Break",
+            "hotpotqa:Daddy's Hands (band)",
+            "hotpotqa:Dana Brown"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.64
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "hotpotqa:In God's Hands (film)",
+            "hotpotqa:Surf's Up (film)",
+            "hotpotqa:Surfer (advertisement)",
+            "hotpotqa:Five Summer Stories",
+            "hotpotqa:Tow-in surfing",
+            "hotpotqa:Phil Edwards (surfer)",
+            "hotpotqa:Daddy's Hands (band)",
+            "hotpotqa:Surfer hair",
+            "hotpotqa:Surfwise",
+            "hotpotqa:God Lives Underwater (EP)"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.525,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "hotpotqa:In God's Hands (film)",
+            "hotpotqa:Tow-in surfing",
+            "hotpotqa:Five Summer Stories",
+            "hotpotqa:Phil Edwards (surfer)",
+            "hotpotqa:Gary Elkerton",
+            "hotpotqa:Indy grab",
+            "hotpotqa:Surf's Up (film)",
+            "hotpotqa:Chris Senn (skateboarder)",
+            "hotpotqa:Skimboarding",
+            "hotpotqa:3 Ninjas (film)"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.539,
+          "native_cosine": 0.9996
+        }
+      }
+    },
+    {
+      "id": "hp-simple-4",
+      "type": "simple",
+      "question": "Who was the head coach of the 2012 Delaware Fightin' Blue Hens football team?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "hotpotqa:2012 Delaware Fightin' Blue Hens football team",
+            "hotpotqa:K. C. Keeler",
+            "hotpotqa:Battle of the Blue",
+            "hotpotqa:2012 Colgate Raiders football team",
+            "hotpotqa:Delaware–William &amp; Mary football rivalry",
+            "hotpotqa:2012 Colorado Buffaloes football team",
+            "hotpotqa:2012 Florida Atlantic Owls football team",
+            "hotpotqa:2012 Arkansas State Red Wolves football team",
+            "hotpotqa:2012 Tennessee Tech Golden Eagles football team",
+            "hotpotqa:2011 Bryant Bulldogs football team"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.703
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "hotpotqa:2012 Delaware Fightin' Blue Hens football team",
+            "hotpotqa:K. C. Keeler",
+            "hotpotqa:Battle of the Blue",
+            "hotpotqa:2012 Colgate Raiders football team",
+            "hotpotqa:2012 Colorado Buffaloes football team",
+            "hotpotqa:Delaware–William &amp; Mary football rivalry",
+            "hotpotqa:Dick Biddle",
+            "hotpotqa:2012 Tennessee Tech Golden Eagles football team",
+            "hotpotqa:2012 Harvard Crimson football team",
+            "hotpotqa:2012–13 Hampton Pirates men's basketball team"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.859,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "hotpotqa:2012 Delaware Fightin' Blue Hens football team",
+            "hotpotqa:K. C. Keeler",
+            "hotpotqa:Marvin Lewis",
+            "hotpotqa:2012 Colgate Raiders football team",
+            "hotpotqa:Battle of the Blue",
+            "hotpotqa:2012–13 Murray State Racers men's basketball team",
+            "hotpotqa:2012–13 Hampton Pirates men's basketball team",
+            "hotpotqa:2012 West Virginia Mountaineers football team",
+            "hotpotqa:2012 Colorado Buffaloes football team",
+            "hotpotqa:Gary Williams"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.584,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "hp-simple-5",
+      "type": "simple",
+      "question": "Who scored the winning goal for Arsenal in the 1987 Football League Cup Final?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "hotpotqa:1987 Football League Cup Final",
+            "hotpotqa:1988 Football League Cup Final",
+            "hotpotqa:1979 FA Cup Final",
+            "hotpotqa:1985 Football League Cup Final",
+            "hotpotqa:2005 FA Cup Final",
+            "hotpotqa:1994 European Cup Winners' Cup Final",
+            "hotpotqa:1983 Football League Cup Final",
+            "hotpotqa:1987 European Cup Winners' Cup Final",
+            "hotpotqa:1998 FA Cup Final",
+            "hotpotqa:Dan Lewis (footballer)"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.573
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "hotpotqa:1987 Football League Cup Final",
+            "hotpotqa:1985 Football League Cup Final",
+            "hotpotqa:1979 FA Cup Final",
+            "hotpotqa:1994 European Cup Winners' Cup Final",
+            "hotpotqa:1988 Football League Cup Final",
+            "hotpotqa:1983 Football League Cup Final",
+            "hotpotqa:2005 FA Cup Final",
+            "hotpotqa:1987 European Cup Winners' Cup Final",
+            "hotpotqa:Dan Lewis (footballer)",
+            "hotpotqa:1985 Scottish League Cup Final"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.585,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "hotpotqa:1987 Football League Cup Final",
+            "hotpotqa:1979 FA Cup Final",
+            "hotpotqa:1985 Football League Cup Final",
+            "hotpotqa:1988 Football League Cup Final",
+            "hotpotqa:1994 European Cup Winners' Cup Final",
+            "hotpotqa:1983 Football League Cup Final",
+            "hotpotqa:1987 European Cup Winners' Cup Final",
+            "hotpotqa:1985 Scottish League Cup Final",
+            "hotpotqa:Panenka (penalty kick)",
+            "hotpotqa:1982 Scottish League Cup Final"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.5,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "acme-001",
+      "type": "multi_doc",
+      "question": "What caused the card payment outage on March 12, 2026, and how was it fixed?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-inc-301.pdf",
+            "upload:acme-sts-301.html",
+            "upload:acme-sts-320.html",
+            "upload:acme-sts-305.html",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-sts-220.html",
+            "upload:acme-sts-101.html",
+            "upload:acme-sts-120.html",
+            "upload:acme-inc-302.pdf",
+            "upload:acme-inc-303.pdf"
+          ],
+          "recall@5": 0.3333333333333333,
+          "recall@10": 0.3333333333333333,
+          "rr": 1.0,
+          "seconds": 0.912
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-inc-301.pdf",
+            "upload:acme-sts-301.html",
+            "upload:acme-sts-320.html",
+            "upload:acme-sts-305.html",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-sts-101.html",
+            "upload:acme-inc-302.pdf",
+            "upload:acme-inc-303.pdf",
+            "upload:acme-sts-220.html",
+            "upload:acme-sts-120.html"
+          ],
+          "recall@5": 0.3333333333333333,
+          "recall@10": 0.3333333333333333,
+          "rr": 1.0,
+          "seconds": 0.52,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-inc-301.pdf",
+            "upload:acme-sts-301.html",
+            "upload:acme-sts-320.html",
+            "upload:acme-inc-302.pdf",
+            "upload:acme-inc-303.pdf",
+            "upload:acme-sts-305.html",
+            "upload:acme-sts-303.html",
+            "upload:acme-sts-101.html",
+            "upload:acme-sts-220.html",
+            "upload:acme-sts-120.html"
+          ],
+          "recall@5": 0.3333333333333333,
+          "recall@10": 0.3333333333333333,
+          "rr": 1.0,
+          "seconds": 0.511,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "acme-002",
+      "type": "multi_doc",
+      "question": "Reconstruct the timeline of the March 12, 2026 outage, from the change that triggered it to recovery.",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-inc-306.pdf",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-chg-1045.md",
+            "upload:acme-sts-320.html",
+            "upload:acme-chg-1047.md",
+            "upload:acme-inc-403.pdf",
+            "upload:acme-chg-1066.md",
+            "upload:acme-chg-1011.md",
+            "upload:acme-chg-1080.md",
+            "upload:acme-inc-302.pdf"
+          ],
+          "recall@5": 0.3333333333333333,
+          "recall@10": 0.3333333333333333,
+          "rr": 0.5,
+          "seconds": 0.617
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-chg-1045.md",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-chg-1066.md",
+            "upload:acme-chg-1047.md",
+            "upload:acme-sts-320.html",
+            "upload:acme-inc-403.pdf",
+            "upload:acme-chg-1011.md",
+            "upload:acme-inc-302.pdf",
+            "upload:acme-chg-1080.md"
+          ],
+          "recall@5": 0.3333333333333333,
+          "recall@10": 0.3333333333333333,
+          "rr": 0.5,
+          "seconds": 0.517,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-inc-301.pdf",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-chg-1045.md",
+            "upload:acme-chg-1066.md",
+            "upload:acme-sts-306.html",
+            "upload:acme-inc-401.pdf",
+            "upload:acme-inc-403.pdf",
+            "upload:acme-sts-320.html",
+            "upload:acme-inc-302.pdf",
+            "upload:acme-chg-1047.md"
+          ],
+          "recall@5": 0.3333333333333333,
+          "recall@10": 0.3333333333333333,
+          "rr": 1.0,
+          "seconds": 0.516,
+          "native_cosine": 0.9999
+        }
+      }
+    },
+    {
+      "id": "acme-003",
+      "type": "multi_doc",
+      "question": "Which follow-up change was made after the February 9, 2026 webhook certificate incident, and what does it do?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-inc-202.pdf",
+            "upload:acme-chg-1019.md",
+            "upload:acme-chg-1061.md",
+            "upload:acme-sts-220.html",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-chg-1045.md",
+            "upload:acme-sts-102.html",
+            "upload:acme-rb-09.docx",
+            "upload:acme-chg-1064.md",
+            "upload:acme-inc-301.pdf"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.582
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-inc-202.pdf",
+            "upload:acme-chg-1019.md",
+            "upload:acme-chg-1061.md",
+            "upload:acme-sts-102.html",
+            "upload:acme-sts-220.html",
+            "upload:acme-chg-1064.md",
+            "upload:acme-chg-1045.md",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-rb-09.docx",
+            "upload:acme-chg-1055.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.591,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-inc-202.pdf",
+            "upload:acme-chg-1061.md",
+            "upload:acme-chg-1019.md",
+            "upload:acme-rb-09.docx",
+            "upload:acme-chg-1045.md",
+            "upload:acme-sts-102.html",
+            "upload:acme-chg-1055.md",
+            "upload:acme-chg-1064.md",
+            "upload:acme-chg-1068.md",
+            "upload:acme-chg-1040.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.515,
+          "native_cosine": 0.9999
+        }
+      }
+    },
+    {
+      "id": "acme-004",
+      "type": "multi_doc",
+      "question": "Which incidents in 2026 were attributed, at least at first, to NorthBank?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-inc-302.pdf",
+            "upload:acme-rb-05.docx",
+            "upload:acme-chg-1007.md",
+            "upload:acme-chg-1072.md",
+            "upload:acme-sts-320.html",
+            "upload:acme-chg-1064.md",
+            "upload:acme-rb-04.docx",
+            "upload:acme-inc-303.pdf",
+            "hotpotqa:1966 Golden Fleece Cup",
+            "upload:acme-inc-402.pdf"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.585
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-inc-302.pdf",
+            "upload:acme-rb-04.docx",
+            "upload:acme-rb-05.docx",
+            "upload:acme-chg-1072.md",
+            "hotpotqa:1966 Golden Fleece Cup",
+            "hotpotqa:North v South",
+            "upload:acme-inc-402.pdf",
+            "hotpotqa:Northman",
+            "hotpotqa:Gordon Burns",
+            "hotpotqa:Robert McConnell (loyalist)"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 0.5,
+          "rr": 1.0,
+          "seconds": 0.773,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-inc-302.pdf",
+            "hotpotqa:Kingdom of Northumbria",
+            "hotpotqa:North Midlands Cup",
+            "upload:acme-rb-04.docx",
+            "hotpotqa:Bible John",
+            "hotpotqa:Northern Circuit",
+            "hotpotqa:AFC North",
+            "hotpotqa:Northman",
+            "hotpotqa:Earl of Northumbria",
+            "hotpotqa:Copsi"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 0.5,
+          "rr": 1.0,
+          "seconds": 0.625,
+          "native_cosine": 0.9999
+        }
+      }
+    },
+    {
+      "id": "acme-005",
+      "type": "multi_doc",
+      "question": "Which fraud-scorer model versions were involved in the January 21, 2026 incident, and which runbook describes the rollback?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-rb-06.docx",
+            "upload:acme-chg-1011.md",
+            "upload:acme-inc-201.pdf",
+            "upload:acme-rb-12.docx",
+            "upload:acme-chg-1058.md",
+            "upload:acme-sts-101.html",
+            "upload:acme-inc-403.pdf",
+            "upload:acme-chg-1080.md",
+            "upload:acme-rb-10.docx",
+            "upload:acme-sts-120.html"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.674
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-rb-06.docx",
+            "upload:acme-inc-201.pdf",
+            "upload:acme-chg-1011.md",
+            "upload:acme-rb-12.docx",
+            "upload:acme-sts-101.html",
+            "upload:acme-chg-1058.md",
+            "upload:acme-inc-403.pdf",
+            "upload:acme-chg-1080.md",
+            "upload:acme-rb-10.docx",
+            "upload:acme-rb-04.docx"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.552,
+          "native_cosine": 0.9998
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-rb-06.docx",
+            "upload:acme-chg-1011.md",
+            "upload:acme-rb-12.docx",
+            "upload:acme-inc-201.pdf",
+            "upload:acme-sts-101.html",
+            "upload:acme-inc-403.pdf",
+            "upload:acme-chg-1058.md",
+            "upload:acme-chg-1080.md",
+            "upload:acme-rb-04.docx",
+            "upload:acme-chg-1028.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.546,
+          "native_cosine": 0.9998
+        }
+      }
+    },
+    {
+      "id": "acme-006",
+      "type": "multi_doc",
+      "question": "Which change caused the April 7, 2026 merchant portal login outage, and what did it modify?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-inc-401.pdf",
+            "upload:acme-sts-401.html",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-sts-320.html",
+            "upload:acme-chg-1068.md",
+            "upload:acme-chg-1052.md",
+            "upload:acme-rb-08.docx",
+            "upload:acme-inc-203.pdf",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-sts-220.html"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.613
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-inc-401.pdf",
+            "upload:acme-sts-401.html",
+            "upload:acme-chg-1068.md",
+            "upload:acme-chg-1052.md",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-sts-320.html",
+            "upload:acme-rb-08.docx",
+            "upload:acme-chg-1022.md",
+            "upload:acme-chg-1040.md",
+            "upload:acme-chg-1045.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.548,
+          "native_cosine": 0.9999
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-inc-401.pdf",
+            "upload:acme-sts-401.html",
+            "upload:acme-chg-1052.md",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-chg-1068.md",
+            "upload:acme-chg-1040.md",
+            "upload:acme-sts-320.html",
+            "upload:acme-chg-1050.md",
+            "upload:acme-chg-1022.md",
+            "upload:acme-chg-1077.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.546,
+          "native_cosine": 0.9999
+        }
+      }
+    },
+    {
+      "id": "acme-007",
+      "type": "multi_doc",
+      "question": "What caused the April 2026 ledger reconciliation mismatch, and which change fixed it?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-inc-402.pdf",
+            "upload:acme-inc-402.pdf",
+            "upload:acme-rb-04.docx",
+            "upload:acme-chg-1072.md",
+            "upload:acme-chg-1074.md",
+            "upload:acme-chg-1047.md",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-chg-1042.md",
+            "upload:acme-chg-1030.md",
+            "upload:acme-sts-306.html"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.593
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-inc-402.pdf",
+            "upload:acme-inc-402.pdf",
+            "upload:acme-rb-04.docx",
+            "upload:acme-chg-1074.md",
+            "upload:acme-chg-1072.md",
+            "upload:acme-chg-1047.md",
+            "upload:acme-chg-1042.md",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-chg-1014.md",
+            "upload:acme-chg-1030.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.563,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-inc-402.pdf",
+            "upload:acme-inc-402.pdf",
+            "upload:acme-rb-04.docx",
+            "upload:acme-chg-1074.md",
+            "upload:acme-sts-306.html",
+            "upload:acme-chg-1072.md",
+            "upload:acme-chg-1047.md",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-chg-1042.md",
+            "upload:acme-chg-1030.md"
+          ],
+          "recall@5": 0.6666666666666666,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.499,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "acme-008",
+      "type": "multi_doc",
+      "question": "What rate limit was introduced after the March 3, 2026 payments-api latency incident?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-chg-1036.md",
+            "upload:acme-inc-304.pdf",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-sts-403.html",
+            "upload:acme-sts-320.html",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-sts-101.html",
+            "upload:acme-sts-220.html",
+            "upload:acme-rb-01.docx",
+            "upload:acme-inc-403.pdf"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.653
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-chg-1036.md",
+            "upload:acme-inc-304.pdf",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-sts-403.html",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-sts-320.html",
+            "upload:acme-rb-01.docx",
+            "upload:acme-rb-02.docx",
+            "upload:acme-inc-403.pdf",
+            "upload:acme-sts-220.html"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.78,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-inc-304.pdf",
+            "upload:acme-chg-1036.md",
+            "upload:acme-sts-403.html",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-sts-320.html",
+            "upload:acme-chg-1003.md",
+            "upload:acme-sts-101.html",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-inc-403.pdf",
+            "upload:acme-rb-01.docx"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.52,
+          "native_cosine": 0.9999
+        }
+      }
+    },
+    {
+      "id": "acme-009",
+      "type": "multi_doc",
+      "question": "What emergency change did the notifications team make during the March 12 outage, and when was the webhook backlog cleared?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-chg-1045.md",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-rb-07.docx",
+            "upload:acme-inc-202.pdf",
+            "upload:acme-chg-1061.md",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-sts-102.html",
+            "upload:acme-chg-1019.md",
+            "upload:acme-rb-09.docx",
+            "upload:acme-sts-220.html"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.589
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-chg-1045.md",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-rb-07.docx",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-inc-202.pdf",
+            "upload:acme-chg-1061.md",
+            "upload:acme-sts-102.html",
+            "upload:acme-chg-1019.md",
+            "upload:acme-sts-220.html",
+            "upload:acme-chg-1040.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.568,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-chg-1045.md",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-rb-07.docx",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-chg-1061.md",
+            "upload:acme-inc-202.pdf",
+            "upload:acme-sts-102.html",
+            "upload:acme-chg-1047.md",
+            "upload:acme-inc-402.pdf",
+            "upload:acme-inc-402.pdf"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.575,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "acme-010",
+      "type": "multi_doc",
+      "question": "What safeguard was added to the ledger after the March 12 outage, and what pool size does the runbook expect?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-rb-03.docx",
+            "upload:acme-rb-03.docx",
+            "upload:acme-chg-1047.md",
+            "upload:acme-rb-11.docx",
+            "upload:acme-chg-1042.md",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-chg-1066.md",
+            "upload:acme-rb-04.docx",
+            "upload:acme-sts-306.html",
+            "upload:acme-rb-10.docx"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.622
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-rb-03.docx",
+            "upload:acme-rb-03.docx",
+            "upload:acme-chg-1047.md",
+            "upload:acme-rb-11.docx",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-chg-1042.md",
+            "upload:acme-rb-04.docx",
+            "upload:acme-chg-1066.md",
+            "upload:acme-chg-1014.md",
+            "upload:acme-sts-306.html"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.591,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-rb-03.docx",
+            "upload:acme-rb-03.docx",
+            "upload:acme-chg-1047.md",
+            "upload:acme-rb-11.docx",
+            "upload:acme-chg-1066.md",
+            "upload:acme-rb-04.docx",
+            "upload:acme-sts-306.html",
+            "upload:acme-rb-12.docx",
+            "upload:acme-chg-1042.md",
+            "upload:acme-inc-301.pdf"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.51,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "acme-011",
+      "type": "multi_doc",
+      "question": "How was the slow report export problem of February 24, 2026 fixed?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-sts-203.html",
+            "upload:acme-inc-203.pdf",
+            "upload:acme-chg-1025.md",
+            "upload:acme-sts-220.html",
+            "upload:acme-chg-1022.md",
+            "upload:acme-sts-403.html",
+            "upload:acme-inc-403.pdf",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-sts-320.html",
+            "upload:acme-sts-120.html"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 0.5,
+          "seconds": 0.59
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-sts-203.html",
+            "upload:acme-inc-203.pdf",
+            "upload:acme-chg-1025.md",
+            "upload:acme-chg-1022.md",
+            "upload:acme-sts-220.html",
+            "upload:acme-inc-403.pdf",
+            "upload:acme-sts-403.html",
+            "upload:acme-inc-302.pdf",
+            "upload:acme-inc-202.pdf",
+            "upload:acme-inc-306.pdf"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 0.5,
+          "seconds": 0.55,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-sts-203.html",
+            "upload:acme-inc-203.pdf",
+            "upload:acme-chg-1022.md",
+            "upload:acme-chg-1025.md",
+            "upload:acme-sts-220.html",
+            "upload:acme-sts-403.html",
+            "upload:acme-inc-403.pdf",
+            "upload:acme-inc-401.pdf",
+            "upload:acme-sts-320.html",
+            "upload:acme-sts-306.html"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 0.5,
+          "seconds": 0.695,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "acme-012",
+      "type": "multi_doc",
+      "question": "Which ledger database maintenance windows were announced for March and April 2026, and what was done in each?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-sts-210.html",
+            "upload:acme-sts-306.html",
+            "upload:acme-chg-1030.md",
+            "upload:acme-chg-1066.md",
+            "upload:acme-chg-1042.md",
+            "upload:acme-rb-11.docx",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-chg-1014.md",
+            "upload:acme-chg-1072.md",
+            "upload:acme-chg-1074.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.654
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-sts-210.html",
+            "upload:acme-sts-306.html",
+            "upload:acme-chg-1066.md",
+            "upload:acme-chg-1030.md",
+            "upload:acme-rb-11.docx",
+            "upload:acme-chg-1042.md",
+            "upload:acme-chg-1014.md",
+            "upload:acme-chg-1072.md",
+            "upload:acme-sts-305.html",
+            "upload:acme-chg-1047.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.573,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-sts-210.html",
+            "upload:acme-sts-306.html",
+            "upload:acme-chg-1066.md",
+            "upload:acme-chg-1030.md",
+            "upload:acme-chg-1074.md",
+            "upload:acme-chg-1047.md",
+            "upload:acme-chg-1072.md",
+            "upload:acme-chg-1042.md",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-chg-1014.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.52,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "acme-013",
+      "type": "multi_doc",
+      "question": "What did the Risk team deploy after rolling back fraud-scorer v3.4, and how was it released?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-chg-1011.md",
+            "upload:acme-inc-201.pdf",
+            "upload:acme-chg-1058.md",
+            "upload:acme-rb-06.docx",
+            "upload:acme-chg-1080.md",
+            "upload:acme-rb-12.docx",
+            "upload:acme-sts-101.html",
+            "upload:acme-inc-403.pdf",
+            "upload:acme-chg-1055.md",
+            "upload:acme-chg-1028.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 0.5,
+          "seconds": 0.596
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-chg-1011.md",
+            "upload:acme-inc-201.pdf",
+            "upload:acme-chg-1058.md",
+            "upload:acme-rb-06.docx",
+            "upload:acme-rb-12.docx",
+            "upload:acme-chg-1080.md",
+            "upload:acme-sts-101.html",
+            "upload:acme-inc-403.pdf",
+            "upload:acme-chg-1055.md",
+            "upload:acme-chg-1028.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 0.5,
+          "seconds": 0.523,
+          "native_cosine": 0.9999
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-chg-1011.md",
+            "upload:acme-chg-1058.md",
+            "upload:acme-inc-201.pdf",
+            "upload:acme-rb-06.docx",
+            "upload:acme-rb-12.docx",
+            "upload:acme-chg-1080.md",
+            "upload:acme-sts-101.html",
+            "upload:acme-inc-403.pdf",
+            "upload:acme-chg-1028.md",
+            "upload:acme-chg-1030.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 0.5,
+          "seconds": 0.557,
+          "native_cosine": 0.9999
+        }
+      }
+    },
+    {
+      "id": "acme-014",
+      "type": "multi_doc",
+      "question": "How did the April 6, 2026 ledger-db failover test compare with the failover runbook's target?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-chg-1066.md",
+            "upload:acme-rb-11.docx",
+            "upload:acme-sts-306.html",
+            "upload:acme-rb-04.docx",
+            "upload:acme-rb-03.docx",
+            "upload:acme-chg-1030.md",
+            "upload:acme-chg-1042.md",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-sts-210.html",
+            "upload:acme-rb-03.docx"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.621
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-chg-1066.md",
+            "upload:acme-rb-11.docx",
+            "upload:acme-sts-306.html",
+            "upload:acme-rb-04.docx",
+            "upload:acme-rb-03.docx",
+            "upload:acme-rb-12.docx",
+            "upload:acme-rb-05.docx",
+            "upload:acme-rb-03.docx",
+            "upload:acme-chg-1042.md",
+            "upload:acme-chg-1030.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.618,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-chg-1066.md",
+            "upload:acme-sts-306.html",
+            "upload:acme-rb-11.docx",
+            "upload:acme-rb-04.docx",
+            "upload:acme-rb-12.docx",
+            "upload:acme-rb-03.docx",
+            "upload:acme-sts-210.html",
+            "upload:acme-inc-402.pdf",
+            "upload:acme-chg-1074.md",
+            "upload:acme-inc-301.pdf"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.574,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "acme-015",
+      "type": "multi_doc",
+      "question": "What alerting was added after the April 22, 2026 fraud-scorer feature store incident?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-inc-403.pdf",
+            "upload:acme-chg-1080.md",
+            "upload:acme-rb-12.docx",
+            "upload:acme-inc-201.pdf",
+            "upload:acme-chg-1011.md",
+            "upload:acme-sts-101.html",
+            "upload:acme-chg-1058.md",
+            "upload:acme-rb-06.docx",
+            "upload:acme-chg-1028.md",
+            "upload:acme-sts-320.html"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.625
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-chg-1080.md",
+            "upload:acme-inc-403.pdf",
+            "upload:acme-rb-12.docx",
+            "upload:acme-inc-201.pdf",
+            "upload:acme-sts-101.html",
+            "upload:acme-chg-1011.md",
+            "upload:acme-chg-1058.md",
+            "upload:acme-rb-06.docx",
+            "upload:acme-chg-1028.md",
+            "upload:acme-inc-303.pdf"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.518,
+          "native_cosine": 0.9999
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-chg-1080.md",
+            "upload:acme-inc-403.pdf",
+            "upload:acme-rb-12.docx",
+            "upload:acme-chg-1011.md",
+            "upload:acme-inc-201.pdf",
+            "upload:acme-sts-101.html",
+            "upload:acme-chg-1058.md",
+            "upload:acme-rb-06.docx",
+            "upload:acme-chg-1045.md",
+            "upload:acme-chg-1028.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.582,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "acme-016",
+      "type": "multi_hop",
+      "question": "Who deployed the change that caused the March 12, 2026 outage, and at what time?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-inc-301.pdf",
+            "upload:acme-chg-1045.md",
+            "upload:acme-chg-1011.md",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-sts-320.html",
+            "upload:acme-chg-1042.md",
+            "upload:acme-chg-1080.md",
+            "upload:acme-chg-1058.md",
+            "upload:acme-chg-1047.md",
+            "upload:acme-inc-201.pdf"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.578
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-inc-301.pdf",
+            "upload:acme-chg-1045.md",
+            "upload:acme-chg-1011.md",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-chg-1058.md",
+            "upload:acme-chg-1042.md",
+            "upload:acme-chg-1047.md",
+            "upload:acme-chg-1080.md",
+            "upload:acme-chg-1066.md",
+            "upload:acme-sts-320.html"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.519,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-inc-301.pdf",
+            "upload:acme-chg-1045.md",
+            "upload:acme-chg-1011.md",
+            "upload:acme-chg-1047.md",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-inc-201.pdf",
+            "upload:acme-chg-1074.md",
+            "upload:acme-inc-403.pdf",
+            "upload:acme-chg-1066.md",
+            "upload:acme-chg-1058.md"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 0.5,
+          "rr": 1.0,
+          "seconds": 0.531,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "acme-017",
+      "type": "multi_hop",
+      "question": "Which runbook covers the failure behind the March 12, 2026 outage, and which metric does it watch?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-rb-11.docx",
+            "upload:acme-rb-12.docx",
+            "upload:acme-rb-03.docx",
+            "upload:acme-rb-06.docx",
+            "upload:acme-sts-320.html",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-rb-05.docx",
+            "upload:acme-rb-01.docx",
+            "upload:acme-rb-10.docx",
+            "upload:acme-rb-07.docx"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 0.5,
+          "rr": 0.3333333333333333,
+          "seconds": 0.589
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-rb-12.docx",
+            "upload:acme-rb-11.docx",
+            "upload:acme-rb-05.docx",
+            "upload:acme-chg-1066.md",
+            "upload:acme-rb-06.docx",
+            "upload:acme-rb-03.docx",
+            "upload:acme-sts-320.html",
+            "upload:acme-rb-01.docx",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-rb-04.docx"
+          ],
+          "recall@5": 0.0,
+          "recall@10": 0.5,
+          "rr": 0.16666666666666666,
+          "seconds": 0.564,
+          "native_cosine": 0.9999
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-rb-12.docx",
+            "upload:acme-rb-11.docx",
+            "upload:acme-rb-06.docx",
+            "upload:acme-sts-320.html",
+            "upload:acme-chg-1066.md",
+            "upload:acme-rb-05.docx",
+            "upload:acme-rb-01.docx",
+            "upload:acme-rb-08.docx",
+            "upload:acme-inc-302.pdf",
+            "hotpotqa:March 1913 tornado outbreak sequence"
+          ],
+          "recall@5": 0.0,
+          "recall@10": 0.0,
+          "rr": 0.0,
+          "seconds": 0.529,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "acme-018",
+      "type": "multi_hop",
+      "question": "Who approved the change that caused the April 7, 2026 merchant portal login outage?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-inc-401.pdf",
+            "upload:acme-sts-401.html",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-chg-1052.md",
+            "upload:acme-sts-320.html",
+            "upload:acme-chg-1068.md",
+            "upload:acme-inc-403.pdf",
+            "upload:acme-rb-08.docx",
+            "upload:acme-chg-1040.md",
+            "upload:acme-chg-1045.md"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.582
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-inc-401.pdf",
+            "upload:acme-sts-401.html",
+            "upload:acme-chg-1068.md",
+            "upload:acme-chg-1052.md",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-sts-320.html",
+            "upload:acme-chg-1045.md",
+            "upload:acme-chg-1080.md",
+            "upload:acme-rb-08.docx",
+            "upload:acme-chg-1040.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.553,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-inc-401.pdf",
+            "upload:acme-sts-401.html",
+            "upload:acme-chg-1052.md",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-chg-1068.md",
+            "upload:acme-chg-1040.md",
+            "upload:acme-sts-320.html",
+            "upload:acme-chg-1080.md",
+            "upload:acme-inc-403.pdf",
+            "upload:acme-chg-1022.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.536,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "acme-019",
+      "type": "contradictory",
+      "question": "When did the March 12, 2026 card payment outage begin?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-inc-301.pdf",
+            "upload:acme-sts-320.html",
+            "upload:acme-sts-301.html",
+            "upload:acme-sts-120.html",
+            "upload:acme-sts-305.html",
+            "upload:acme-sts-220.html",
+            "upload:acme-sts-101.html",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-inc-302.pdf",
+            "upload:acme-inc-303.pdf"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.641
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-inc-301.pdf",
+            "upload:acme-sts-301.html",
+            "upload:acme-sts-320.html",
+            "upload:acme-sts-305.html",
+            "upload:acme-sts-120.html",
+            "upload:acme-sts-220.html",
+            "upload:acme-sts-101.html",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-inc-302.pdf",
+            "upload:acme-inc-303.pdf"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.535,
+          "native_cosine": 0.9999
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-inc-301.pdf",
+            "upload:acme-sts-301.html",
+            "upload:acme-sts-320.html",
+            "upload:acme-inc-302.pdf",
+            "upload:acme-sts-305.html",
+            "upload:acme-sts-120.html",
+            "upload:acme-sts-220.html",
+            "upload:acme-sts-101.html",
+            "upload:acme-inc-303.pdf",
+            "upload:acme-sts-306.html"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.502,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "acme-020",
+      "type": "contradictory",
+      "question": "Was the March 12, 2026 outage caused by Acme's own systems or by the card network?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-sts-120.html",
+            "upload:acme-sts-220.html",
+            "upload:acme-sts-305.html",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-sts-320.html",
+            "upload:acme-sts-301.html",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-sts-101.html",
+            "upload:acme-inc-302.pdf",
+            "upload:acme-inc-303.pdf"
+          ],
+          "recall@5": 0.3333333333333333,
+          "recall@10": 1.0,
+          "rr": 0.25,
+          "seconds": 0.616
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-sts-305.html",
+            "upload:acme-sts-120.html",
+            "upload:acme-sts-220.html",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-sts-320.html",
+            "upload:acme-sts-301.html",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-inc-302.pdf",
+            "upload:acme-inc-303.pdf",
+            "upload:acme-sts-101.html"
+          ],
+          "recall@5": 0.3333333333333333,
+          "recall@10": 1.0,
+          "rr": 0.25,
+          "seconds": 0.517,
+          "native_cosine": 0.9999
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-sts-305.html",
+            "upload:acme-sts-220.html",
+            "upload:acme-sts-120.html",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-sts-301.html",
+            "upload:acme-sts-320.html",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-inc-302.pdf",
+            "upload:acme-chg-1077.md",
+            "upload:acme-inc-303.pdf"
+          ],
+          "recall@5": 0.6666666666666666,
+          "recall@10": 1.0,
+          "rr": 0.25,
+          "seconds": 0.553,
+          "native_cosine": 0.9999
+        }
+      }
+    },
+    {
+      "id": "acme-021",
+      "type": "contradictory",
+      "question": "How many merchants were affected by the March 12, 2026 outage?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-sts-320.html",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-sts-220.html",
+            "upload:acme-sts-120.html",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-sts-401.html",
+            "upload:acme-sts-301.html",
+            "upload:acme-chg-1045.md",
+            "upload:acme-inc-401.pdf",
+            "upload:acme-inc-304.pdf"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 1.0,
+          "rr": 0.2,
+          "seconds": 0.645
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-sts-320.html",
+            "upload:acme-sts-120.html",
+            "upload:acme-sts-220.html",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-inc-401.pdf",
+            "upload:acme-sts-401.html",
+            "upload:acme-sts-301.html",
+            "upload:acme-inc-304.pdf",
+            "upload:acme-chg-1045.md"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 1.0,
+          "rr": 0.2,
+          "seconds": 0.545,
+          "native_cosine": 0.9999
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-sts-320.html",
+            "upload:acme-sts-120.html",
+            "upload:acme-sts-220.html",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-inc-401.pdf",
+            "upload:acme-inc-403.pdf",
+            "upload:acme-inc-304.pdf",
+            "upload:acme-sts-301.html",
+            "upload:acme-inc-203.pdf"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 1.0,
+          "rr": 0.25,
+          "seconds": 0.573,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "acme-022",
+      "type": "contradictory",
+      "question": "Who approved change CHG-1042?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-chg-1047.md",
+            "upload:acme-chg-1042.md",
+            "upload:acme-chg-1055.md",
+            "upload:acme-chg-1011.md",
+            "upload:acme-chg-1045.md",
+            "upload:acme-chg-1074.md",
+            "upload:acme-chg-1072.md",
+            "upload:acme-chg-1040.md",
+            "upload:acme-chg-1007.md",
+            "upload:acme-chg-1064.md"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 0.5,
+          "rr": 0.5,
+          "seconds": 0.806
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-chg-1047.md",
+            "upload:acme-chg-1055.md",
+            "upload:acme-chg-1011.md",
+            "upload:acme-chg-1074.md",
+            "upload:acme-chg-1040.md",
+            "upload:acme-chg-1042.md",
+            "upload:acme-chg-1052.md",
+            "upload:acme-chg-1033.md",
+            "upload:acme-chg-1007.md",
+            "upload:acme-chg-1045.md"
+          ],
+          "recall@5": 0.0,
+          "recall@10": 0.5,
+          "rr": 0.16666666666666666,
+          "seconds": 0.569,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-chg-1055.md",
+            "upload:acme-chg-1047.md",
+            "upload:acme-chg-1074.md",
+            "upload:acme-chg-1011.md",
+            "upload:acme-chg-1033.md",
+            "upload:acme-chg-1045.md",
+            "upload:acme-chg-1007.md",
+            "upload:acme-chg-1042.md",
+            "upload:acme-chg-1072.md",
+            "upload:acme-chg-1052.md"
+          ],
+          "recall@5": 0.0,
+          "recall@10": 0.5,
+          "rr": 0.125,
+          "seconds": 0.503,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "acme-023",
+      "type": "contradictory",
+      "question": "How many webhooks were delayed because of the March 12, 2026 outage?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-inc-306.pdf",
+            "upload:acme-sts-102.html",
+            "upload:acme-inc-202.pdf",
+            "upload:acme-sts-220.html",
+            "upload:acme-chg-1045.md",
+            "upload:acme-chg-1061.md",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-rb-07.docx",
+            "upload:acme-chg-1019.md",
+            "upload:acme-sts-210.html"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.59
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-inc-306.pdf",
+            "upload:acme-inc-202.pdf",
+            "upload:acme-sts-102.html",
+            "upload:acme-chg-1045.md",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-sts-220.html",
+            "upload:acme-chg-1061.md",
+            "upload:acme-rb-07.docx",
+            "upload:acme-sts-210.html",
+            "upload:acme-chg-1019.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.551,
+          "native_cosine": 0.9999
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-inc-306.pdf",
+            "upload:acme-sts-102.html",
+            "upload:acme-inc-202.pdf",
+            "upload:acme-chg-1045.md",
+            "upload:acme-chg-1061.md",
+            "upload:acme-sts-210.html",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-sts-220.html",
+            "upload:acme-sts-306.html",
+            "upload:acme-inc-203.pdf"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.526,
+          "native_cosine": 0.9999
+        }
+      }
+    },
+    {
+      "id": "acme-024",
+      "type": "contradictory",
+      "question": "At what time was fraud-scorer model v3.4 deployed on January 21, 2026?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-chg-1011.md",
+            "upload:acme-inc-201.pdf",
+            "upload:acme-chg-1058.md",
+            "upload:acme-rb-06.docx",
+            "upload:acme-sts-101.html",
+            "upload:acme-inc-403.pdf",
+            "upload:acme-chg-1080.md",
+            "upload:acme-rb-12.docx",
+            "upload:acme-chg-1028.md",
+            "upload:acme-chg-1055.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.579
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-chg-1011.md",
+            "upload:acme-inc-201.pdf",
+            "upload:acme-chg-1058.md",
+            "upload:acme-rb-06.docx",
+            "upload:acme-sts-101.html",
+            "upload:acme-inc-403.pdf",
+            "upload:acme-rb-12.docx",
+            "upload:acme-chg-1028.md",
+            "upload:acme-chg-1080.md",
+            "upload:acme-chg-1055.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.599,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-chg-1011.md",
+            "upload:acme-chg-1058.md",
+            "upload:acme-inc-201.pdf",
+            "upload:acme-rb-12.docx",
+            "upload:acme-sts-101.html",
+            "upload:acme-chg-1028.md",
+            "upload:acme-chg-1080.md",
+            "upload:acme-inc-403.pdf",
+            "upload:acme-rb-06.docx",
+            "hotpotqa:Itchy &amp; Scratchy: The Movie"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.511,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "acme-025",
+      "type": "contradictory",
+      "question": "What was the peak card decline rate during the January 21, 2026 fraud-scorer incident?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-sts-101.html",
+            "upload:acme-inc-201.pdf",
+            "upload:acme-sts-120.html",
+            "upload:acme-rb-06.docx",
+            "upload:acme-chg-1011.md",
+            "upload:acme-inc-403.pdf",
+            "upload:acme-inc-303.pdf",
+            "upload:acme-sts-320.html",
+            "upload:acme-chg-1028.md",
+            "upload:acme-inc-301.pdf"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.816
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-sts-101.html",
+            "upload:acme-inc-201.pdf",
+            "upload:acme-rb-06.docx",
+            "upload:acme-sts-120.html",
+            "upload:acme-inc-303.pdf",
+            "upload:acme-chg-1011.md",
+            "upload:acme-chg-1028.md",
+            "upload:acme-inc-403.pdf",
+            "upload:acme-sts-320.html",
+            "upload:acme-chg-1058.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.521,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-sts-101.html",
+            "upload:acme-inc-201.pdf",
+            "upload:acme-chg-1028.md",
+            "upload:acme-rb-06.docx",
+            "upload:acme-chg-1011.md",
+            "upload:acme-sts-120.html",
+            "upload:acme-rb-12.docx",
+            "upload:acme-inc-403.pdf",
+            "upload:acme-sts-320.html",
+            "upload:acme-chg-1058.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.561,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "acme-026",
+      "type": "contradictory",
+      "question": "How long did the February 9, 2026 webhook delivery outage last?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-inc-202.pdf",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-sts-220.html",
+            "upload:acme-sts-102.html",
+            "upload:acme-chg-1061.md",
+            "upload:acme-chg-1019.md",
+            "upload:acme-chg-1045.md",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-rb-07.docx",
+            "upload:acme-sts-120.html"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.653
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-sts-220.html",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-inc-202.pdf",
+            "upload:acme-sts-102.html",
+            "upload:acme-chg-1061.md",
+            "upload:acme-chg-1045.md",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-rb-07.docx",
+            "upload:acme-sts-320.html",
+            "upload:acme-sts-120.html"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 0.3333333333333333,
+          "seconds": 0.54,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-inc-306.pdf",
+            "upload:acme-sts-220.html",
+            "upload:acme-inc-202.pdf",
+            "upload:acme-sts-102.html",
+            "upload:acme-chg-1061.md",
+            "upload:acme-chg-1045.md",
+            "upload:acme-inc-203.pdf",
+            "upload:acme-sts-210.html",
+            "upload:acme-sts-306.html",
+            "upload:acme-rb-07.docx"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 0.3333333333333333,
+          "seconds": 0.499,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "acme-027",
+      "type": "contradictory",
+      "question": "Was change CHG-1055 rolled back?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-chg-1055.md",
+            "upload:acme-chg-1058.md",
+            "upload:acme-chg-1074.md",
+            "upload:acme-chg-1050.md",
+            "upload:acme-chg-1011.md",
+            "upload:acme-chg-1052.md",
+            "upload:acme-chg-1047.md",
+            "upload:acme-chg-1072.md",
+            "upload:acme-chg-1014.md",
+            "upload:acme-inc-303.pdf"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.585
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-chg-1055.md",
+            "upload:acme-chg-1050.md",
+            "upload:acme-chg-1074.md",
+            "upload:acme-chg-1047.md",
+            "upload:acme-chg-1014.md",
+            "upload:acme-chg-1052.md",
+            "upload:acme-chg-1072.md",
+            "upload:acme-chg-1045.md",
+            "upload:acme-chg-1011.md",
+            "upload:acme-chg-1058.md"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 0.5,
+          "rr": 1.0,
+          "seconds": 0.572,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-chg-1055.md",
+            "upload:acme-chg-1047.md",
+            "upload:acme-chg-1050.md",
+            "upload:acme-chg-1014.md",
+            "upload:acme-chg-1052.md",
+            "upload:acme-chg-1025.md",
+            "upload:acme-chg-1074.md",
+            "upload:acme-chg-1045.md",
+            "hotpotqa:Change (Andrew Hill album)",
+            "upload:acme-inc-303.pdf"
+          ],
+          "recall@5": 0.5,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.519,
+          "native_cosine": 0.9998
+        }
+      }
+    },
+    {
+      "id": "acme-028",
+      "type": "contradictory",
+      "question": "What timeout does card-gateway use for NorthBank authorization requests?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-chg-1007.md",
+            "upload:acme-rb-05.docx",
+            "upload:acme-inc-302.pdf",
+            "upload:acme-chg-1064.md",
+            "upload:acme-chg-1070.md",
+            "upload:acme-sts-305.html",
+            "upload:acme-inc-303.pdf",
+            "upload:acme-chg-1033.md",
+            "upload:acme-sts-320.html",
+            "upload:acme-chg-1055.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.609
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-chg-1007.md",
+            "upload:acme-rb-05.docx",
+            "upload:acme-inc-302.pdf",
+            "upload:acme-chg-1064.md",
+            "upload:acme-chg-1070.md",
+            "upload:acme-chg-1033.md",
+            "upload:acme-inc-303.pdf",
+            "upload:acme-sts-305.html",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-sts-320.html"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.513,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-chg-1007.md",
+            "upload:acme-rb-05.docx",
+            "upload:acme-inc-302.pdf",
+            "upload:acme-chg-1064.md",
+            "upload:acme-chg-1070.md",
+            "upload:acme-sts-305.html",
+            "upload:acme-chg-1033.md",
+            "upload:acme-inc-303.pdf",
+            "upload:acme-chg-1072.md",
+            "upload:acme-sts-320.html"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.514,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "acme-029",
+      "type": "contradictory",
+      "question": "At what time was change CHG-1068 deployed?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-chg-1011.md",
+            "upload:acme-chg-1058.md",
+            "upload:acme-chg-1074.md",
+            "upload:acme-chg-1061.md",
+            "upload:acme-chg-1072.md",
+            "upload:acme-chg-1007.md",
+            "upload:acme-inc-401.pdf",
+            "upload:acme-chg-1014.md",
+            "upload:acme-chg-1055.md",
+            "upload:acme-chg-1068.md"
+          ],
+          "recall@5": 0.0,
+          "recall@10": 1.0,
+          "rr": 0.14285714285714285,
+          "seconds": 0.583
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-chg-1074.md",
+            "upload:acme-chg-1011.md",
+            "upload:acme-chg-1058.md",
+            "upload:acme-chg-1072.md",
+            "upload:acme-chg-1007.md",
+            "upload:acme-chg-1055.md",
+            "upload:acme-chg-1014.md",
+            "upload:acme-chg-1061.md",
+            "upload:acme-chg-1047.md",
+            "upload:acme-chg-1040.md"
+          ],
+          "recall@5": 0.0,
+          "recall@10": 0.0,
+          "rr": 0.0,
+          "seconds": 0.547,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-chg-1011.md",
+            "upload:acme-chg-1074.md",
+            "upload:acme-chg-1055.md",
+            "upload:acme-chg-1058.md",
+            "upload:acme-chg-1047.md",
+            "upload:acme-chg-1014.md",
+            "hotpotqa:Change (Andrew Hill album)",
+            "upload:acme-chg-1045.md",
+            "hotpotqa:Jeep Cherokee (SJ)",
+            "upload:acme-chg-1072.md"
+          ],
+          "recall@5": 0.0,
+          "recall@10": 0.0,
+          "rr": 0.0,
+          "seconds": 0.544,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "acme-030",
+      "type": "contradictory",
+      "question": "How many ledger entries were affected by the April 2026 settlement import bug?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-chg-1074.md",
+            "upload:acme-inc-402.pdf",
+            "upload:acme-chg-1072.md",
+            "upload:acme-inc-402.pdf",
+            "upload:acme-rb-04.docx",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-chg-1014.md",
+            "upload:acme-sts-306.html",
+            "upload:acme-chg-1047.md",
+            "upload:acme-chg-1030.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.611
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-inc-402.pdf",
+            "upload:acme-chg-1074.md",
+            "upload:acme-chg-1072.md",
+            "upload:acme-inc-402.pdf",
+            "upload:acme-rb-04.docx",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-chg-1014.md",
+            "upload:acme-sts-306.html",
+            "upload:acme-chg-1042.md",
+            "upload:acme-chg-1047.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.515,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-chg-1074.md",
+            "upload:acme-inc-402.pdf",
+            "upload:acme-chg-1072.md",
+            "upload:acme-inc-402.pdf",
+            "upload:acme-rb-04.docx",
+            "upload:acme-chg-1014.md",
+            "upload:acme-chg-1030.md",
+            "upload:acme-chg-1042.md",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-chg-1047.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.502,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "acme-037",
+      "type": "simple",
+      "question": "What per-merchant rate limit does payments-api enforce?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-chg-1036.md",
+            "upload:acme-rb-02.docx",
+            "upload:acme-inc-304.pdf",
+            "upload:acme-rb-01.docx",
+            "upload:acme-sts-301.html",
+            "upload:acme-sts-403.html",
+            "upload:acme-sts-220.html",
+            "upload:acme-sts-120.html",
+            "upload:acme-sts-320.html",
+            "upload:acme-chg-1077.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.578
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-chg-1036.md",
+            "upload:acme-rb-02.docx",
+            "upload:acme-inc-304.pdf",
+            "upload:acme-sts-403.html",
+            "upload:acme-sts-301.html",
+            "upload:acme-rb-01.docx",
+            "upload:acme-sts-120.html",
+            "upload:acme-sts-220.html",
+            "upload:acme-sts-320.html",
+            "upload:acme-chg-1077.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.701,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-chg-1036.md",
+            "upload:acme-inc-304.pdf",
+            "upload:acme-rb-02.docx",
+            "upload:acme-rb-01.docx",
+            "upload:acme-sts-120.html",
+            "upload:acme-chg-1003.md",
+            "upload:acme-sts-403.html",
+            "upload:acme-sts-320.html",
+            "upload:acme-sts-301.html",
+            "upload:acme-sts-220.html"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.595,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "acme-038",
+      "type": "simple",
+      "question": "What was the availability of payments-api in March 2026?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-sts-320.html",
+            "upload:acme-sts-220.html",
+            "upload:acme-sts-120.html",
+            "upload:acme-sts-403.html",
+            "upload:acme-sts-301.html",
+            "upload:acme-sts-210.html",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-sts-401.html",
+            "upload:acme-chg-1003.md",
+            "upload:acme-chg-1077.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.624
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-sts-320.html",
+            "upload:acme-sts-220.html",
+            "upload:acme-sts-120.html",
+            "upload:acme-sts-403.html",
+            "upload:acme-sts-301.html",
+            "upload:acme-sts-210.html",
+            "upload:acme-sts-401.html",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-chg-1003.md",
+            "upload:acme-sts-101.html"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.697,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-sts-320.html",
+            "upload:acme-sts-220.html",
+            "upload:acme-sts-120.html",
+            "upload:acme-sts-403.html",
+            "upload:acme-sts-210.html",
+            "upload:acme-chg-1003.md",
+            "upload:acme-sts-301.html",
+            "upload:acme-chg-1077.md",
+            "upload:acme-inc-301.pdf",
+            "upload:acme-sts-401.html"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.533,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "acme-039",
+      "type": "simple",
+      "question": "Which version of the 3-D Secure library did CHG-1055 install?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-chg-1055.md",
+            "upload:acme-inc-303.pdf",
+            "upload:acme-sts-303.html",
+            "upload:acme-chg-1058.md",
+            "upload:acme-chg-1011.md",
+            "upload:acme-inc-201.pdf",
+            "upload:acme-chg-1003.md",
+            "upload:acme-chg-1064.md",
+            "hotpotqa:FIPS 140-3",
+            "upload:acme-chg-1033.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.624
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-chg-1055.md",
+            "upload:acme-inc-303.pdf",
+            "upload:acme-sts-303.html",
+            "upload:acme-chg-1011.md",
+            "upload:acme-chg-1058.md",
+            "hotpotqa:Server-Gated Cryptography",
+            "upload:acme-inc-201.pdf",
+            "upload:acme-chg-1033.md",
+            "upload:acme-chg-1064.md",
+            "hotpotqa:CUPS (CMU)"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.518,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-chg-1055.md",
+            "upload:acme-inc-303.pdf",
+            "upload:acme-sts-303.html",
+            "upload:acme-chg-1011.md",
+            "upload:acme-chg-1058.md",
+            "upload:acme-chg-1052.md",
+            "upload:acme-chg-1050.md",
+            "hotpotqa:Happy drives",
+            "upload:acme-chg-1072.md",
+            "hotpotqa:MAI Systems Corp. v. Peak Computer, Inc."
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.518,
+          "native_cosine": 1.0
+        }
+      }
+    },
+    {
+      "id": "acme-040",
+      "type": "simple",
+      "question": "At what time does the daily ledger reconciliation run?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-rb-04.docx",
+            "upload:acme-inc-402.pdf",
+            "upload:acme-rb-11.docx",
+            "upload:acme-inc-402.pdf",
+            "upload:acme-sts-306.html",
+            "upload:acme-chg-1072.md",
+            "upload:acme-chg-1014.md",
+            "upload:acme-chg-1066.md",
+            "upload:acme-chg-1074.md",
+            "upload:acme-rb-03.docx"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.646
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-rb-04.docx",
+            "upload:acme-inc-402.pdf",
+            "upload:acme-inc-402.pdf",
+            "upload:acme-rb-11.docx",
+            "upload:acme-chg-1072.md",
+            "upload:acme-chg-1014.md",
+            "upload:acme-chg-1074.md",
+            "upload:acme-sts-306.html",
+            "upload:acme-rb-03.docx",
+            "upload:acme-rb-03.docx"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.574,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-rb-04.docx",
+            "upload:acme-inc-402.pdf",
+            "upload:acme-inc-402.pdf",
+            "upload:acme-rb-11.docx",
+            "upload:acme-chg-1072.md",
+            "upload:acme-rb-03.docx",
+            "upload:acme-chg-1074.md",
+            "upload:acme-sts-306.html",
+            "upload:acme-chg-1014.md",
+            "upload:acme-chg-1066.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.732,
+          "native_cosine": 0.9999
+        }
+      }
+    },
+    {
+      "id": "acme-041",
+      "type": "simple",
+      "question": "How many times does notifications retry a failed webhook delivery?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-chg-1061.md",
+            "upload:acme-inc-202.pdf",
+            "upload:acme-rb-07.docx",
+            "upload:acme-sts-102.html",
+            "upload:acme-rb-09.docx",
+            "upload:acme-chg-1019.md",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-chg-1045.md",
+            "upload:acme-chg-1040.md",
+            "upload:acme-inc-301.pdf"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.618
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-chg-1061.md",
+            "upload:acme-inc-202.pdf",
+            "upload:acme-rb-07.docx",
+            "upload:acme-sts-102.html",
+            "upload:acme-rb-09.docx",
+            "upload:acme-chg-1019.md",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-chg-1045.md",
+            "upload:acme-chg-1040.md",
+            "upload:acme-chg-1050.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.541,
+          "native_cosine": 1.0
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-chg-1061.md",
+            "upload:acme-inc-202.pdf",
+            "upload:acme-rb-07.docx",
+            "upload:acme-rb-09.docx",
+            "upload:acme-chg-1045.md",
+            "upload:acme-sts-102.html",
+            "upload:acme-inc-306.pdf",
+            "upload:acme-chg-1019.md",
+            "hotpotqa:Pro re nata",
+            "hotpotqa:Tikkun HaKlali"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.516,
+          "native_cosine": 0.9999
+        }
+      }
+    },
+    {
+      "id": "acme-042",
+      "type": "simple",
+      "question": "Which email provider sends Acme's merchant notification emails?",
+      "runs": {
+        "fixed/dense-exact@1024": {
+          "sources": [
+            "upload:acme-chg-1040.md",
+            "upload:acme-sts-220.html",
+            "upload:acme-chg-1077.md",
+            "upload:acme-rb-08.docx",
+            "upload:acme-sts-120.html",
+            "upload:acme-rb-10.docx",
+            "upload:acme-chg-1068.md",
+            "upload:acme-rb-09.docx",
+            "upload:acme-sts-305.html",
+            "upload:acme-chg-1045.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.579
+        },
+        "fixed/dense-exact@512": {
+          "sources": [
+            "upload:acme-chg-1040.md",
+            "upload:acme-sts-220.html",
+            "upload:acme-sts-120.html",
+            "upload:acme-chg-1077.md",
+            "upload:acme-rb-08.docx",
+            "upload:acme-rb-10.docx",
+            "upload:acme-chg-1068.md",
+            "upload:acme-sts-305.html",
+            "upload:acme-chg-1045.md",
+            "upload:acme-rb-09.docx"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 1.0,
+          "seconds": 0.522,
+          "native_cosine": 0.9999
+        },
+        "fixed/dense-exact@256": {
+          "sources": [
+            "upload:acme-sts-220.html",
+            "upload:acme-sts-120.html",
+            "upload:acme-chg-1040.md",
+            "upload:acme-chg-1068.md",
+            "upload:acme-chg-1077.md",
+            "upload:acme-rb-10.docx",
+            "upload:acme-rb-08.docx",
+            "upload:acme-sts-305.html",
+            "upload:acme-chg-1030.md",
+            "upload:acme-chg-1045.md"
+          ],
+          "recall@5": 1.0,
+          "recall@10": 1.0,
+          "rr": 0.3333333333333333,
+          "seconds": 0.505,
+          "native_cosine": 0.9999
+        }
+      }
+    }
+  ]
+}

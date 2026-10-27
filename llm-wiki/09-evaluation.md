@@ -97,6 +97,8 @@ type and names the result `<config>-<type>.json`, e.g. `agent-injection.json`.
 | `agent` | `agent.ask(q)`: fixed chunks, mmr, 6 steps (the defaults, [ADR 0029](adr/0029-weighted-rrf-min-max-mmr-fixed-chunks.md)) | Haiku + judge |
 | `agent-structured` | the same with structured chunks | Haiku + judge |
 | `single-shot` | `max_steps=1`: one search, one forced answer (RAG without the loop) | Haiku + judge |
+| `agent-gpt-oss` | `agent` with `model=llm.GPT_OSS`: the LLM comparison ([ADR 0032](adr/0032-model-embedding-comparison-no-reranker.md)). gpt-oss has no fallback; a call by any other model would count as one | gpt-oss-120b + judge |
+| `embeddings` | every answerable question through `search.dense_prefix` (exact dense search, fixed chunks, k=10) with the first 1024 / 512 / 256 numbers of the stored vectors and of one 1024 query embedding (Matryoshka prefixes, nothing re-embedded); also asks Cohere for the 512 and 256 query embeddings and records their cosine with the cut 1024 one (`native_cosine`, the truncation check). Summary adds scan `seconds_p50/p95` | none (3 Cohere query embeddings per question) |
 
 ## Running
 
@@ -106,7 +108,7 @@ whole value is one `TARGET` (the buildspec splits it into a target and variables
 ```bash
 aws codebuild start-build --project-name investigation-jobs --profile investigation \
   --environment-variables-override "name=TARGET,value=eval CONFIG=agent LIMIT=3"
-# full runs: value=eval CONFIG=retrieval | agent | agent-structured | single-shot
+# full runs: value=eval CONFIG=retrieval | embeddings | agent | agent-structured | single-shot | agent-gpt-oss
 ```
 
 The prompt-injection subset, from a branch (the job builds `--source-version`, default `main`;
@@ -164,6 +166,8 @@ Measured on the full set (72 questions, 61 answerable), first uncached runs, 202
 | `agent`, prompt of #31 | 22 min | not recomputable, see below |
 | `agent-structured` | 19 min | $1.08 (~$0.015 per question) |
 | `single-shot` | 9 min | $0.37 (~$0.005 per question) |
+| `embeddings` | ~8 min | < $0.01 (~180 Cohere query embeddings) + ~180 exact scans of ~0.6 s |
+| `agent-gpt-oss` | ~8 min | $0.17 (~$0.0024 per question, judge included) |
 | judge | in the runs above | ~$0.0001 per question (~250 tokens) |
 
 Until 2026-10-26 the runner priced only `inputTokens` and `outputTokens` and missed the
@@ -258,12 +262,38 @@ What the runs show (the failure analysis for EVALUATION.md starts here):
 - **EM undercounts**: short answers carry extra words ("two monks" for "two", "Honolulu County"
   for "Honolulu"); EM 0.52 vs F1 0.73 vs judge 0.82.
 
+Model comparison ([ADR 0032](adr/0032-model-embedding-comparison-no-reranker.md), EVALUATION.md
+section 8). Embedding size, `embeddings` (`eval/results/embeddings.json`), exact dense search on
+fixed chunks; the cut query vectors equal Cohere's own 512/256 output (cosine >= 0.9996):
+
+| vectors | Recall@5 | Recall@10 | MRR | Acme R@10 | scan p50 |
+|---|---|---|---|---|---|
+| 1024, HNSW (production `fixed/dense`) | 0.80 | 0.89 | 0.86 | 0.91 | - |
+| 1024, exact | 0.81 | 0.92 | 0.88 | 0.94 | 0.62 s |
+| 512, exact | 0.81 | 0.89 | 0.87 | 0.88 | 0.56 s |
+| 256, exact | 0.82 | 0.88 | 0.85 | 0.87 | 0.53 s |
+
+1024 stays: the smaller sizes lose only on Acme (HotpotQA R@10 0.90 at every size). The HNSW
+index loses as much as halving the vector (0.92 -> 0.89).
+
+LLM, `agent-gpt-oss` (`eval/results/agent-gpt-oss.json`) vs `agent`, same prompt and settings:
+
+| model | EM | F1 | judge | citation P | abstain P/R | conflict P/R | cost | p50/p95 s |
+|---|---|---|---|---|---|---|---|---|
+| Haiku 4.5 | 0.52 | 0.73 | 0.82 | 0.94 | 0.77/0.91 | 1.00/0.67 | $1.16 | 10.3/45.6 |
+| gpt-oss-120b | 0.52 | 0.70 | 0.89 | 0.93 | 0.75/0.82 | 0.92/0.92 | $0.17 | 3.4/10.3 |
+
+gpt-oss reports 4 more contradictions (contradictory judge 0.92 vs 0.58), but abstains on two
+comparison questions and answers the unanswerable `acme-034`; 3 of its 7 judge gains are Haiku's
+Bedrock errors and a judge flip. Haiku stays the answering model. Reranker: no Bedrock rerank model
+in eu-north-1 (only eu-central-1 and us-west-2, no cross-Region profile), so none was built.
+
 ### Prompt injection
 
 `agent` on the 8 `injection` questions, 2026-10-27 (`eval/results/agent-injection.json`):
 resisted 8/8, followed 0, blocked 0, dropped citations 0, judge 7/7 (the eighth should abstain
 and did), citation precision 0.95, cost $0.09, p50/p95 15.1/38.8 s. The injected chunk was in
-the seed search of every question. Details and limits: EVALUATION.md section 8.
+the seed search of every question. Details and limits: EVALUATION.md section 9.
 
 ## Known limits
 
@@ -280,7 +310,8 @@ the seed search of every question. Details and limits: EVALUATION.md section 8.
   mostly keep a paragraph whole; the chunking comparison is meaningful on Acme.
 - **Small set.** 25 answerable HotpotQA questions: one question moves Recall by 0.04. Differences
   below ~0.1 are noise.
-- **Recall depends on the dense candidate list** (`hnsw.ef_search` 40): measured end to end it is
-  enough (fixed/dense Recall@10 0.89); raise it inside `db.transaction()` if a corpus change drops it.
+- **Recall depends on the dense candidate list** (`hnsw.ef_search` 40): HNSW fixed/dense
+  Recall@10 is 0.89 against 0.92 for an exact scan of the same vectors (`embeddings` run,
+  `acme-004` is the clearest miss); raise it inside `db.transaction()` to win that back.
 - **EM is strict** on HotpotQA's long or noisy gold answers; read it together with F1 and the
   judge.

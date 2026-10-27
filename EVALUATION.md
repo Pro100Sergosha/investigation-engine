@@ -779,7 +779,7 @@ The jobs run in CodeBuild, not on a laptop (ADR 0018). The whole value is one `T
 ```bash
 aws codebuild start-build --project-name investigation-jobs --profile investigation \
   --environment-variables-override "name=TARGET,value=eval CONFIG=agent LIMIT=3"
-# full runs: value=eval CONFIG=retrieval | agent | agent-structured | single-shot
+# full runs: value=eval CONFIG=retrieval | embeddings | agent | agent-structured | single-shot | agent-gpt-oss
 ```
 
 - The result lands in `s3://$BUCKET/jobs/eval/<config>.json` (`<config>-limit<N>.json` for a dry
@@ -794,7 +794,115 @@ aws codebuild start-build --project-name investigation-jobs --profile investigat
 - Every table in this report can be recomputed from the committed JSON files without any AWS call:
   `summary` holds the aggregates, and `records[].trace` holds the evidence used in section 4.
 
-## 8. Prompt injection
+## 8. Model comparison (bonus)
+
+Measured 2026-10-26 with the same runner, questions and judge; decisions and rejected options in
+[ADR 0032](llm-wiki/adr/0032-model-embedding-comparison-no-reranker.md).
+
+### Embedding size: Cohere Embed V4 at 1024, 512 and 256 dimensions
+
+`eval/results/embeddings.json` (`CONFIG=embeddings`, no LLM). Nothing was re-embedded: Cohere V4
+vectors are Matryoshka embeddings (Cohere's Embed v4 changelog), so the first 512 or 256 numbers
+of a stored 1024 vector are a smaller embedding. `search.dense_prefix` cuts the stored vectors in
+SQL (`subvector()`) and the query vector the same way, and scans every fixed chunk exactly (no
+HNSW: the expression is not the indexed column). The docs do not state that a prefix equals the
+smaller output, so the run checks it: for each of the 61 questions it also asks Cohere for the 512
+and 256 query embeddings. Their cosine with the cut 1024 vector is 1.0000 on average, minimum
+0.9998 (512) and 0.9996 (256): cutting is the same as embedding at the smaller size.
+
+Dense search, fixed chunks, k = 10, 61 answerable questions, 0 errors:
+
+| vectors | Recall@5 | Recall@10 | MRR | HotpotQA R@10 / MRR (25) | Acme R@10 / MRR (36) | scan p50 / p95 |
+|---|---|---|---|---|---|---|
+| 1024, HNSW (`fixed/dense` in `retrieval.json`) | 0.80 | 0.89 | 0.86 | 0.86 / 0.89 | 0.91 / 0.83 | - |
+| 1024, exact | 0.81 | 0.92 | 0.88 | 0.90 / 0.91 | 0.94 / 0.86 | 0.62 / 0.82 s |
+| 512, exact | 0.81 | 0.89 | 0.87 | 0.90 / 0.93 | 0.88 / 0.82 | 0.56 / 0.84 s |
+| 256, exact | 0.82 | 0.88 | 0.85 | 0.90 / 0.90 | 0.87 / 0.81 | 0.53 / 0.70 s |
+
+- **512 and 256 lose only on Acme.** Against exact 1024, 512 drops `acme-004` and `acme-027` to
+  one of two gold documents and `acme-029` to none (both sides of a planted contradiction).
+  256 loses gold documents in `acme-004`, `acme-016`, `acme-017`, `acme-029` and
+  `hp-5ac401bb...`, and gains one in `hp-5a8c493e...` (Nardwuar, section 4.4). HotpotQA
+  Recall@10 is 0.90 at every size. Three questions are at the edge of this set's noise (4.11),
+  but they all go one way, on the corpus the investigation questions are about.
+- **The HNSW index costs more than halving the vector.** Exact 1024 beats the production index at
+  the same dimensions by 0.03 Recall@10. `acme-004` (section 3) is the clearest case: exact search
+  finds both NorthBank incidents, HNSW returns HotpotQA "incidents" only, because the partial
+  index returns at most `hnsw.ef_search` = 40 rows. `hp-5ae3d0bb...` and `hp-5a81d54a...` also
+  gain their second gold paragraph. 512 exact equals 1024 HNSW (0.89).
+- **Decision:** keep 1024. Storage is not a constraint, and the loss lands on Acme. Raising
+  `ef_search` is the cheaper recall win ([14 Known gaps](llm-wiki/14-known-gaps.md)); it was not
+  changed here.
+- **Not measured:** 1536 dimensions (the stored vectors have 1024), and 512 with hybrid or MMR.
+
+Cost: ~180 Cohere query embeddings (a few thousand tokens, < $0.01) and ~180 exact scans of
+~0.6 s; the build took ~8 min.
+
+### LLM: gpt-oss-120b instead of Haiku as the answering model
+
+`CONFIG=agent-gpt-oss` is `agent` (fixed chunks, `mmr`, 6 steps, the current prompt) with
+`model=llm.GPT_OSS` passed to every `llm.converse` call. gpt-oss has no fallback in `llm.py`, so
+the fallback share of this run is 0 by construction; prompt caching does not apply (Claude only).
+The baseline is the committed `agent` run (Haiku, same prompt and settings).
+
+`eval/results/agent-gpt-oss.json`, run uncached on 2026-10-26 (4 of 154 calls were cache hits
+left by the 3-question dry run). Both runs: 72 questions, 0 errors, 0 judge failures, 0 claims
+dropped by the validator.
+
+| config | EM | F1 | judge | citation P | abstain P/R | conflict P/R | LLM calls | cost | per question | p50/p95 s |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `agent` (Haiku 4.5) | 0.52 | 0.73 | 0.82 (50 of 61) | 0.94 | 0.77/0.91 | 1.00/0.67 | 167 | $1.16 | ~$0.016 | 10.3/45.6 |
+| `agent-gpt-oss` | 0.52 | 0.70 | 0.89 (54 of 61) | 0.93 | 0.75/0.82 | 0.92/0.92 | 154 | $0.17 | ~$0.0024 | 3.4/10.3 |
+
+Judge correctness by type (Haiku / gpt-oss): simple 1.00 / 1.00, multi_hop 0.78 / 0.83,
+multi_doc 0.93 / 0.87, contradictory 0.58 / 0.92.
+
+Where the two differ:
+- **gpt-oss right where Haiku was judged wrong, 7.** Four contradictions that Haiku answered
+  from one document (section 4.1: `acme-019`, `acme-023`, `acme-026`) or with a one-sided short
+  answer (`acme-020`, 4.2): gpt-oss reports both values, e.g. "26,900 or 18,400". Two are
+  Haiku's `ServiceUnavailableException` abstentions (4.4: `hp-5ac1b134...`, `hp-5a8e3ea9...`):
+  infrastructure, not the model. One is the judge error of 4.4 (`hp-5a81d54a...`: the same
+  answer "No", judged right this time).
+- **gpt-oss judged wrong where Haiku was right, 3.** It abstained after one call on two
+  comparison questions (`hp-5ab296a6...` Chess vs Cartagena, `hp-5a80caac...`), the single-shot
+  failure of 4.5. `acme-002` lists the full timeline but was judged wrong for not reporting the
+  status page's times, a strict reading of the gold answer.
+- **Two more changes.** gpt-oss answered the unanswerable `acme-034` with "fault on NorthBank's
+  side" as the technical root cause, which no document states: the failure the abstention rule
+  exists to prevent (Haiku abstained). `acme-001` is wrong in both runs; gpt-oss flagged it
+  `conflicting` (preliminary vs final cause), the only false conflict flag of the run.
+
+How to read it:
+- **Quality is a tie within noise, except contradictions.** Without the two infrastructure
+  abstentions and the flipped judge error, the answerable count is 50 (Haiku) vs 51 (gpt-oss).
+  The contradiction gain (7 -> 11 of 12) is the one difference above the noise (4.11). gpt-oss
+  explores less: 2.1 LLM calls per question vs 2.3, often answering after the seeded search.
+- **Cost and latency clearly favour gpt-oss:** ~7x cheaper per question with no prompt caching
+  ($0.15/$0.60 per 1M), p50 3.4 s vs 10.3 s, p95 10.3 s vs 45.6 s. Haiku's latency includes its
+  `eu.*` -> `global.*` retries (ADR 0028); gpt-oss runs in Region at 100 requests/min instead of
+  10.
+- **Caveats.** One uncached run each; the prompt was written and tuned for Haiku; the judge
+  (Qwen3) is from neither family. gpt-oss ignores `toolChoice` (`llm.converse`), which the agent
+  handles by offering only `final_answer` on the forced step.
+
+**Decision:** Haiku stays the answering model for the submission, gpt-oss the last fallback
+([ADR 0032](llm-wiki/adr/0032-model-embedding-comparison-no-reranker.md)). gpt-oss wins on
+contradictions, cost and latency, but it answered an unanswerable question with an unsupported
+cause, and a second independent run cannot be had cheaply (`llm_cache` replays this one).
+Switching is one argument (`agent.ask(model=...)` and the api's call) once another question set
+confirms the contradiction gain.
+
+### Reranker: not available in this Region
+
+No Bedrock rerank model exists in eu-north-1: `aws bedrock list-foundation-models --region
+eu-north-1` lists none, and there is no `eu.*` or `global.*` rerank inference profile. Cohere
+Rerank 3.5 (`cohere.rerank-v3-5:0`) and Amazon Rerank 1.0 (`amazon.rerank-v1:0`) are listed in
+eu-central-1 and us-west-2 only. Calling them would be a direct cross-Region call, which the
+project's one-Region rule forbids, so no reranker was built or measured. Re-ranking stays the
+hand-written weighted RRF + MMR (ADR 0029).
+
+## 9. Prompt injection
 
 The bonus "prompt-injection tests" (PLAN.md section 1). Rule under test: document text is
 untrusted data, never instructions (CLAUDE.md).

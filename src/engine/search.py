@@ -29,6 +29,17 @@ ORDER BY embedding <=> CAST(:q AS halfvec(1024))
 LIMIT :n
 """
 
+# Eval only, the embedding comparison (ADR 0032): cosine on the first :dims numbers of the stored
+# 1024 (Cohere V4 vectors are Matryoshka: a prefix is a smaller embedding). The expression is not
+# the indexed column, so this is an exact scan of every chunk of the strategy, no HNSW.
+_DENSE_PREFIX_SQL = """
+SELECT id, 1 - (subvector(embedding, 1, CAST(:dims AS int)) <=> CAST(:q AS halfvec))
+FROM chunks
+WHERE strategy = :strategy AND embedding IS NOT NULL
+ORDER BY subvector(embedding, 1, CAST(:dims AS int)) <=> CAST(:q AS halfvec)
+LIMIT :n
+"""
+
 # plainto_tsquery ANDs every word, so a long multi-hop question matches almost no chunk. Its
 # text form is "'a' & 'b'"; turning each " & " into " | " gives OR, and ts_rank_cd still
 # ranks chunks with more of the words higher. Lexemes never contain spaces, so the replace
@@ -93,6 +104,17 @@ def search(query: str, k: int = 10, strategy: str = "fixed", mode: str = "mmr") 
     candidates = _to_hits(pool, rows)
     vectors = {row[0]: _parse_vector(row[5]) for row in rows}
     return rank.mmr(candidates, vectors, k, lam=MMR_LAMBDA)
+
+
+def dense_prefix(vector: list[float], dims: int, k: int = 10, strategy: str = "fixed") -> list[Hit]:
+    """Exact dense search with the first `dims` numbers of `vector` and of every stored vector.
+
+    For the eval's embedding comparison only: a full scan takes seconds, not milliseconds.
+    """
+    rows = db.run(
+        _DENSE_PREFIX_SQL, q=_vector_text(vector[:dims]), dims=dims, strategy=strategy, n=k
+    )
+    return _hits([(row[0], row[1]) for row in rows])
 
 
 def _hits(scored: list[tuple[int, float]]) -> list[Hit]:
