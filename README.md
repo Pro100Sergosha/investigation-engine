@@ -68,7 +68,7 @@ bucket, Bedrock for models, CodeBuild for jobs and deploys. Full description:
 [llm-wiki/02-architecture.md](llm-wiki/02-architecture.md).
 
 ```mermaid
-flowchart LR
+flowchart TB
     user(["Browser"])
     subgraph aws["AWS eu-north-1"]
         url["Lambda Function URL"]
@@ -98,7 +98,7 @@ One path for UI uploads and the bulk corpus
 `GET /documents` until the document appears.
 
 ```mermaid
-flowchart LR
+flowchart TB
     a["POST /documents/upload-url<br/>name, suffix, size checks"] --> b["PUT to S3 uploads/"]
     b --> c["parse<br/>PDF, DOCX, HTML, MD, JSONL"]
     c --> d{"sha256 of<br/>normalized text"}
