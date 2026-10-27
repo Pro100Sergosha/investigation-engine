@@ -77,7 +77,7 @@ How each group was chosen:
   not contain (a cost, a price, a birthplace, a length). Every entity name was checked against the
   HotpotQA dev file: it appears in exactly one paragraph, its own. So a simple question has exactly
   one gold document, and an unanswerable question cannot be answered from some other paragraph.
-- **Acme questions** were written by hand in the corpus spec `data/acme/spec.json`, together with
+- **Acme questions** were written in the fixed corpus spec `data/acme/spec.json`, together with
   the documents. Each `contradictory` question targets one planted contradiction. Each Acme
   `unanswerable` question targets one gap. The `multi_doc` questions need two to four documents
   (cause plus fix, timeline, follow-up change plus runbook).

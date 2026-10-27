@@ -17,7 +17,8 @@ document is a bug.
 Numbering follows binadar's wiki. A document is written when there is something real to describe,
 so gaps in the numbers are deliberate (10 Runbook is not written yet). The deliverables at the
 repository root, [README](../README.md), [EVALUATION](../EVALUATION.md) and
-[AI_USAGE](../AI_USAGE.md), summarize this wiki for a reader outside the project.
+[AI_USAGE](../AI_USAGE.md), summarize this wiki for a reader outside the project; the README's
+details (decisions, running, deployment, performance) are in [docs/](../docs/).
 
 ## What to read for what task
 
