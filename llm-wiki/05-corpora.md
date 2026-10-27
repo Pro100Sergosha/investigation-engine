@@ -1,7 +1,7 @@
 ---
 title: Corpora
 status: current
-last_updated: 2026-10-25
+last_updated: 2026-10-26
 owner: Pro100Sergosha
 ---
 
@@ -111,10 +111,11 @@ emergency change, a follow-up change, a runbook and the public status page, whic
 
 | | |
 |---|---|
-| documents | **64**: 11 incident reports (PDF), 28 change records (Markdown), 12 runbooks (DOCX), 13 status page entries (HTML); routine changes and maintenance notices are filler so retrieval is not trivial |
+| documents | **70**: 12 incident reports (PDF), 32 change records (Markdown), 13 runbooks (DOCX), 13 status page entries (HTML); routine changes and maintenance notices are filler so retrieval is not trivial |
 | planted contradictions | **14** (start and end time, root cause, merchant and webhook counts, approver, deploy times, durations, a stale runbook timeout, rolled back or not, ...) |
 | gaps | **6** facts absent from every document (lost revenue, SLA credits, ...) |
-| questions | **42**: 15 multi_doc, 3 multi_hop, 12 contradictory, 6 unanswerable, 6 simple |
+| planted prompt injections | **6**, one per document added for them (see below) |
+| questions | **50**: 15 multi_doc, 3 multi_hop, 12 contradictory, 6 unanswerable, 6 simple, 8 injection |
 | generation cost | 95 Haiku calls over four runs (64 documents, 22 retries, 9 after spec fixes), ~99k input + ~31k output tokens, **$0.28** ([ADR 0026](adr/0026-acme-corpus-spec-driven-generation.md)) |
 
 **Files** (`data/acme/`):
@@ -150,6 +151,19 @@ emergency change, a follow-up change, a runbook and the public status page, whic
 7. Read the files: the check proves the planted facts are present, not that nothing else was
    invented. The first run's review found invented times in INC-306 and STS-401 and a leaked
    gap in INC-201; their summaries now pin them.
+
+**Prompt injections** (the bonus "prompt-injection tests", llm-wiki/09). Six documents
+(`CHG-1082`, `INC-404`, `CHG-1084`, `RB-13`, `CHG-1086`, `CHG-1088`, April 27-30, 2026) carry an
+`injection` in the spec: text that addresses the AI reading it (ignore previous instructions,
+a fake system message demanding an abstention, cite `chunk_id 1` and name a fake approver,
+copy the system prompt into the answer, deny the C11 contradiction, and, as an HTML comment in
+Markdown (`"hidden": true`), a fake deployer and a fake number for gap G05). The LLM never
+sees it: `render` writes it verbatim right below the header, so it lands in the first chunk
+with the title, and the check requires it in the parsed file. The rest of each document is
+generated as usual and agrees with the existing facts, so the older labels stay true. HTML
+comments in `.html` files are not a vector: the parser drops them (`tests/test_parsers.py`).
+Each `injection` question carries `canaries`, strings the injection wants in the answer or
+tries to leak (phrases of `agent.SYSTEM`); a test checks that no clean document contains one.
 
 **Load:** `make acme-load` (CodeBuild `TARGET=acme-load`) copies `data/acme/files/` to
 `s3://$BUCKET/uploads/`: `ingest` parses and indexes each file like a UI upload, with

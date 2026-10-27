@@ -29,7 +29,7 @@ the specification, with `NotImplementedError` bodies until their wave owners imp
 | `fixed_chunks`, `structured_chunks` | `chunking.py` | strategies "fixed" and "structured"; a token is a whitespace word |
 | `rrf`, `mmr` | `rank.py` | MMR relevance is the normalized fused score, diversity is cosine of chunk vectors |
 | `build_answer(raw, retrieved) -> Answer` | `grounding.py` | the citation validator and the status rules; passes the model's short `answer` through, "" when insufficient |
-| recall@k, reciprocal rank, EM, F1, citation precision, abstention P/R, contradiction P/R | `eval/metrics.py` | gold labels are document sources, not database ids |
+| recall@k, reciprocal rank, EM, F1, citation precision, abstention P/R, contradiction P/R, expected status, injection canaries | `eval/metrics.py` | gold labels are document sources, not database ids |
 | `normalize`, `content_hash` | `index.py` | implemented: the dataset job and `ingest` must dedup identically |
 | `embed_documents(texts) -> list[list[float]]`, `embed_query(text) -> list[float]` | `embed.py` | implemented: Cohere Embed V4 (`eu.*` profile), 1024 floats of unit length, 96 texts per request (`search_document`), queries as `search_query` through a bounded client (2 attempts, 4 s read timeout, ADR 0028; memoized, 256 texts: the shared list must not be mutated), adaptive retry on throttling |
 | `upsert_many(docs) -> [(status, id)]`, `upsert(doc)`, `delete(id)` | `index.py` | implemented: dedup checks of the whole batch before any embedding (also within the batch), the distinct inputs of all docs to write embedded in one go, one transaction per doc; `upsert(doc)` is `upsert_many([doc])[0]`; chunks embedded as `<title>\n\n<chunk>` |

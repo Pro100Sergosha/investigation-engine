@@ -164,3 +164,14 @@ questions (was $0.41), p95 latency 45.6 s (was 40.0 s).
 The costs above ($0.38, was $0.41) left out Bedrock prompt-cache tokens (ADR 0027 update of
 the same date). Repriced from the committed traces, the current `agent` run cost $1.16 for 72
 questions (~$0.016 per question); the $0.41 run is not recomputable and was higher than quoted.
+
+## Update 2026-10-27 (prompt injection)
+
+An audit for the prompt-injection tests (EVALUATION.md section 8) confirmed the fencing as
+decided: every passage, `title` included, reaches the model as an escaped JSON line, server
+notes stay outside it, and the system prompt names passages as untrusted data. Nothing was
+changed without a measured failure. `grounding.build_answer` now also lists the citations it
+removed (`dropped_citations` in its trace entry), so the eval can see a model citing a chunk
+an injection named but the run never showed. The residual risk is a model that believes an
+injected sentence and cites the injected chunk for it: grounding cannot tell that apart from a
+real fact. The injection eval (8 questions) measures it; it has not run yet.

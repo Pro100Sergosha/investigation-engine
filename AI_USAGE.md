@@ -248,7 +248,7 @@ In the product (sourced in the ADRs named):
   citations (#14, [ADR 0005](llm-wiki/adr/0005-agent-loop-with-citation-validation.md)). Abstaining
   (`insufficient`) is preferred to guessing.
 - **Documents are untrusted data.** Passages go to the model as JSON-escaped lines, tools are
-  read-only (ADR 0025). Prompt-injection tests are not done (PLAN.md section 1, bonus).
+  read-only (ADR 0025). Prompt-injection tests are built but not run yet (EVALUATION.md section 8).
 - **Cost caps.** At most 6 agent steps, `k` <= 40, `get_document` cut at 8,000 characters, an 80 s
   deadline, reserved concurrency 4 on `api`, Postgres `llm_cache`, eval pacing (ADR 0025,
   ADR 0027). The account is a Free-plan project with $100 credits that closes instead of billing
