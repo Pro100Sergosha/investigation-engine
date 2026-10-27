@@ -84,8 +84,9 @@ are in the spec, and labels (`GROUND_TRUTH.md`, `questions.jsonl`) are derived f
 
 - 49 commits on `main`: 6 before the PR workflow, then 43 squash-merged PRs (#1-#43), all merged
   between 2026-10-24 and 2026-10-27.
-- 29 ADRs; 4 have status `superseded` (0004, 0007, 0009, and 0016 for its embedding model
-  only) and 7 more are partly replaced by later ones (0002, 0003, 0010, 0015, 0019, 0020, 0023).
+- 32 ADRs; 4 have status `superseded` (0004, 0007, 0009, and 0016 for its embedding model
+  only) and 8 more are partly replaced by later ones (0002, 0003, 0008, 0010, 0015, 0019, 0020,
+  0023).
 
 | Group | PRs | What |
 |---|---|---|
