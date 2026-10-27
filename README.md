@@ -77,7 +77,7 @@ flowchart TB
         ingest["ingest Lambda<br/>parse, dedup, chunk, embed<br/>max 2 at once"]
         sqs[["SQS IngestFailures"]]
         db[("Aurora Serverless v2<br/>PostgreSQL 17<br/>pgvector + tsvector")]
-        bedrock["Amazon Bedrock<br/>Claude Haiku 4.5, gpt-oss-120b<br/>Cohere Embed V4"]
+        bedrock["Amazon Bedrock, IAM only<br/>Claude Haiku 4.5, gpt-oss-120b<br/>Cohere Embed V4"]
         jobs["CodeBuild investigation-jobs<br/>dataset, acme, eval"]
     end
     user -- "HTTPS: UI, /ask, /documents" --> url --> api
@@ -86,8 +86,8 @@ flowchart TB
     jobs -- "JSONL shards to bulk/" --> s3
     api -- "IAM token, TLS" --> db
     ingest -- "IAM token, TLS" --> db
-    api -- "IAM" --> bedrock
-    ingest -- "embeddings" --> bedrock
+    api --> bedrock
+    ingest --> bedrock
     ingest -- "failed after 2 retries" --> sqs
 ```
 
