@@ -10,7 +10,7 @@ Two kinds of AI are involved and are kept apart below:
 - **Models inside the product** (section 2): the models the deployed system calls at run time.
   They are part of the architecture, not development tools.
 
-Everything here is taken from the repository: `git log`, the bodies of PRs #1-#38,
+Everything here is taken from the repository: `git log`, the bodies of PRs #1-#43,
 [PLAN.md](PLAN.md), [CLAUDE.md](CLAUDE.md), [llm-wiki/](llm-wiki/index.md) and its ADRs. Lines
 marked `TODO (author)` are facts only the author can supply.
 
@@ -82,8 +82,8 @@ are in the spec, and labels (`GROUND_TRUTH.md`, `questions.jsonl`) are derived f
 
 ### Numbers (from `git log` and PLAN.md)
 
-- 44 commits on `main`: 6 before the PR workflow, then 38 squash-merged PRs (#1-#38), all merged
-  between 2026-10-24 and 2026-10-26.
+- 49 commits on `main`: 6 before the PR workflow, then 43 squash-merged PRs (#1-#43), all merged
+  between 2026-10-24 and 2026-10-27.
 - 29 ADRs; 4 have status `superseded` (0004, 0007, 0009, and 0016 for its embedding model
   only) and 7 more are partly replaced by later ones (0002, 0003, 0010, 0015, 0019, 0020, 0023).
 
@@ -96,6 +96,7 @@ are in the spec, and labels (`GROUND_TRUTH.md`, `questions.jsonl`) are derived f
 | Wave 3 | #25, #26, #27, #28 | Wave-3 contracts, eval runner, agent loop and `POST /ask`, Acme corpus |
 | Fixes driven by measurement | #29, #30, #31, #32, #37 | Haiku fallback, search tuning, eval runner fixes and full results, contradiction output |
 | Wave 4 | #34, #35, #36 | `AI_USAGE.md`, `README.md`, `EVALUATION.md` |
+| Wave 5 (bonuses and hardening) | #39, #40, #41, #42, #43 | Public API protection, CloudWatch dashboard and load test, these corrections, prompt-injection eval, LLM and embedding-size comparison |
 
 ### "Explainable without AI"
 
