@@ -59,12 +59,20 @@ Facts checked on 2026-10-26:
    documents: `acme-004` and `acme-027` one of two, `acme-029` both (the two sides of a planted
    contradiction). Storage is not a
    constraint (Aurora storage is cents), so the smaller vector buys nothing we need.
-3. **Haiku stays the answering model.** gpt-oss-120b stays the last fallback (ADR 0028). The full
-   `agent-gpt-oss` run (started 2026-10-26) goes into EVALUATION.md section 8 when its result
-   file is committed; this part of the decision is re-checked then, in an `## Update` section
-   here. Until then it rests on the dry run (3 multi-hop questions, all judged correct, ~$0.001
-   per question) and on what is already known: Haiku's tool calling and JSON are reliable
-   (ADR 0017), and the 0.82 judge score of `agent` is the bar.
+3. **Haiku stays the answering model; gpt-oss-120b stays the last fallback (ADR 0028).** Full
+   runs, 72 questions each, same prompt and settings:
+
+   | model | judge | citation P | abstain P/R | conflict P/R | per question | p50/p95 s |
+   |---|---|---|---|---|---|---|
+   | Haiku 4.5 (`agent`) | 0.82 | 0.94 | 0.77/0.91 | 1.00/0.67 | ~$0.016 | 10.3/45.6 |
+   | gpt-oss-120b (`agent-gpt-oss`) | 0.89 | 0.93 | 0.75/0.82 | 0.92/0.92 | ~$0.0024 | 3.4/10.3 |
+
+   gpt-oss wins clearly on cost (~7x), latency and contradictions (11 vs 7 of 12). On the other
+   answerable questions it is a tie (50 vs 51 once Haiku's two Bedrock-error abstentions and one
+   flipped judge verdict are set aside), and it answered one unanswerable question (`acme-034`)
+   with a cause no document states. The system is judged on abstaining rather than guessing, the
+   prompt was tuned for Haiku, and one run per model is all the cache allows (a rerun replays
+   `llm_cache`). So the default does not change two days before the code freeze.
 4. **No reranker.** The only Bedrock rerank models are in eu-central-1 and us-west-2 with no
    cross-Region profile. Calling them would be a direct cross-Region call, which CLAUDE.md forbids
    (one Region; only the existing `eu.*`/`global.*` inference profiles). Nothing is built.
@@ -73,8 +81,12 @@ Facts checked on 2026-10-26:
 
 - The bonus "compare LLMs or embedding models" is measured with the same runner, questions and
   judge as everything else, for well under $1: the embedding run makes ~180 Cohere query calls
-  (a few thousand tokens) and ~180 exact scans (~0.6 s each, a few ACU-minutes); a gpt-oss answer
-  costs ~$0.001 (dry run: $0.0028 for 3 questions, judge included) against ~$0.016 for Haiku.
+  (a few thousand tokens) and ~180 exact scans (~0.6 s each, a few ACU-minutes); the full
+  gpt-oss run cost $0.17 with the judge (~$0.0024 per question against ~$0.016 for Haiku).
+- Keeping Haiku keeps its costs: ~7x the price per question, the 10 requests/min quota that
+  paces every eval, and the `eu.*` outages of ADR 0028. Switching later is one argument
+  (`agent.ask(model=...)` in `handlers.py`); what would justify it: the contradiction gain and the
+  abstention behaviour confirmed on questions the prompt was not tuned on.
 - A side result: the HNSW index loses 0.03 Recall@10 against exact search at the same 1024
   dimensions (0.89 vs 0.92). `acme-004` is the clearest case: exact search finds both gold
   documents, HNSW none (the partial index and `hnsw.ef_search` = 40 return HotpotQA paragraphs
@@ -103,5 +115,9 @@ Facts checked on 2026-10-26:
   calls. Rejected for cost and quota.
 - **A small cross-encoder inside the Lambda.** ADR 0016 keeps ML runtimes out of the image (cold
   starts, image size); rejected for the same reasons.
+- **Make gpt-oss-120b the answering model now.** The option the numbers favour: cheaper, faster,
+  in Region, better on contradictions. Rejected for the submission because of the missed
+  abstention, the single run and the Haiku-tuned prompt (Decision 3); the right call once a
+  held-out question set shows the same picture.
 - **Compare against Titan V2.** The corpus is embedded with Cohere only; a Titan comparison needs
   a full second embedding (~18 h at Titan's throughput, ADR 0022). Rejected.

@@ -845,18 +845,53 @@ Cost: ~180 Cohere query embeddings (a few thousand tokens, < $0.01) and ~180 exa
 the fallback share of this run is 0 by construction; prompt caching does not apply (Claude only).
 The baseline is the committed `agent` run (Haiku, same prompt and settings).
 
-The full run was started on 2026-10-26 (CodeBuild `investigation-jobs`, build `ae017d49`); its
-result file `eval/results/agent-gpt-oss.json` is not committed yet, so only the dry run is here:
+`eval/results/agent-gpt-oss.json`, run uncached on 2026-10-26 (4 of 154 calls were cache hits
+left by the 3-question dry run). Both runs: 72 questions, 0 errors, 0 judge failures, 0 claims
+dropped by the validator.
 
-| config | n | EM | F1 | judge | citation P | cost | cost per question | p50/p95 s |
-|---|---|---|---|---|---|---|---|---|
-| `agent` (Haiku, full run) | 72 | 0.52 | 0.73 | 0.82 | 0.94 | $1.16 | ~$0.016 | 10.3/45.6 |
-| `agent-gpt-oss`, dry run (`LIMIT=3`, 3 multi-hop) | 3 | 0.67 | 0.86 | 1.00 (3 of 3) | 0.83 | $0.0028 | ~$0.001 | 3.6/5.7 |
+| config | EM | F1 | judge | citation P | abstain P/R | conflict P/R | LLM calls | cost | per question | p50/p95 s |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `agent` (Haiku 4.5) | 0.52 | 0.73 | 0.82 (50 of 61) | 0.94 | 0.77/0.91 | 1.00/0.67 | 167 | $1.16 | ~$0.016 | 10.3/45.6 |
+| `agent-gpt-oss` | 0.52 | 0.70 | 0.89 (54 of 61) | 0.93 | 0.75/0.82 | 0.92/0.92 | 154 | $0.17 | ~$0.0024 | 3.4/10.3 |
 
-The dry run shows the switch works end to end (tool calls, forced `final_answer`, grounding) and
-that a gpt-oss answer costs ~1/16 of a Haiku one. Three questions say nothing about quality;
-abstention and contradiction P/R need the full run. **Decision for now:** Haiku stays the
-answering model, gpt-oss the last fallback ([ADR 0028](llm-wiki/adr/0028-haiku-global-pool-before-gpt-oss.md)).
+Judge correctness by type (Haiku / gpt-oss): simple 1.00 / 1.00, multi_hop 0.78 / 0.83,
+multi_doc 0.93 / 0.87, contradictory 0.58 / 0.92.
+
+Where the two differ:
+- **gpt-oss right where Haiku was judged wrong, 7.** Four contradictions that Haiku answered
+  from one document (section 4.1: `acme-019`, `acme-023`, `acme-026`) or with a one-sided short
+  answer (`acme-020`, 4.2): gpt-oss reports both values, e.g. "26,900 or 18,400". Two are
+  Haiku's `ServiceUnavailableException` abstentions (4.4: `hp-5ac1b134...`, `hp-5a8e3ea9...`):
+  infrastructure, not the model. One is the judge error of 4.4 (`hp-5a81d54a...`: the same
+  answer "No", judged right this time).
+- **gpt-oss judged wrong where Haiku was right, 3.** It abstained after one call on two
+  comparison questions (`hp-5ab296a6...` Chess vs Cartagena, `hp-5a80caac...`), the single-shot
+  failure of 4.5. `acme-002` lists the full timeline but was judged wrong for not reporting the
+  status page's times, a strict reading of the gold answer.
+- **Two more changes.** gpt-oss answered the unanswerable `acme-034` with "fault on NorthBank's
+  side" as the technical root cause, which no document states: the failure the abstention rule
+  exists to prevent (Haiku abstained). `acme-001` is wrong in both runs; gpt-oss flagged it
+  `conflicting` (preliminary vs final cause), the only false conflict flag of the run.
+
+How to read it:
+- **Quality is a tie within noise, except contradictions.** Without the two infrastructure
+  abstentions and the flipped judge error, the answerable count is 50 (Haiku) vs 51 (gpt-oss).
+  The contradiction gain (7 -> 11 of 12) is the one difference above the noise (4.11). gpt-oss
+  explores less: 2.1 LLM calls per question vs 2.3, often answering after the seeded search.
+- **Cost and latency clearly favour gpt-oss:** ~7x cheaper per question with no prompt caching
+  ($0.15/$0.60 per 1M), p50 3.4 s vs 10.3 s, p95 10.3 s vs 45.6 s. Haiku's latency includes its
+  `eu.*` -> `global.*` retries (ADR 0028); gpt-oss runs in Region at 100 requests/min instead of
+  10.
+- **Caveats.** One uncached run each; the prompt was written and tuned for Haiku; the judge
+  (Qwen3) is from neither family. gpt-oss ignores `toolChoice` (`llm.converse`), which the agent
+  handles by offering only `final_answer` on the forced step.
+
+**Decision:** Haiku stays the answering model for the submission, gpt-oss the last fallback
+([ADR 0032](llm-wiki/adr/0032-model-embedding-comparison-no-reranker.md)). gpt-oss wins on
+contradictions, cost and latency, but it answered an unanswerable question with an unsupported
+cause, and a second independent run cannot be had cheaply (`llm_cache` replays this one).
+Switching is one argument (`agent.ask(model=...)` and the api's call) once another question set
+confirms the contradiction gain.
 
 ### Reranker: not available in this Region
 

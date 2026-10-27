@@ -138,7 +138,7 @@ Measured on the full set (72 questions, 61 answerable), first uncached runs, 202
 | `agent-structured` | 19 min | $1.08 (~$0.015 per question) |
 | `single-shot` | 9 min | $0.37 (~$0.005 per question) |
 | `embeddings` | ~8 min | < $0.01 (~180 Cohere query embeddings) + ~180 exact scans of ~0.6 s |
-| `agent-gpt-oss` | not recorded | dry run $0.0028 for 3 questions (~$0.001 per question, judge included) |
+| `agent-gpt-oss` | ~8 min | $0.17 (~$0.0024 per question, judge included) |
 | judge | in the runs above | ~$0.0001 per question (~250 tokens) |
 
 Until 2026-10-26 the runner priced only `inputTokens` and `outputTokens` and missed the
@@ -245,9 +245,18 @@ fixed chunks; the cut query vectors equal Cohere's own 512/256 output (cosine >=
 | 256, exact | 0.82 | 0.88 | 0.85 | 0.87 | 0.53 s |
 
 1024 stays: the smaller sizes lose only on Acme (HotpotQA R@10 0.90 at every size). The HNSW
-index loses as much as halving the vector (0.92 -> 0.89). LLM, `agent-gpt-oss`: the full run's
-file is not committed yet; the dry run (3 questions) answered all 3 correctly at ~$0.001 per
-question vs ~$0.016 for Haiku. Haiku stays the answering model. Reranker: no Bedrock rerank model
+index loses as much as halving the vector (0.92 -> 0.89).
+
+LLM, `agent-gpt-oss` (`eval/results/agent-gpt-oss.json`) vs `agent`, same prompt and settings:
+
+| model | EM | F1 | judge | citation P | abstain P/R | conflict P/R | cost | p50/p95 s |
+|---|---|---|---|---|---|---|---|---|
+| Haiku 4.5 | 0.52 | 0.73 | 0.82 | 0.94 | 0.77/0.91 | 1.00/0.67 | $1.16 | 10.3/45.6 |
+| gpt-oss-120b | 0.52 | 0.70 | 0.89 | 0.93 | 0.75/0.82 | 0.92/0.92 | $0.17 | 3.4/10.3 |
+
+gpt-oss reports 4 more contradictions (contradictory judge 0.92 vs 0.58), but abstains on two
+comparison questions and answers the unanswerable `acme-034`; 3 of its 7 judge gains are Haiku's
+Bedrock errors and a judge flip. Haiku stays the answering model. Reranker: no Bedrock rerank model
 in eu-north-1 (only eu-central-1 and us-west-2, no cross-Region profile), so none was built.
 
 ## Known limits
