@@ -122,7 +122,7 @@ processing architecture and justify it)
 - [x] Automated tests — pytest per module, `make check` in CI on every PR
 - [x] Working integration with the database and external APIs — Aurora (IAM tokens), Bedrock (Haiku, Cohere, gpt-oss, Qwen), S3
 - [x] Safe management of environment configuration — `config.py` the only env reader, `.env.example`, no secrets in code or env vars
-- [x] Technical documentation — README (#35), llm-wiki (system as it is) + 29 ADRs
+- [x] Technical documentation — README (#35), llm-wiki (system as it is) + 32 ADRs
 - [x] Understanding of performance and LLM costs — README (#35), EVALUATION.md (#36): ~$0.016 per question for `agent` vs ~$0.005 for `single-shot` (prompt-cache tokens priced since #37), p50/p95 10.3/45.6 s; bulk load of 66,555 documents ~65 min (llm-wiki/05; ~35-40 min was the estimate); one search from the Lambda 0.74 s, in Region mmr p50/p95 0.33/0.73 s, cold start p50 1.3 s, Aurora resume ~18.5 s (llm-wiki/07 Performance)
 
 ### 6. Bonus (does not replace the core)

@@ -10,7 +10,7 @@ Two kinds of AI are involved and are kept apart below:
 - **Models inside the product** (section 2): the models the deployed system calls at run time.
   They are part of the architecture, not development tools.
 
-Everything here is taken from the repository: `git log`, the bodies of PRs #1-#33,
+Everything here is taken from the repository: `git log`, the bodies of PRs #1-#43,
 [PLAN.md](PLAN.md), [CLAUDE.md](CLAUDE.md), [llm-wiki/](llm-wiki/index.md) and its ADRs. Lines
 marked `TODO (author)` are facts only the author can supply.
 
@@ -24,7 +24,9 @@ TODO (author): confirm the tool list and add anything missing.
 | Claude Code **subagents** | Parallel "waves" of coding agents, each in its own git worktree and branch, each ending in a PR that must pass CI (section 3). |
 | Claude Code plugins and configuration | RTK (token-saving CLI proxy), caveman (terse replies), ponytail (minimal-code rules; its `ponytail:` comment convention marks deliberate simplifications in the code, e.g. `src/engine/llm.py`, `src/engine/parsers.py`), security-guidance, python-development skills. |
 | `aws-mcp` server and the installed AWS skills | AWS documentation and API access; [CLAUDE.md](CLAUDE.md) tells the assistant to prefer them over memory for AWS work. |
-| Claude in Chrome | Checking the deployed UI in the browser (wave 4). |
+| Claude in Chrome | Checking the deployed UI on the public URL (2026-10-26), run by the assistant. |
+| Claude Docs (MCP) | A private study guide for the interview, outside the repository. |
+| Claude Code security review | Automatic security review runs on changes (Opus). |
 | GitHub CLI (`gh`) | Creating PRs, watching CI checks. |
 
 What the repository itself shows about the tooling:
@@ -48,7 +50,7 @@ All calls go through Amazon Bedrock with IAM, no external API keys. LLM calls go
 | Last automatic fallback | gpt-oss-120b (in Region) | [ADR 0017](llm-wiki/adr/0017-bedrock-claude-haiku-llm.md), [ADR 0023](llm-wiki/adr/0023-llm-client-own-retry-fallback-cache.md) |
 | Evaluation judge (another model family than the generator) | Qwen3-235B | [ADR 0027](llm-wiki/adr/0027-eval-runner-retrieval-sweep-qwen-judge.md) |
 | Embeddings for documents and queries | Cohere Embed V4, `eu.*` profile, 1024 dimensions (Titan Text Embeddings V2 until #24) | [ADR 0022](llm-wiki/adr/0022-cohere-embed-v4-batched.md) |
-| Synthetic Acme corpus | Claude Haiku 4.5 wrote the prose of 64 documents from a hand-written spec (`data/acme/spec.json`); every planted fact is checked in the parsed file | [ADR 0026](llm-wiki/adr/0026-acme-corpus-spec-driven-generation.md) |
+| Synthetic Acme corpus | Claude Haiku 4.5 wrote the prose of 64 documents from a fixed spec (`data/acme/spec.json`, written by a Claude Code subagent in wave 3, not by the author); every planted fact is checked in the parsed file | [ADR 0026](llm-wiki/adr/0026-acme-corpus-spec-driven-generation.md) |
 
 The model writes text, never facts of the corpus: the scenario, contradictions, gaps and questions
 are in the spec, and labels (`GROUND_TRUTH.md`, `questions.jsonl`) are derived from it
@@ -80,20 +82,22 @@ are in the spec, and labels (`GROUND_TRUTH.md`, `questions.jsonl`) are derived f
 
 ### Numbers (from `git log` and PLAN.md)
 
-- 39 commits on `main`: 6 before the PR workflow, then 33 squash-merged PRs (#1-#33), all merged
-  between 2026-10-24 and 2026-10-26.
-- 29 ADRs; 4 have status `superseded` (0004, 0007, 0009, and 0016 for its embedding model
-  only) and 7 more are partly replaced by later ones (0002, 0003, 0010, 0015, 0019, 0020, 0023).
+- 49 commits on `main`: 6 before the PR workflow, then 43 squash-merged PRs (#1-#43), all merged
+  between 2026-10-24 and 2026-10-27.
+- 32 ADRs; 4 have status `superseded` (0004, 0007, 0009, and 0016 for its embedding model
+  only) and 8 more are partly replaced by later ones (0002, 0003, 0008, 0010, 0015, 0019, 0020,
+  0023).
 
 | Group | PRs | What |
 |---|---|---|
-| Setup and process | #1, #2, #3, #9, #11, #18, #33 | CI/CD, the cloud-only plan, the wave rules, doc-accuracy rules, deploy concurrency, progress tracking |
+| Setup and process | #1, #2, #3, #9, #11, #18, #33, #38 | CI/CD, the cloud-only plan, the wave rules, doc-accuracy rules, deploy concurrency, progress tracking |
 | Wave 0 | #4 | Contracts in `models.py`, signatures, dedup hash, API shapes |
 | Wave 1 | #5, #6, #7, #8, #10, #12, #13, #14, #15, #16, #17 | Chunkers, RRF + MMR, parsers, citation validator, eval metrics, HotpotQA dataset job, infra (Aurora, bucket, `ingest`, jobs project; two of the four infra PRs fixed red deploys), UI page |
 | Wave 2 | #19, #20, #21, #22, #23, #24 | Wave-2 contracts, LLM client, document API and `ingest` wiring, writes with dedup, hybrid search, Cohere embeddings |
 | Wave 3 | #25, #26, #27, #28 | Wave-3 contracts, eval runner, agent loop and `POST /ask`, Acme corpus |
-| Fixes driven by measurement | #29, #30, #31, #32 | Haiku fallback, search tuning, eval runner fixes and full results, contradiction output |
-| Wave 4 | this PR and two parallel ones | `AI_USAGE.md`, `README.md`, `EVALUATION.md` |
+| Fixes driven by measurement | #29, #30, #31, #32, #37 | Haiku fallback, search tuning, eval runner fixes and full results, contradiction output |
+| Wave 4 | #34, #35, #36 | `AI_USAGE.md`, `README.md`, `EVALUATION.md` |
+| Wave 5 (bonuses and hardening) | #39, #40, #41, #42, #43 | Public API protection, CloudWatch dashboard and load test, these corrections, prompt-injection eval, LLM and embedding-size comparison |
 
 ### "Explainable without AI"
 
@@ -104,7 +108,8 @@ the prime rule in [CLAUDE.md](CLAUDE.md)):
 - No LangChain, LlamaIndex, Haystack, ORMs or web frameworks. LangChain for only the LLM client
   and agent loop was reconsidered and rejected again (ADR 0001 update); RAGAS/DeepEval were
   rejected for the eval (ADR 0027).
-- Hand-written core: chunkers, dedup, RRF, MMR, the agent loop, the citation validator, the
+- Own code instead of libraries (written by the coding agents, kept small enough to explain):
+  chunkers, dedup, RRF, MMR, the agent loop, the citation validator, the
   Lambda router, the metrics, even the PDF writer of the Acme generator (~50 lines instead of
   fpdf2, #28).
 - A dependency only where writing it by hand is unreasonable (pypdf, python-docx, pg8000).
@@ -279,9 +284,11 @@ TODO (author): this section is yours. Suggested topics:
   `grounding.py`, `agent.py`), and what you changed.
 - TODO (author): how you reviewed each PR (what you read, what you ran, what you asked to change
   before merging).
-- TODO (author): what you verified manually (the UI on the public URL, the deployed `POST /ask`,
+- TODO (author): what you verified manually (the deployed `POST /ask`; note the 2026-10-26 UI
+  check on the public URL was run by Claude in Chrome,
   AWS console checks, the judge spot-check).
-- TODO (author): the hand-written Acme spec (`data/acme/spec.json`): how much of it you wrote.
+- TODO (author): the Acme spec (`data/acme/spec.json`) was written by a wave-3 subagent: what, if
+  anything, you changed or checked in it.
 - TODO (author): what you did by hand in AWS (account setup, `aws login`, quota requests, the
   Anthropic use-case form, `make deploy-cicd`).
 - TODO (author): what you would do differently with AI on the next project.

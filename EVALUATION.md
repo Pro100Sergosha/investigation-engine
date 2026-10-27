@@ -763,7 +763,7 @@ gives the same short answer, and the judge accepted it there because its claims 
 - **HotpotQA label noise.** Fused or over-long gold answers and a wrong supporting title
   (4.7) lower EM, citation precision and Recall for answers that are right.
 - **The synthetic corpus and the generator share a family.** Haiku wrote all 64 Acme documents
-  from a hand-written spec and Haiku answers the questions about them. Its own phrasing may be
+  from a fixed spec and Haiku answers the questions about them. Its own phrasing may be
   easier for it to retrieve and read than real incident reports would be. The planted values were
   checked verbatim, but the documents' style was not. Acme results (36 of 61 answerable questions)
   may overstate performance on real documents.
