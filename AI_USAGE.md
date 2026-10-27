@@ -10,13 +10,15 @@ Two kinds of AI are involved and are kept apart below:
 - **Models inside the product** (section 2): the models the deployed system calls at run time.
   They are part of the architecture, not development tools.
 
-Everything here is taken from the repository: `git log`, the bodies of PRs #1-#43,
-[PLAN.md](PLAN.md), [CLAUDE.md](CLAUDE.md), [llm-wiki/](llm-wiki/index.md) and its ADRs. Lines
-marked `TODO (author)` are facts only the author can supply.
+Sections 1-5 are taken from the repository: `git log`, the bodies of PRs #1-#44,
+[PLAN.md](PLAN.md), [CLAUDE.md](CLAUDE.md), [llm-wiki/](llm-wiki/index.md) and its ADRs. The
+origin of the decisions in section 4 and all of section 6 are the author's own account.
 
 ## 1. AI tools used to build the system
 
-TODO (author): confirm the tool list and add anything missing.
+All AI work went through one tool, Claude Code. The other rows are its subagents, plugins and the
+MCP servers and extensions used from inside it. No other chat assistant and no IDE completion
+(Copilot, Cursor) was used.
 
 | Tool | Used for |
 |---|---|
@@ -27,7 +29,7 @@ TODO (author): confirm the tool list and add anything missing.
 | Claude in Chrome | Checking the deployed UI on the public URL (2026-10-26), run by the assistant. |
 | Claude Docs (MCP) | A private study guide for the interview, outside the repository. |
 | Claude Code security review | Automatic security review runs on changes (Opus). |
-| GitHub CLI (`gh`) | Creating PRs, watching CI checks. |
+| GitHub CLI (`gh`) | Not AI: run by Claude Code to create PRs and watch CI checks. |
 
 What the repository itself shows about the tooling:
 
@@ -75,14 +77,15 @@ are in the spec, and labels (`GROUND_TRUTH.md`, `questions.jsonl`) are derived f
    `investigation-pr-diff` comments the `cdk diff` against production, with a read-only role
    because PR code is untrusted (#1).
 5. **Review.** The plan's rule: "The main session reviews and merges; the author reads each PR."
-   TODO (author): describe how you reviewed the PRs in practice.
+   In practice the author read each PR's description and the findings of `/code-review` (Opus),
+   and the diff selectively; green CI and the posted `cdk diff` were the other gates (section 6).
 6. **Squash merge, automatic deploy.** A merge to `main` runs CodeBuild `investigation-deploy`:
    `make test deploy verify smoke` ([ADR 0012](llm-wiki/adr/0012-codebuild-cicd-via-codeconnections.md),
    [ADR 0013](llm-wiki/adr/0013-branch-pr-workflow-and-ci.md)).
 
 ### Numbers (from `git log` and PLAN.md)
 
-- 49 commits on `main`: 6 before the PR workflow, then 43 squash-merged PRs (#1-#43), all merged
+- 50 commits on `main`: 6 before the PR workflow, then 44 squash-merged PRs (#1-#44), all merged
   between 2026-10-24 and 2026-10-27.
 - 32 ADRs; 4 have status `superseded` (0004, 0007, 0009, and 0016 for its embedding model
   only) and 8 more are partly replaced by later ones (0002, 0003, 0008, 0010, 0015, 0019, 0020,
@@ -98,6 +101,7 @@ are in the spec, and labels (`GROUND_TRUTH.md`, `questions.jsonl`) are derived f
 | Fixes driven by measurement | #29, #30, #31, #32, #37 | Haiku fallback, search tuning, eval runner fixes and full results, contradiction output |
 | Wave 4 | #34, #35, #36 | `AI_USAGE.md`, `README.md`, `EVALUATION.md` |
 | Wave 5 (bonuses and hardening) | #39, #40, #41, #42, #43 | Public API protection, CloudWatch dashboard and load test, these corrections, prompt-injection eval, LLM and embedding-size comparison |
+| Docs | #44 | README split into a short page with diagrams and `docs/`, the author's sections of this report |
 
 ### "Explainable without AI"
 
@@ -127,8 +131,10 @@ caused by this: after wave 1 merged, PLAN.md still showed every task as not done
 These are decisions or code that were merged or planned and then shown wrong by a measurement, an
 error, a deploy or a review. The record does not say who first proposed each of them.
 
-TODO (author): for each item below, say whether the original choice came from an AI suggestion,
-from you, or from both, and how you judged the replacement.
+The original choices in 4.1-4.6 (IAM Identity Center for the first account, Groq, public RDS,
+Titan, the first search defaults) were mostly the author's; the coding agents implemented them.
+Each replacement was worked out with Claude Code from the error or measurement named in the item
+and accepted by the author after reading its ADR. 4.7-4.9 are defects in code the agents wrote.
 
 ### 4.1 AWS account and CI/CD (#1, ADR 0011, ADR 0012)
 
@@ -180,7 +186,8 @@ from you, or from both, and how you judged the replacement.
 - **Caught by the real bulk load:** it stalled at 1,853 of 66,555 documents. Titan throttled beyond
   ~1 request/s (~18 h for the corpus), Lambda's async retries were dropped without a record, and
   Titan batch inference was not authorized for the account.
-- **Fix:** Cohere Embed V4, 96 texts per request, whole shards per call, ~35-40 min for the corpus;
+- **Fix:** Cohere Embed V4, 96 texts per request, whole shards per call, the corpus loaded in
+  ~65 min (~35-40 min was the estimate);
   failed `ingest` events kept in an SQS queue with a redrive job
   ([ADR 0022](llm-wiki/adr/0022-cohere-embed-v4-batched.md)).
 
@@ -261,8 +268,8 @@ In the product (sourced in the ADRs named):
 - **No secrets to leak.** No LLM API keys (IAM), no database password (IAM auth tokens,
   ADR 0021), the GitHub token in SSM SecureString.
 - **The judge is another model family** (Qwen3 grading Claude), and gpt-oss is not the judge
-  because it is the agent's fallback (ADR 0027). A hand spot-check of judge verdicts is still open
-  (PLAN.md).
+  because it is the agent's fallback (ADR 0027). The author spot-checked 10 verdicts by hand: 6
+  agree, and the judge is the stricter one ([EVALUATION.md](EVALUATION.md)).
 
 In the development process:
 
@@ -275,20 +282,64 @@ In the development process:
 
 ## 6. What I changed or decided myself
 
-TODO (author): this section is yours. Suggested topics:
+### My role
 
-- TODO (author): which architecture decisions were yours (e.g. the Free-plan AWS project, cloud
-  only, no frameworks, the HotpotQA + Acme corpus split) and which came from AI proposals.
-- TODO (author): which AI suggestions you rejected, and why.
-- TODO (author): which modules or functions you rewrote or simplified by hand (e.g. `rank.py`,
-  `grounding.py`, `agent.py`), and what you changed.
-- TODO (author): how you reviewed each PR (what you read, what you ran, what you asked to change
-  before merging).
-- TODO (author): what you verified manually (the deployed `POST /ask`; note the 2026-10-26 UI
-  check on the public URL was run by Claude in Chrome,
-  AWS console checks, the judge spot-check).
-- TODO (author): the Acme spec (`data/acme/spec.json`) was written by a wave-3 subagent: what, if
-  anything, you changed or checked in it.
-- TODO (author): what you did by hand in AWS (account setup, `aws login`, quota requests, the
-  Anthropic use-case form, `make deploy-cicd`).
-- TODO (author): what you would do differently with AI on the next project.
+I did not write or edit code by hand. Every line of code, tests, CDK and docs was written by
+Claude Code. My part was the decisions, the rules the agents worked under, reading the result and
+checking the deployed system. Because the interview asks me to explain and change any line without
+AI, the prime rule (no frameworks, short hand-written algorithms, ADR 0001) was set before any
+code, so that the code stays small enough for me to learn.
+
+### Decisions that were mine
+
+- **Stay on the AWS Free plan.** When the first account was upgraded to Paid after enabling IAM
+  Identity Center, I dropped it and started a new Free-plan project (4.1, ADR 0011).
+- **Copy the process of my earlier AWS project** (binadar): llm-wiki with ADRs, a Definition of
+  Done, CDK in Python with a Makefile, PR-based CI, one production environment. Exceptions only where
+  the Free plan blocks it (GitHub OIDC, ADR 0012).
+- **Most of the original choices in section 4** (Groq, public RDS, Titan, the first search
+  defaults), and accepting their replacements once a deploy error or a measurement showed them wrong.
+- **Which model writes which code:** Opus for tasks with hidden context (infrastructure, IAM, CDK,
+  `db.py`, `agent.py`, `llm.py`, `grounding.py`), Sonnet for tasks fully specified by a signature
+  and tests (`rank.py`, chunkers, metrics, parsers), no Haiku for code.
+- **Scope cuts for the deadline:** no answer streaming (it would need an own Lambda runtime loop;
+  decided on 2026-10-27 to spend the time on this report and the interview instead).
+
+### AI suggestions I rejected
+
+- **One PR per discovery.** The Aurora express fix took four PRs (#10-#13) because each AWS surprise
+  got its own PR. I asked for related fixes to go into one PR and for a new AWS resource to start
+  from the minimal set of properties, verified once, before adding settings.
+
+### How I reviewed
+
+I read each PR's description and the findings of `/code-review` (run on Opus), and the diff
+selectively. Green CI (`make check`) and the `cdk diff` comment were the other gates. The limit of
+this: Opus-written code reviewed by Opus is not an independent check, and I did not read every diff
+line by line, so my reading of the core modules before the interview is part of the work still to do
+(PLAN.md section 8).
+
+### What I verified myself
+
+- Asked questions on the public URL and read the answers and their cited sources. The full UI
+  walkthrough of 2026-10-26 (upload, update, delete, duplicate) was run by Claude in Chrome.
+- The judge spot-check: I graded 10 judge verdicts myself; 6 agree, and the judge is the stricter
+  one (EVALUATION.md).
+- The AWS console and billing: resources, credits spent, the Free-plan state.
+- Not checked by me: the Acme spec (`data/acme/spec.json`) was written by a wave-3 subagent and I
+  did not change it. Its correctness rests on the mechanical check of every planted fact and on the
+  reading of the generated documents described in 4.9.
+
+### Done by hand in AWS
+
+Creating the Free-plan AWS project and logging in with `aws login`. Everything else (bootstrap,
+stacks, CodeBuild projects, jobs) went through Claude Code, the Makefile and CodeBuild.
+
+### What I would do differently next time
+
+- **Run the evaluation from the first day.** The default search configuration was the worst of six
+  (4.6) and contradiction recall was 0.25 (4.8); both were found only on day 3, after the code around
+  them had settled.
+- **Check service limits before choosing.** The Free-plan Aurora express requirement, the SCP that
+  denies OIDC, Titan's throttling and the Haiku `eu.*` outage were each found by a failed deploy or
+  a stalled job (4.1, 4.3, 4.4, 4.5), not before the decision.
