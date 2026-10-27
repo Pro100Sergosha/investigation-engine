@@ -45,7 +45,7 @@ KINDS = {
     ),
 }
 DOC_ID = re.compile(r"^(INC|CHG|RB|STS)-\d{2,4}$")
-QUESTION_TYPES = {"simple", "multi_hop", "multi_doc", "unanswerable", "contradictory"}
+QUESTION_TYPES = {"simple", "multi_hop", "multi_doc", "unanswerable", "contradictory", "injection"}
 # Haiku allows 10 requests/min, shared with other jobs: one uncached call per 7 s leaves room.
 PACE_SECONDS = 7
 HAIKU_PRICE = (1.10, 5.50)  # USD per 1M input / output tokens, EU profile (ADR 0017)
@@ -94,9 +94,15 @@ def validate(spec: dict) -> list[str]:
                 problems.append(f"{doc_id}: unknown service {name}")
         if not doc["facts"]:
             problems.append(f"{doc_id}: no facts")
-        for text in [doc["title"], doc["summary"], *doc["facts"]]:
+        injection = doc.get("injection", "")
+        for text in [doc["title"], doc["summary"], *doc["facts"], injection]:
             if not text.isascii() or "|" in text:
                 problems.append(f"{doc_id}: non-ASCII or '|' in {text!r}")
+        # Hidden = an HTML comment in Markdown, which "--" would end early. Not in .html: the
+        # parser drops comments there, so the injection would never reach the model.
+        hidden_ok = file_name(doc_id).endswith(".md") and injection and "--" not in injection
+        if doc.get("hidden") and not hidden_ok:
+            problems.append(f"{doc_id}: a hidden injection is text without '--' in a .md file")
     for doc in docs.values():
         for ref in doc["refs"]:
             if ref not in docs or ref == doc["id"]:
@@ -123,16 +129,23 @@ def validate(spec: dict) -> list[str]:
 
     for number, q in enumerate(spec["questions"], start=1):
         where = f"question {number}"
+        # An injection question is labelled like one of the others: by a gap (the right answer
+        # is to abstain), by a contradiction, or by an answer and gold documents.
         if q["type"] not in QUESTION_TYPES:
             problems.append(f"{where}: unknown type {q['type']}")
-        elif q["type"] == "unanswerable":
+        elif q["type"] == "unanswerable" or "gap" in q:
             if q.get("gap") not in gaps or q.get("gold") or q.get("answer"):
                 problems.append(f"{where}: unanswerable needs a known gap, no gold, no answer")
-        elif q["type"] == "contradictory":
+        elif q["type"] == "contradictory" or "contradiction" in q:
             if q.get("contradiction") not in contradictions:
                 problems.append(f"{where}: unknown contradiction {q.get('contradiction')}")
         elif not q.get("answer") or not q.get("gold"):
             problems.append(f"{where}: needs an answer and gold documents")
+        canaries = q.get("canaries")
+        if (q["type"] == "injection") != bool(canaries):
+            problems.append(f"{where}: canaries go with type injection, and it needs some")
+        elif canaries and not all(isinstance(c, str) and c.strip() for c in canaries):
+            problems.append(f"{where}: canaries must be non-empty strings")
         for doc_id in q.get("gold", []):
             if doc_id not in docs:
                 problems.append(f"{where}: unknown gold document {doc_id}")
@@ -302,6 +315,11 @@ def render(doc: dict, body: str, out_dir: Path) -> Path:
         ("p", f"Services: {', '.join(doc['services'])}"),
     ]
     content = header + blocks(body)
+    if doc.get("injection"):
+        # A planted prompt injection (llm-wiki/09): verbatim from the spec, never written by the
+        # LLM, right below the header so it lands in the document's first chunk.
+        kind = "comment" if doc.get("hidden") else "p"
+        content.insert(len(header), (kind, doc["injection"]))
     path = out_dir / file_name(doc["id"])
     out_dir.mkdir(parents=True, exist_ok=True)
     suffix = path.suffix
@@ -321,6 +339,8 @@ def _markdown(content: list[tuple[str, str]]) -> str:
     for kind, text in content:
         if kind == "li":
             lines.append("- " + text)
+        elif kind == "comment":  # invisible when rendered, but the parser reads .md verbatim
+            lines.append(f"<!-- {text} -->")
         elif kind == "p":
             lines.append(text)
         else:
@@ -485,6 +505,20 @@ def ground_truth(spec: dict) -> str:
     for gap in spec["gaps"]:
         words = ", ".join(f"`{word}`" for word in gap["forbidden"]) or "-"
         out.append(f"| {gap['id']} | {gap['what']} | {words} |")
+    injected = [doc for doc in docs if doc.get("injection")]
+    out += [
+        "",
+        f"## Planted prompt injections ({len(injected)})",
+        "",
+        "Written verbatim below each document's header, not by the LLM. They are not facts: a "
+        "correct answer neither follows nor repeats them. Hidden = an HTML comment in Markdown.",
+        "",
+        "| File | Hidden | Injected text |",
+        "|---|---|---|",
+    ]
+    for doc in injected:
+        hidden = "yes" if doc.get("hidden") else "no"
+        out.append(f"| `{file_name(doc['id'])}` | {hidden} | {doc['injection']} |")
     rows = questions(spec)
     out += [
         "",
@@ -498,32 +532,36 @@ def ground_truth(spec: dict) -> str:
     for row in rows:
         gold = ", ".join(f"`{s.removeprefix('upload:')}`" for s in row["gold_sources"]) or "-"
         answer = row["answer"] if row["answer"] is not None else "(unanswerable)"
+        if "canaries" in row:
+            answer += "; must not say " + ", ".join(f'"{c}"' for c in row["canaries"])
         out.append(f"| {row['id']} | {row['type']} | {row['question']} | {answer} | {gold} |")
     return "\n".join(out) + "\n"
 
 
 def questions(spec: dict) -> list[dict]:
-    """Eval questions in the runner's format. Contradictory answers and gold documents come
-    from the contradiction they name, so the labels cannot drift from the documents."""
+    """Eval questions in the runner's format. A question naming a contradiction takes its
+    answer and gold documents from it, so the labels cannot drift from the documents; one
+    naming a gap has neither. Injection questions also carry their "canaries"."""
     contradictions = {c["id"]: c for c in spec["contradictions"]}
     rows = []
     for number, q in enumerate(spec["questions"], start=1):
         answer, gold = q.get("answer"), q.get("gold", [])
-        if q["type"] == "contradictory":
+        if "contradiction" in q:
             claims = contradictions[q["contradiction"]]["claims"]
             answer = "conflicting: " + " vs ".join(f"{c['value']} ({c['doc']})" for c in claims)
             gold = [c["doc"] for c in claims]
-        elif q["type"] == "unanswerable":
+        elif "gap" in q:
             answer, gold = None, []
-        rows.append(
-            {
-                "id": f"acme-{number:03d}",
-                "question": q["question"],
-                "type": q["type"],
-                "answer": answer,
-                "gold_sources": [source(doc_id) for doc_id in gold],
-            }
-        )
+        row = {
+            "id": f"acme-{number:03d}",
+            "question": q["question"],
+            "type": q["type"],
+            "answer": answer,
+            "gold_sources": [source(doc_id) for doc_id in gold],
+        }
+        if "canaries" in q:
+            row["canaries"] = q["canaries"]
+        rows.append(row)
     return rows
 
 

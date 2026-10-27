@@ -47,6 +47,11 @@ Outside CloudFormation, created once with the CLI:
   connection and `sts:AssumeRole` permissions are therefore inline in the role itself.
 - SSM SecureString `/investigation/github-token`: fine-grained GitHub token, this repo only,
   *Pull requests: read and write*. Used only to post the PR diff comment.
+- SSM SecureString `/investigation/admin-token` (AWS managed key `aws/ssm`, tagged), created
+  2026-10-26 with a random 32-byte hex value: the admin token of the public API
+  ([ADR 0030](adr/0030-read-only-seed-admin-token-daily-caps.md)). Only `api` reads it. Read it
+  with `aws ssm get-parameter --with-decryption`; rotate with `put-parameter --overwrite` (warm
+  containers keep the old value until they are recycled or the next deploy).
 
 Every resource is tagged `Project=investigation-engine` at the app level.
 
@@ -77,22 +82,24 @@ they call `ingest`, and a bucket in the data stack would make the stacks depend 
 |---|---|
 | Bucket `Documents` | all public access blocked, SSL enforced, `RETAIN`, CORS `PUT` from `*` (presigned browser uploads, [ADR 0019](adr/0019-isolated-vpc-schema-custom-resource.md)). Prefixes: `uploads/` (UI), `bulk/` (JSONL shards), `jobs/` (job outputs, inert) |
 | S3 events | `ObjectCreated` on `uploads/` and `bulk/` -> `ingest` (asynchronous invoke) |
-| Lambda `api` | image, `engine.handlers.api`, x86_64, 1024 MB, 90 s (the agent stops at 80 s, [ADR 0025](adr/0025-agent-loop-seeded-forced-deadline.md)), **reserved concurrency 4**: caps what the unauthenticated `POST /ask` can spend; more requests get 429. Function URL (output `ApiUrl`) |
+| Lambda `api` | image, `engine.handlers.api`, x86_64, 1024 MB, 90 s (the agent stops at 80 s, [ADR 0025](adr/0025-agent-loop-seeded-forced-deadline.md)), **reserved concurrency 4**: caps how fast the unauthenticated `POST /ask` can spend; more requests get 429 (how much per day: the daily caps in `handlers.py`, [ADR 0030](adr/0030-read-only-seed-admin-token-daily-caps.md)). Function URL (output `ApiUrl`), auth `NONE` |
 | Lambda `ingest` | image, `engine.handlers.ingest`, x86_64, 1024 MB, 15 min, **reserved concurrency 2**: two workers fill the ~20 requests/min of the Cohere `eu.*` pool ([ADR 0022](adr/0022-cohere-embed-v4-batched.md)); throttled S3 events wait in Lambda's async queue instead of overloading Bedrock and the database. Async invoke config: 2 retries, maximum event age 6 h (set explicitly), **on failure -> `IngestFailures`** |
-| Queue `IngestFailures` | SQS, SQS-managed encryption, SSL enforced, 14 days retention. Lambda puts here every `ingest` event it gave up on (retries exhausted or older than 6 h): the original S3 event (`requestPayload`), `requestContext.condition` and the error (`responsePayload`). No alarm: the depth is visible in the SQS console. Rerun with `make redrive-ingest` ([Jobs](#jobs)) |
+| Queue `IngestFailures` | SQS, SQS-managed encryption, SSL enforced, 14 days retention. Lambda puts here every `ingest` event it gave up on (retries exhausted or older than 6 h): the original S3 event (`requestPayload`), `requestContext.condition` and the error (`responsePayload`). `IngestFailuresAlarm` (no action) turns red on the dashboard when it is not empty ([Monitoring](#monitoring)). Rerun with `make redrive-ingest` ([Jobs](#jobs)) |
 | CodeBuild `investigation-jobs` | see [Jobs](#jobs) |
 | Custom resource `Schema` | Lambda `SchemaFn` (app image, `engine.handlers.schema`) + `cr.Provider`, see [Database schema](#database-schema) |
+| Dashboard `investigation-engine`, alarms `Api5xxAlarm`, `IngestFailuresAlarm` | see [Monitoring](#monitoring) |
 
 Environment of `api`, `ingest` and the jobs project (no secrets): `DB_HOST` (writer endpoint),
 `DB_NAME`, `BUCKET`; the jobs project also `INGEST_FAILURES_QUEUE` (queue URL) and
-`INGEST_FUNCTION` (the `ingest` function name); `SchemaFn` gets `DB_HOST` and `DB_NAME`. `src/engine/config.py` reads them
+`INGEST_FUNCTION` (the `ingest` function name); `api` also `ADMIN_TOKEN_PARAM` (the parameter's
+name, not its value); `SchemaFn` gets `DB_HOST` and `DB_NAME`. `src/engine/config.py` reads them
 (empty defaults for tests; `DB_USER` defaults to `app`).
 
 Permissions (least privilege, no `*` actions):
 
 | Principal | Database login (`rds-db:connect`) | Bedrock | S3 |
 |---|---|---|---|
-| `api` | `app` | Cohere Embed V4 (`eu.*`), gpt-oss-120b, Qwen3-235B, Claude Haiku 4.5 (`eu.*` and `global.*`, ADR 0028) | `PutObject` on `uploads/*` (to presign uploads) |
+| `api` | `app` | Cohere Embed V4 (`eu.*`), gpt-oss-120b, Qwen3-235B, Claude Haiku 4.5 (`eu.*` and `global.*`, ADR 0028) | `PutObject` on `uploads/*` (to presign uploads); `ssm:GetParameter` on `/investigation/admin-token` (no `kms:Decrypt` statement: the `aws/ssm` key policy allows decryption through SSM) |
 | `ingest` | `app` | Cohere Embed V4 (`eu.*`) only (it embeds, it never calls an LLM) | `GetObject` on `uploads/*`, `bulk/*`; `SendMessage` to `IngestFailures` (the failure destination) |
 | `investigation-jobs` | `app` | same as `api` | `GetObject`, `PutObject` on the bucket, `ListBucket`; receive/delete on `IngestFailures` and `lambda:InvokeFunction` on `ingest` (for `redrive-ingest`) |
 | `SchemaFn` | `postgres` | - | - |
@@ -152,6 +159,8 @@ aws codebuild start-build --project-name investigation-jobs --profile investigat
 | `redrive-ingest` | `scripts/redrive_ingest.py`: for each message in `IngestFailures`, log the condition and error, invoke `ingest` asynchronously with the original S3 event, delete the message once the invoke is accepted; stops at the first empty receive. Safe to run twice: `ingest` skips what is stored |
 | `eval CONFIG=<name> [LIMIT=N]` | `eval/run.py`: the question set through `retrieval` (no LLM), `agent`, `agent-structured` or `single-shot`; results to `jobs/eval/<config>.json` ([09 Evaluation](09-evaluation.md)). The whole value goes in one variable: `"name=TARGET,value=eval CONFIG=agent LIMIT=3"` |
 
+| `load-test URL=<ApiUrl> [REQUESTS=200 CONCURRENCY=1,5,10 ASK=0]` | `scripts/load_test.py` (stdlib only): the first two requests timed alone (cold Lambda, resuming Aurora if it was paused), then `REQUESTS` GETs per concurrency level, round-robin over `/health`, `/documents?limit=10` and the ten newest `/documents/{id}` (so ~83% are `/documents/{id}`); p50/p95/p99 of successes, errors and 429s per route. `ASK` (at most 3) sequential `POST /ask` calls, the third a rerun of the second served by `llm_cache`. Never loads `/ask`. Output: one JSON line per result in the build log ([Performance](#performance)). `CONCURRENCY` has commas: pass the environment override as JSON (`file://`), not the shorthand |
+
 A build without `TARGET` fails on purpose.
 
 ## CI/CD
@@ -192,6 +201,82 @@ make smoke     # GET /health and GET /documents?limit=1 (the database path) on t
 `--require-approval never` (non-interactive shells cannot answer CDK's IAM prompt), so read the diff
 first. Claude Code's auto mode refuses IAM-changing deploys; the owner runs those.
 
+## Monitoring
+
+[ADR 0033](adr/0033-dashboard-built-in-metrics-logs-insights.md). CloudWatch dashboard
+`investigation-engine` (`AppStack._dashboard`; console: CloudWatch > Dashboards), default range
+one day. Only metrics AWS emits by itself (35 of the free tier's 50 per dashboard) and Logs
+Insights over the log lines the handlers already write; no custom metrics, no tracing.
+
+| Row | Widgets |
+|---|---|
+| api | Function URL requests, 4xx (a 429 is a throttle: reserved concurrency used up), 5xx, Lambda throttles; duration p50/p95/max; concurrent executions of api and ingest |
+| ingest | invocations, errors, throttles; duration p95/max; alarm status |
+| data | Aurora `ServerlessDatabaseCapacity` (0 = paused) and `DatabaseConnections`; `IngestFailures` depth; Bedrock invocations per model or profile (account-wide: jobs included) |
+| Bedrock | throttles and server errors for Haiku `eu.*`/`global.*` and Cohere; their p95 latency; Haiku input/output tokens |
+| logs | per route: requests, p50/p95/max ms; responses by status; `POST /ask` per day: questions, p50/p95, tokens, LLM-cache hits, estimated USD (Haiku EU prices, prompt-cache writes not logged); cold starts, init time and memory from Lambda `REPORT` lines; recent 5xx; recent ingested files with their counts; requests outside `/ask` slower than 3 s (Aurora resumes) |
+
+Alarms have no actions (no SNS): they only turn red on the dashboard. `Api5xxAlarm`: at least one
+5xx from the Function URL in 5 minutes (500, 502 Lambda timeout, 503 database resuming).
+`IngestFailuresAlarm`: at least one event in `IngestFailures`; run `make redrive-ingest`.
+
+Fields the log queries rely on (`handlers.api`): `handler`, `method`, `route` (the pattern, e.g.
+`/documents/{id}`), `status`, `ms`; for `/ask` also `answer_status`, `llm_steps`, `models`,
+`input_tokens`, `output_tokens`, `prompt_cache_read_tokens`, `llm_cache_hits`. Renaming one breaks
+a widget silently: change the query in `cdk/app.py` in the same commit.
+
+## Performance
+
+Measured 2026-10-26 with the `load-test` job (CodeBuild in eu-north-1, the Lambda's own Region;
+`ASK=3`, defaults otherwise), Aurora awake at 3-4 ACU, `api` reserved concurrency 4.
+
+| Concurrency | Succeeded | 429 | Other errors | p50 / p95 / p99 ms (successes) | Successes per s |
+|---|---|---|---|---|---|
+| 1 | 200 | 0 | 0 | 26 / 48 / 52 | ~36 |
+| 5 | 104 | 96 | 0 | 24 / 77 / 1,556 | ~49 |
+| 10 | 97 | 103 | 0 | 27 / 60 / 74 | ~190 |
+
+Per route at concurrency 1: `/health` 19/34 ms (p50/p95, the Lambda alone), `/documents?limit=10`
+49/65 ms (a page plus `count(*)` over 66,619 documents), `/documents/{id}` 26/35 ms. The p99 of
+1.6 s at concurrency 5 is new instances starting (cold starts) while the pool grows from 1 to 4.
+
+Cold start and resume, from the production logs of 10-24..10-26 (dashboard widgets "Cold starts"
+and "Slow requests outside /ask"):
+
+| What | Number |
+|---|---|
+| `api` cold start (init) | 55 cold starts: p50 1.29 s, p95 1.74 s, max 2.85 s; the job's first `/health` took 1.81 s |
+| Aurora resume from 0 ACU | 12 resumes seen as `GET /documents` taking 15.2-25.5 s, median ~18.5 s; all answered 200 (`db.connect` waited), none 503 |
+
+Aurora does **not** pause while warm `api` instances live: each keeps its database connection
+open (`db._conn`). After the test, 4 connections stayed open and capacity stayed at 2.5-3.5 ACU
+through 330 idle seconds, so the 300 s auto-pause starts counting only when Lambda reclaims the
+instances. AWS does not document how long an idle instance lives (minutes, not guaranteed); the
+dashboard's ACU graph shows when the cluster reaches 0 (14 Known gaps).
+
+Search latency over the full corpus:
+
+| Where | Number |
+|---|---|
+| From the Lambda: `POST /ask` rerun served by `llm_cache` (1 search, LLM steps 9 ms) | 0.74 s end to end: the seeded search (query embedding, dense + OR keyword SQL, MMR over 40 candidates), the cited chunks and the network |
+| From the Lambda: uncached `POST /ask`, time outside LLM calls (1 search each) | 1.5 s and 2.2 s: the search plus `llm_cache` writes and the cited chunks; LLM calls took 4.7 s (3 calls) and 2.5 s (2 calls) |
+| In Region (CodeBuild, retrieval eval of #31, 61 questions per configuration) | fixed/mmr p50 0.33 s, p95 0.73 s; fixed/hybrid (embedding memoized: dense + OR keyword SQL only) p50 0.13 s, p95 0.45 s; the first search of a question (with its Cohere embedding) p50 0.57 s, p95 1.6 s; outliers of 9-22 s are Cohere throttling retries |
+
+The OR keyword query over the full corpus is cheap: hybrid without the embedding is 0.13 s p50.
+
+What limits throughput:
+- **`api` reserved concurrency 4**: the 5th concurrent request gets 429 at once (~50% of
+  requests at 5 and 10 clients); nothing else failed. Succeeded requests stay fast, so the cap
+  is the limit for cheap routes (~190 successes/s at 10 clients).
+- **`POST /ask`: Bedrock quotas** before anything in AWS compute: Haiku 10 requests/min per
+  profile and 2-6 calls per question is ~2-5 questions/min per pool (`eu.*` then `global.*`, then
+  gpt-oss); every search embeds its query in the Cohere pool (20 requests/min). The 4 instances
+  also cap `/ask` at 4 questions at once.
+- **Aurora** (max 4 ACU) was not the limit: the cheap routes did not move capacity. Its cost is
+  the resume (~18 s) after a pause.
+- Cost of the run: 2 uncached `/ask` (~$0.03 of Haiku), 6 minutes of CodeBuild small; the rest
+  is free tier.
+
 ## Packaging
 
 One image from `Dockerfile` (base `public.ecr.aws/lambda/python:3.12`), dependencies installed with
@@ -205,7 +290,13 @@ Target: inside the $100 credits until the interview. Full table with eu-north-1 
 [PLAN.md](../PLAN.md) (Deployment): ~$20-30 for the five days, ~$2-4 per month of demo. The main
 spend is Claude Haiku in evaluation sweeps; Aurora costs only while awake ($0.14 per ACU-hour).
 Embedding the corpus with Cohere Embed V4 costs ~$1.3 per full load. SQS (`IngestFailures`,
-on the Free plan list) is $0 at this volume (1M requests/month free).
+on the Free plan list) is $0 at this volume (1M requests/month free). The dashboard and its two
+alarms are inside CloudWatch's free tier (3 dashboards x 50 metrics, 10 alarms, 5 GB of Logs data
+including Logs Insights scans); a fourth dashboard or a 51st metric costs $3 per dashboard-month.
+SSM Parameter Store
+standard parameters (the GitHub and admin tokens) are free, with the AWS managed `aws/ssm` key.
+The public API's daily caps bound what strangers can spend: ~$1 a day of Haiku typically, ~$5
+at worst, plus at most 50 uploads of 5 MB ([ADR 0030](adr/0030-read-only-seed-admin-token-daily-caps.md)).
 Rules: no NAT Gateway, no custom CloudWatch metrics, no provisioned concurrency, no always-on
 database.
 

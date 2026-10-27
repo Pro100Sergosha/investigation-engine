@@ -56,10 +56,11 @@
 <section aria-labelledby="docs-h">
   <h2 id="docs-h">Documents</h2>
   <div class="row">
-    <label for="file">Upload a file (.pdf .docx .html .htm .md .jsonl)</label>
+    <label for="file">Upload a file (.pdf .docx .html .htm .md .jsonl, up to 5 MB)</label>
     <input id="file" type="file">
     <button id="upload-btn" type="button">Upload</button>
   </div>
+  <p class="muted">The seed corpus (HotpotQA, <code>acme-*</code> files) is read-only. Documents you upload can be updated (upload the same file name again) and deleted.</p>
   <div id="upload-status" aria-live="polite"></div>
   <div id="docs-status" aria-live="polite"></div>
   <div class="tablewrap"><table id="docs-table"></table></div>
@@ -124,8 +125,9 @@ async function api(method, path, body, retried = false) {
     $("net").textContent = "";
     return api(method, path, body, true);
   }
-  // Lambda's own throttle (reserved concurrency of the api function), not our JSON.
-  if (res.status === 429) throw new Error("The server is busy. Try again in a minute.");
+  // 429 with our JSON {error}: a daily cap of the demo (ADR 0030). Without it: Lambda's own
+  // throttle (reserved concurrency of the api function).
+  if (res.status === 429 && !(data && typeof data.error === "string")) throw new Error("The server is busy. Try again in a minute.");
   if (!res.ok) {
     throw new Error(data && typeof data.error === "string" ? data.error : "Unexpected response (HTTP " + res.status + ").");
   }
@@ -322,6 +324,7 @@ async function openDocument(id) {
 // ---------- Upload ----------
 const FILENAME_RE = /^[A-Za-z0-9._-]{1,100}$/;
 const SUFFIXES = [".pdf", ".docx", ".html", ".htm", ".md", ".jsonl"];
+const MAX_BYTES = 5 * 1024 * 1024; // as handlers._MAX_UPLOAD_BYTES
 
 async function onUpload() {
   const status = $("upload-status");
@@ -330,12 +333,14 @@ async function onUpload() {
   const name = file.name;
   if (!FILENAME_RE.test(name)) return showError(status, new Error("File name may contain only letters, digits, dot, underscore and dash (max 100)."));
   if (!SUFFIXES.some((s) => name.toLowerCase().endsWith(s))) return showError(status, new Error("Unsupported type. Allowed: " + SUFFIXES.join(" ")));
+  if (file.size < 1 || file.size > MAX_BYTES) return showError(status, new Error("The file must be 1 byte to 5 MB."));
 
   $("upload-btn").disabled = true;
   try {
     const before = await findUpload(name); // to detect an update: version must grow
     status.textContent = "Requesting upload URL...";
-    const { url } = await api("POST", "/documents/upload-url", { filename: name });
+    // The server signs the size: S3 accepts exactly this many bytes.
+    const { url } = await api("POST", "/documents/upload-url", { filename: name, size: file.size });
     status.textContent = "Uploading...";
     await api("PUT", url, file);
     await waitForIngest(name, before ? before.version : 0, status);

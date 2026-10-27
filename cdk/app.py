@@ -8,6 +8,7 @@ Investigation-prod       The application. Deployed by CodeBuild on every push to
 from pathlib import Path
 
 import aws_cdk as cdk
+from aws_cdk import aws_cloudwatch as cw
 from aws_cdk import aws_codebuild as codebuild
 from aws_cdk import aws_iam as iam
 from aws_cdk import aws_lambda as lambda_
@@ -30,7 +31,23 @@ CONNECTION_ARN = (
     "f4261920-5155-419e-a77d-a46964caa408"
 )
 GITHUB_TOKEN_PARAM = "/investigation/github-token"  # SecureString, PR comments only
+# SecureString created once with the CLI (ADR 0030): the api's admin token. Only its name is here.
+ADMIN_TOKEN_PARAM = "/investigation/admin-token"
 DB_NAME = "postgres"  # express configuration creates only the default database
+DB_CLUSTER_ID = "investigation"
+# Bedrock metric ModelId values (inference profile or model id), as llm.py and embed.py call them.
+HAIKU_EU = "eu.anthropic.claude-haiku-4-5-20251001-v1:0"
+HAIKU_GLOBAL = "global.anthropic.claude-haiku-4-5-20251001-v1:0"
+GPT_OSS = "openai.gpt-oss-120b-1:0"
+QWEN = "qwen.qwen3-235b-a22b-2507-v1:0"
+COHERE = "eu.cohere.embed-v4:0"
+MODEL_LABELS = {
+    HAIKU_EU: "Haiku eu.*",
+    HAIKU_GLOBAL: "Haiku global.*",
+    GPT_OSS: "gpt-oss-120b",
+    QWEN: "Qwen3 judge",
+    COHERE: "Cohere embed",
+}
 
 
 def _connection_statement() -> iam.PolicyStatement:
@@ -195,7 +212,7 @@ class DataStack(cdk.Stack):
             self,
             "Db",
             engine="aurora-postgresql",
-            db_cluster_identifier="investigation",
+            db_cluster_identifier=DB_CLUSTER_ID,
             deletion_protection=True,
             # 0 ACU: the writer pauses after 5 idle minutes and costs only storage until the
             # next connection (~15 s resume). 4 ACU is enough for the bulk load and HNSW upkeep.
@@ -256,11 +273,23 @@ class AppStack(cdk.Stack):
             memory_size=1024,
             # agent.DEADLINE_SECONDS (80) + reading the cited chunks; ADR 0025 has the arithmetic.
             timeout=cdk.Duration.seconds(90),
-            # The Function URL has no auth: this caps what a flood of POST /ask can spend (Haiku,
-            # gpt-oss, Cohere query embeddings) and the database connections. Enough for a demo:
-            # one question running plus page loads; more requests get 429.
+            # The Function URL has no auth: this caps how fast a flood of POST /ask can spend
+            # (Haiku, gpt-oss, Cohere query embeddings) and the database connections; the daily
+            # caps in handlers.py cap how much (ADR 0030). Enough for a demo: one question running
+            # plus page loads; more requests get 429.
             reserved_concurrent_executions=4,
-            environment=data_env,
+            environment={**data_env, "ADMIN_TOKEN_PARAM": ADMIN_TOKEN_PARAM},
+        )
+        # The admin token, read once per cold start. SecureString with the AWS managed key
+        # aws/ssm: its key policy lets SSM decrypt for any principal of the account allowed to
+        # read the parameter, so no kms:Decrypt statement is needed.
+        api.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["ssm:GetParameter"],
+                resources=[
+                    f"arn:aws:ssm:{self.region}:{self.account}:parameter{ADMIN_TOKEN_PARAM}"
+                ],
+            )
         )
         url = api.add_function_url(auth_type=lambda_.FunctionUrlAuthType.NONE)
         cdk.CfnOutput(self, "ApiUrl", value=url.url)
@@ -352,6 +381,7 @@ class AppStack(cdk.Stack):
         self._allow_bedrock(jobs, llm=True)
 
         self._schema(image, db_env, db_user("postgres"))
+        self._dashboard(api, ingest, failures)
 
     # Converse and ConverseStream are authorized by these two actions; there is no separate
     # bedrock:Converse action.
@@ -468,6 +498,237 @@ class AppStack(cdk.Stack):
                 "DbHost": db_env["DB_HOST"],
                 "Sql": (ROOT / "sql" / "schema.sql").read_text(),
             },
+        )
+
+    def _dashboard(
+        self, api: lambda_.Function, ingest: lambda_.Function, failures: sqs.Queue
+    ) -> None:
+        """One dashboard from built-in metrics and Logs Insights over the request log (ADR 0033).
+
+        No custom metrics (cost rule): the per-request JSON line is queried where it is. The free
+        tier is 3 dashboards of up to 50 metrics each; this one has 35. Two alarms without
+        actions (no SNS): they only turn red on the dashboard.
+        """
+        five_min = cdk.Duration.minutes(5)
+
+        def lam(fn: lambda_.Function, name: str, stat: str = "Sum", label: str = "") -> cw.Metric:
+            return fn.metric(name, statistic=stat, period=five_min, label=label or name)
+
+        def bedrock(name: str, model: str, stat: str = "Sum") -> cw.Metric:
+            return cw.Metric(
+                namespace="AWS/Bedrock",
+                metric_name=name,
+                dimensions_map={"ModelId": model},
+                statistic=stat,
+                period=five_min,
+                label=MODEL_LABELS[model],
+            )
+
+        def aurora(name: str) -> cw.Metric:
+            return cw.Metric(
+                namespace="AWS/RDS",
+                metric_name=name,
+                dimensions_map={"DBClusterIdentifier": DB_CLUSTER_ID},
+                statistic="Maximum",
+                period=cdk.Duration.minutes(1),
+            )
+
+        api_5xx = cw.Alarm(
+            self,
+            "Api5xxAlarm",
+            metric=lam(api, "Url5xxCount"),
+            threshold=1,
+            evaluation_periods=1,
+            comparison_operator=cw.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+            treat_missing_data=cw.TreatMissingData.NOT_BREACHING,
+            alarm_description="The api answered 5xx (500, 502 timeout, 503 database resuming)",
+        )
+        ingest_failed = cw.Alarm(
+            self,
+            "IngestFailuresAlarm",
+            metric=failures.metric_approximate_number_of_messages_visible(
+                period=five_min, statistic="Maximum"
+            ),
+            threshold=1,
+            evaluation_periods=1,
+            comparison_operator=cw.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+            treat_missing_data=cw.TreatMissingData.NOT_BREACHING,
+            alarm_description="ingest gave up on an event: run make redrive-ingest",
+        )
+
+        # Lambda's own log groups (/aws/lambda/<name>). Not `fn.log_group`: for a function
+        # without an explicit log group that would add a LogRetention custom resource.
+        api_logs = f"/aws/lambda/{api.function_name}"
+        ingest_logs = f"/aws/lambda/{ingest.function_name}"
+
+        def logs_table(
+            title: str, groups: list[str], query: str, width: int = 12
+        ) -> cw.LogQueryWidget:
+            return cw.LogQueryWidget(
+                title=title,
+                log_group_names=groups,
+                query_string=query,
+                view=cw.LogQueryVisualizationType.TABLE,
+                width=width,
+                height=6,
+            )
+
+        dashboard = cw.Dashboard(
+            self,
+            "Dashboard",
+            dashboard_name="investigation-engine",
+            default_interval=cdk.Duration.days(1),
+        )
+        dashboard.add_widgets(
+            cw.GraphWidget(
+                title="api: Function URL requests",
+                left=[
+                    lam(api, "UrlRequestCount", label="requests"),
+                    lam(api, "Url4xxCount", label="4xx (429 = throttled)"),
+                    lam(api, "Url5xxCount", label="5xx"),
+                    lam(api, "Throttles"),
+                ],
+                width=8,
+            ),
+            cw.GraphWidget(
+                title="api: duration (ms)",
+                left=[
+                    lam(api, "Duration", "p50", "p50"),
+                    lam(api, "Duration", "p95", "p95"),
+                    lam(api, "Duration", "Maximum", "max"),
+                ],
+                width=8,
+            ),
+            cw.GraphWidget(
+                title="Concurrent executions (max; capped by reserved concurrency)",
+                left=[
+                    lam(api, "ConcurrentExecutions", "Maximum", "api"),
+                    lam(ingest, "ConcurrentExecutions", "Maximum", "ingest"),
+                ],
+                width=8,
+            ),
+        )
+        dashboard.add_widgets(
+            cw.GraphWidget(
+                title="ingest: invocations, errors, throttles",
+                left=[lam(ingest, "Invocations"), lam(ingest, "Errors"), lam(ingest, "Throttles")],
+                width=8,
+            ),
+            cw.GraphWidget(
+                title="ingest: duration (ms)",
+                left=[
+                    lam(ingest, "Duration", "p95", "p95"),
+                    lam(ingest, "Duration", "Maximum", "max"),
+                ],
+                width=8,
+            ),
+            cw.AlarmStatusWidget(
+                title="Alarms (no actions)", alarms=[api_5xx, ingest_failed], width=8, height=6
+            ),
+        )
+        dashboard.add_widgets(
+            cw.GraphWidget(
+                title="Aurora: capacity (ACU, 0 = paused) and connections",
+                left=[aurora("ServerlessDatabaseCapacity")],
+                right=[aurora("DatabaseConnections")],
+                width=8,
+            ),
+            cw.GraphWidget(
+                title="IngestFailures: events waiting for redrive",
+                left=[ingest_failed.metric],
+                width=8,
+            ),
+            cw.GraphWidget(
+                title="Bedrock: invocations by model (whole account: api and jobs)",
+                left=[
+                    bedrock("Invocations", model)
+                    for model in (HAIKU_EU, HAIKU_GLOBAL, GPT_OSS, QWEN, COHERE)
+                ],
+                width=8,
+            ),
+        )
+        pools = (HAIKU_EU, HAIKU_GLOBAL, COHERE)
+        dashboard.add_widgets(
+            cw.GraphWidget(
+                title="Bedrock: throttles (left) and server errors (right)",
+                left=[bedrock("InvocationThrottles", model) for model in pools],
+                right=[bedrock("InvocationServerErrors", model) for model in pools],
+                width=8,
+            ),
+            cw.GraphWidget(
+                title="Bedrock: latency p95 (ms)",
+                left=[bedrock("InvocationLatency", model, "p95") for model in pools],
+                width=8,
+            ),
+            cw.GraphWidget(
+                title="Haiku tokens: input (left), output (right)",
+                left=[bedrock("InputTokenCount", model) for model in pools[:2]],
+                right=[bedrock("OutputTokenCount", model) for model in pools[:2]],
+                width=8,
+            ),
+        )
+        # Fields of the api's log line: handler, method, route, status, ms, and for /ask the
+        # LLM usage (handlers.api, handlers._ask). Cost at Haiku EU prices: cache writes are
+        # not logged and gpt-oss is cheaper, so it is an estimate.
+        dashboard.add_widgets(
+            logs_table(
+                "api: requests and latency by route",
+                [api_logs],
+                'filter handler = "api"'
+                " | stats count(*) as requests, pct(ms, 50) as p50_ms, pct(ms, 95) as p95_ms,"
+                " max(ms) as max_ms by method, route | sort requests desc",
+            ),
+            logs_table(
+                "api: responses by status",
+                [api_logs],
+                'filter handler = "api" | stats count(*) as requests by status | sort status',
+            ),
+        )
+        dashboard.add_widgets(
+            logs_table(
+                "POST /ask: questions, latency, tokens, estimated USD per day",
+                [api_logs],
+                'filter route = "/ask" and status = 200'
+                " | fields (input_tokens * 1.10 + output_tokens * 5.50"
+                " + coalesce(prompt_cache_read_tokens, 0) * 0.11) / 1000000 as usd"
+                " | stats count(*) as questions, pct(ms, 50) as p50_ms, pct(ms, 95) as p95_ms,"
+                " sum(input_tokens) as in_tokens, sum(output_tokens) as out_tokens,"
+                " sum(llm_cache_hits) as cached_calls, sum(usd) as est_usd by bin(1d)",
+                width=24,
+            ),
+        )
+        dashboard.add_widgets(
+            logs_table(
+                "Cold starts and memory (Lambda REPORT lines)",
+                [api_logs, ingest_logs],
+                'filter @type = "REPORT"'
+                " | stats count(*) as invocations, count(@initDuration) as cold_starts,"
+                " avg(@initDuration) as avg_init_ms, pct(@duration, 95) as p95_ms,"
+                " max(@maxMemoryUsed / 1048576) as max_memory_mb by @log",
+            ),
+            logs_table(
+                "api: recent 5xx",
+                [api_logs],
+                'filter handler = "api" and status >= 500'
+                " | fields @timestamp, method, route, status, ms | sort @timestamp desc | limit 20",
+            ),
+        )
+        dashboard.add_widgets(
+            logs_table(
+                "ingest: recent files (counts by status, skipped reason)",
+                [ingest_logs],
+                'filter handler = "ingest"'
+                " | fields @timestamp, key, seconds, counts.inserted, counts.updated,"
+                " counts.unchanged, counts.duplicate, skipped | sort @timestamp desc | limit 20",
+            ),
+            # A cheap route that takes seconds is almost always the database resuming from
+            # 0 ACU (15-25 s measured, llm-wiki/07 Performance).
+            logs_table(
+                "Slow requests outside /ask (> 3 s: Aurora resumes)",
+                [api_logs],
+                'filter handler = "api" and route != "/ask" and ms > 3000'
+                " | fields @timestamp, method, route, status, ms | sort @timestamp desc | limit 20",
+            ),
         )
 
 

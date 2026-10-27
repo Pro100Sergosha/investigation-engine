@@ -20,7 +20,7 @@ Two roles: `postgres` (master, owns the tables, used only by the schema custom r
 ## Tables
 
 ```
-documents 1 ──< chunks          llm_cache (standalone)
+documents 1 ──< chunks          llm_cache, daily_usage (standalone)
 ```
 
 ### `documents`: one row per document
@@ -64,6 +64,17 @@ whitespace, structured chunks repeat headings, so neither reproduces the documen
 | `created_at` | `timestamptz` | when it was cached |
 
 Reruns of the evaluation and repeated demo questions cost nothing.
+
+### `daily_usage`: counters behind the public API's daily caps
+
+| Column | Type | Why |
+|---|---|---|
+| `day` | `date`, PK part | the UTC day (`(now() AT TIME ZONE 'UTC')::date`, computed by Postgres) |
+| `counter` | `text`, PK part | `ask_llm_calls` (Bedrock calls of `POST /ask` that missed `llm_cache`) or `uploads` (upload URLs handed out) |
+| `n` | `int` | the day's count, raised by `INSERT ... ON CONFLICT (day, counter) DO UPDATE SET n = n + EXCLUDED.n RETURNING n` (atomic) |
+
+Written and read only by `handlers.py` ([04 Protection](04-api-contract.md#protection),
+[ADR 0030](adr/0030-read-only-seed-admin-token-daily-caps.md)). Two rows a day; old rows stay.
 
 ## Indexes
 

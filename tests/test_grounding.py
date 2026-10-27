@@ -200,5 +200,20 @@ def test_wrong_shape_raises(raw):
 def test_trace_has_exactly_one_grounding_entry():
     raw = {"status": "answered", "claims": [_claim("A", [1])]}
     assert build_answer(raw, RETRIEVED).trace == [
-        {"step": "grounding", "dropped_claims": [], "dropped_contradictions": []}
+        {
+            "step": "grounding",
+            "dropped_claims": [],
+            "dropped_contradictions": [],
+            "dropped_citations": [],
+        }
     ]
+
+
+def test_trace_lists_every_removed_citation():
+    # 99 never shown, True is a bool, 1 twice is a duplicate of a kept id (not listed).
+    raw = {
+        "status": "answered",
+        "claims": [_claim("A", [1, 99, 1]), _claim("B", [True, 7])],
+        "contradictions": [_claim("C", [2, 3, 42])],
+    }
+    assert build_answer(raw, RETRIEVED).trace[0]["dropped_citations"] == [99, True, 7, 42]
