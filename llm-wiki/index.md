@@ -25,6 +25,7 @@ repository root, [README](../README.md), [EVALUATION](../EVALUATION.md) and
 |---|---|
 | Anything, first time | [02 Architecture](02-architecture.md), [CLAUDE.md](../CLAUDE.md), [PLAN.md](../PLAN.md) |
 | CDK, AWS resources, deploys, CI | [07 Infrastructure](07-infrastructure.md), ADRs 0010-0013, 0015, 0018, 0019 |
+| Monitoring, load testing, latency | [07 Infrastructure](07-infrastructure.md#monitoring), [ADR 0033](adr/0033-dashboard-built-in-metrics-logs-insights.md), `scripts/load_test.py` |
 | Search, ranking, embeddings, the database | [02 Architecture](02-architecture.md), [03 Data model](03-data-model.md), ADRs [0002](adr/0002-postgres-pgvector-single-store.md), [0003](adr/0003-hybrid-search-own-rrf-mmr.md), [0015](adr/0015-aurora-serverless-data-api.md), [0016](adr/0016-titan-embeddings-no-model-in-lambda.md), [0022](adr/0022-cohere-embed-v4-batched.md), [0024](adr/0024-partial-hnsw-per-strategy-or-keyword-query.md), [ADR 0029](adr/0029-weighted-rrf-min-max-mmr-fixed-chunks.md) |
 | LLM calls, the agent, citations | [ADR 0017](adr/0017-bedrock-claude-haiku-llm.md), [ADR 0023](adr/0023-llm-client-own-retry-fallback-cache.md), [ADR 0005](adr/0005-agent-loop-with-citation-validation.md), [ADR 0025](adr/0025-agent-loop-seeded-forced-deadline.md), [ADR 0028](adr/0028-haiku-global-pool-before-gpt-oss.md) |
 | Datasets, Acme corpus, ingestion, jobs | [05 Corpora](05-corpora.md), [ADR 0006](adr/0006-hotpotqa-plus-synthetic-acme-corpus.md), [ADR 0026](adr/0026-acme-corpus-spec-driven-generation.md), [ADR 0018](adr/0018-cloud-only-ingestion-and-jobs.md), [ADR 0022](adr/0022-cohere-embed-v4-batched.md) |
@@ -81,3 +82,4 @@ old one, and the old one gets `status: superseded` and `superseded_by: 00XX`. Te
 | [0028](adr/0028-haiku-global-pool-before-gpt-oss.md) | Haiku falls back to its `global.*` pool before gpt-oss; a bounded client for query embeddings |
 | [0029](adr/0029-weighted-rrf-min-max-mmr-fixed-chunks.md) | Weighted RRF (k0=10, keyword at 0.5), min-max MMR relevance, fixed chunks by default, tuned by the retrieval eval |
 | [0030](adr/0030-read-only-seed-admin-token-daily-caps.md) | Public API: seed corpus read-only, admin token (`x-admin-token`, SSM SecureString), daily caps on `/ask` LLM calls and uploads, 5 MB signed upload size (replaces the protection part of 0008) |
+| [0033](adr/0033-dashboard-built-in-metrics-logs-insights.md) | One CloudWatch dashboard from built-in metrics and Logs Insights over the request log; no custom metrics, no X-Ray; two alarms without actions |
