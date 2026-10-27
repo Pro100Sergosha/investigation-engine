@@ -31,6 +31,8 @@ CONNECTION_ARN = (
     "f4261920-5155-419e-a77d-a46964caa408"
 )
 GITHUB_TOKEN_PARAM = "/investigation/github-token"  # SecureString, PR comments only
+# SecureString created once with the CLI (ADR 0030): the api's admin token. Only its name is here.
+ADMIN_TOKEN_PARAM = "/investigation/admin-token"
 DB_NAME = "postgres"  # express configuration creates only the default database
 DB_CLUSTER_ID = "investigation"
 # Bedrock metric ModelId values (inference profile or model id), as llm.py and embed.py call them.
@@ -271,11 +273,23 @@ class AppStack(cdk.Stack):
             memory_size=1024,
             # agent.DEADLINE_SECONDS (80) + reading the cited chunks; ADR 0025 has the arithmetic.
             timeout=cdk.Duration.seconds(90),
-            # The Function URL has no auth: this caps what a flood of POST /ask can spend (Haiku,
-            # gpt-oss, Cohere query embeddings) and the database connections. Enough for a demo:
-            # one question running plus page loads; more requests get 429.
+            # The Function URL has no auth: this caps how fast a flood of POST /ask can spend
+            # (Haiku, gpt-oss, Cohere query embeddings) and the database connections; the daily
+            # caps in handlers.py cap how much (ADR 0030). Enough for a demo: one question running
+            # plus page loads; more requests get 429.
             reserved_concurrent_executions=4,
-            environment=data_env,
+            environment={**data_env, "ADMIN_TOKEN_PARAM": ADMIN_TOKEN_PARAM},
+        )
+        # The admin token, read once per cold start. SecureString with the AWS managed key
+        # aws/ssm: its key policy lets SSM decrypt for any principal of the account allowed to
+        # read the parameter, so no kms:Decrypt statement is needed.
+        api.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["ssm:GetParameter"],
+                resources=[
+                    f"arn:aws:ssm:{self.region}:{self.account}:parameter{ADMIN_TOKEN_PARAM}"
+                ],
+            )
         )
         url = api.add_function_url(auth_type=lambda_.FunctionUrlAuthType.NONE)
         cdk.CfnOutput(self, "ApiUrl", value=url.url)

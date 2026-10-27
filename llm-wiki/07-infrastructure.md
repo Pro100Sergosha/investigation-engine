@@ -47,6 +47,11 @@ Outside CloudFormation, created once with the CLI:
   connection and `sts:AssumeRole` permissions are therefore inline in the role itself.
 - SSM SecureString `/investigation/github-token`: fine-grained GitHub token, this repo only,
   *Pull requests: read and write*. Used only to post the PR diff comment.
+- SSM SecureString `/investigation/admin-token` (AWS managed key `aws/ssm`, tagged), created
+  2026-10-26 with a random 32-byte hex value: the admin token of the public API
+  ([ADR 0030](adr/0030-read-only-seed-admin-token-daily-caps.md)). Only `api` reads it. Read it
+  with `aws ssm get-parameter --with-decryption`; rotate with `put-parameter --overwrite` (warm
+  containers keep the old value until they are recycled or the next deploy).
 
 Every resource is tagged `Project=investigation-engine` at the app level.
 
@@ -77,7 +82,7 @@ they call `ingest`, and a bucket in the data stack would make the stacks depend 
 |---|---|
 | Bucket `Documents` | all public access blocked, SSL enforced, `RETAIN`, CORS `PUT` from `*` (presigned browser uploads, [ADR 0019](adr/0019-isolated-vpc-schema-custom-resource.md)). Prefixes: `uploads/` (UI), `bulk/` (JSONL shards), `jobs/` (job outputs, inert) |
 | S3 events | `ObjectCreated` on `uploads/` and `bulk/` -> `ingest` (asynchronous invoke) |
-| Lambda `api` | image, `engine.handlers.api`, x86_64, 1024 MB, 90 s (the agent stops at 80 s, [ADR 0025](adr/0025-agent-loop-seeded-forced-deadline.md)), **reserved concurrency 4**: caps what the unauthenticated `POST /ask` can spend; more requests get 429. Function URL (output `ApiUrl`) |
+| Lambda `api` | image, `engine.handlers.api`, x86_64, 1024 MB, 90 s (the agent stops at 80 s, [ADR 0025](adr/0025-agent-loop-seeded-forced-deadline.md)), **reserved concurrency 4**: caps how fast the unauthenticated `POST /ask` can spend; more requests get 429 (how much per day: the daily caps in `handlers.py`, [ADR 0030](adr/0030-read-only-seed-admin-token-daily-caps.md)). Function URL (output `ApiUrl`), auth `NONE` |
 | Lambda `ingest` | image, `engine.handlers.ingest`, x86_64, 1024 MB, 15 min, **reserved concurrency 2**: two workers fill the ~20 requests/min of the Cohere `eu.*` pool ([ADR 0022](adr/0022-cohere-embed-v4-batched.md)); throttled S3 events wait in Lambda's async queue instead of overloading Bedrock and the database. Async invoke config: 2 retries, maximum event age 6 h (set explicitly), **on failure -> `IngestFailures`** |
 | Queue `IngestFailures` | SQS, SQS-managed encryption, SSL enforced, 14 days retention. Lambda puts here every `ingest` event it gave up on (retries exhausted or older than 6 h): the original S3 event (`requestPayload`), `requestContext.condition` and the error (`responsePayload`). `IngestFailuresAlarm` (no action) turns red on the dashboard when it is not empty ([Monitoring](#monitoring)). Rerun with `make redrive-ingest` ([Jobs](#jobs)) |
 | CodeBuild `investigation-jobs` | see [Jobs](#jobs) |
@@ -86,14 +91,15 @@ they call `ingest`, and a bucket in the data stack would make the stacks depend 
 
 Environment of `api`, `ingest` and the jobs project (no secrets): `DB_HOST` (writer endpoint),
 `DB_NAME`, `BUCKET`; the jobs project also `INGEST_FAILURES_QUEUE` (queue URL) and
-`INGEST_FUNCTION` (the `ingest` function name); `SchemaFn` gets `DB_HOST` and `DB_NAME`. `src/engine/config.py` reads them
+`INGEST_FUNCTION` (the `ingest` function name); `api` also `ADMIN_TOKEN_PARAM` (the parameter's
+name, not its value); `SchemaFn` gets `DB_HOST` and `DB_NAME`. `src/engine/config.py` reads them
 (empty defaults for tests; `DB_USER` defaults to `app`).
 
 Permissions (least privilege, no `*` actions):
 
 | Principal | Database login (`rds-db:connect`) | Bedrock | S3 |
 |---|---|---|---|
-| `api` | `app` | Cohere Embed V4 (`eu.*`), gpt-oss-120b, Qwen3-235B, Claude Haiku 4.5 (`eu.*` and `global.*`, ADR 0028) | `PutObject` on `uploads/*` (to presign uploads) |
+| `api` | `app` | Cohere Embed V4 (`eu.*`), gpt-oss-120b, Qwen3-235B, Claude Haiku 4.5 (`eu.*` and `global.*`, ADR 0028) | `PutObject` on `uploads/*` (to presign uploads); `ssm:GetParameter` on `/investigation/admin-token` (no `kms:Decrypt` statement: the `aws/ssm` key policy allows decryption through SSM) |
 | `ingest` | `app` | Cohere Embed V4 (`eu.*`) only (it embeds, it never calls an LLM) | `GetObject` on `uploads/*`, `bulk/*`; `SendMessage` to `IngestFailures` (the failure destination) |
 | `investigation-jobs` | `app` | same as `api` | `GetObject`, `PutObject` on the bucket, `ListBucket`; receive/delete on `IngestFailures` and `lambda:InvokeFunction` on `ingest` (for `redrive-ingest`) |
 | `SchemaFn` | `postgres` | - | - |
@@ -287,6 +293,10 @@ Embedding the corpus with Cohere Embed V4 costs ~$1.3 per full load. SQS (`Inges
 on the Free plan list) is $0 at this volume (1M requests/month free). The dashboard and its two
 alarms are inside CloudWatch's free tier (3 dashboards x 50 metrics, 10 alarms, 5 GB of Logs data
 including Logs Insights scans); a fourth dashboard or a 51st metric costs $3 per dashboard-month.
+SSM Parameter Store
+standard parameters (the GitHub and admin tokens) are free, with the AWS managed `aws/ssm` key.
+The public API's daily caps bound what strangers can spend: ~$1 a day of Haiku typically, ~$5
+at worst, plus at most 50 uploads of 5 MB ([ADR 0030](adr/0030-read-only-seed-admin-token-daily-caps.md)).
 Rules: no NAT Gateway, no custom CloudWatch metrics, no provisioned concurrency, no always-on
 database.
 
