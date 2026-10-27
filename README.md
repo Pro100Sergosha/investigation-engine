@@ -72,7 +72,7 @@ One path for UI uploads and the bulk corpus ([ADR 0018](llm-wiki/adr/0018-cloud-
 
 | Step | What happens | Code |
 |---|---|---|
-| 1. Upload URL | `POST /documents/upload-url` checks the file name (`[A-Za-z0-9._-]{1,100}`, suffix `.pdf .docx .html .htm .md .jsonl`) and returns a presigned S3 `PUT` URL for `uploads/<name>`, valid 5 minutes. The bulk corpus arrives as JSONL shards under `bulk/` instead | [handlers.py](src/engine/handlers.py) |
+| 1. Upload URL | `POST /documents/upload-url` checks the file name (`[A-Za-z0-9._-]{1,100}`, suffix `.pdf .docx .html .htm .md .jsonl`, not `acme-*`) and size (at most 5 MB) and returns a presigned S3 `PUT` URL for `uploads/<name>` with that size signed, valid 5 minutes. The bulk corpus arrives as JSONL shards under `bulk/` instead | [handlers.py](src/engine/handlers.py) |
 | 2. S3 event | `ObjectCreated` on `uploads/` or `bulk/` invokes `ingest` asynchronously; at most 2 run at once | [cdk/app.py](cdk/app.py) |
 | 3. Parse | PDF (pypdf), DOCX (python-docx), HTML, Markdown and JSONL (standard library) -> `ParsedDoc` with source, title, date, type and metadata | [parsers.py](src/engine/parsers.py) |
 | 4. Dedup | sha256 of normalized text. Same hash as any stored document -> skipped. Same source with a new hash -> update: `version + 1`, chunks replaced in one transaction | [index.py](src/engine/index.py) |
@@ -147,6 +147,7 @@ Each row has an ADR with context, costs and rejected alternatives. The table is 
 | Aurora Serverless v2, scales to 0 ACU | idle cost is storage only, so the credits last until the interview | [0015](llm-wiki/adr/0015-aurora-serverless-data-api.md) |
 | Aurora express configuration with IAM-token connections | the only Aurora the Free plan creates: no VPC, no password, no secret | [0021](llm-wiki/adr/0021-aurora-express-iam-auth.md) |
 | Lambda Function URL, UI served by the same Lambda | API Gateway cuts requests at 30 s, the agent can take longer; same origin, no CORS | [0008](llm-wiki/adr/0008-function-url-not-api-gateway.md) |
+| Public API: seed corpus read-only, admin token from SSM, daily caps | reviewers test add/update/delete on their own uploads without accounts; nobody can wipe the corpus or drain the credits | [0030](llm-wiki/adr/0030-read-only-seed-admin-token-daily-caps.md) |
 | Nothing runs on the author's computer: S3-triggered ingest, CodeBuild jobs | data and evaluation rebuild from the repository alone, not from one machine's state; builds run up to 8 h, Lambda 15 min | [0018](llm-wiki/adr/0018-cloud-only-ingestion-and-jobs.md) |
 | Own eval runner: retrieval sweep without an LLM, Qwen3 judge, pacing | retrieval configs compared for ~$0; pacing keeps runs inside the Haiku and Cohere quotas | [0027](llm-wiki/adr/0027-eval-runner-retrieval-sweep-qwen-judge.md) |
 | Keep 1024 dimensions and Haiku; no reranker | 512/256-dimension prefixes (Matryoshka, checked) lose 0.03-0.04 Recall@10, all on Acme; gpt-oss-120b is ~7x cheaper and better on contradictions but answered an unanswerable question, one run only; no Bedrock rerank model in eu-north-1 | [0032](llm-wiki/adr/0032-model-embedding-comparison-no-reranker.md) |
@@ -284,9 +285,23 @@ only for the repository owner, so nobody else's code runs in the account.
 | LLM and embedding access | none: Bedrock is called with the Lambda's IAM role, no API keys |
 | Database | no password exists. Each caller signs a 15-minute IAM auth token for its database user (`app`: data access only; `postgres`: schema only) |
 | GitHub token for the PR diff comment | SSM Parameter Store SecureString `/investigation/github-token`, fine-grained, this repository only |
-| Lambda environment | only non-secret values (`DB_HOST`, `DB_NAME`, `BUCKET`), read only in [config.py](src/engine/config.py) |
+| Admin token of the public API | SSM SecureString `/investigation/admin-token` (random, created with the CLI), read by `api` once per container, compared with `hmac.compare_digest`, never logged |
+| Lambda environment | only non-secret values (`DB_HOST`, `DB_NAME`, `BUCKET`, `ADMIN_TOKEN_PARAM` = the parameter's name), read only in [config.py](src/engine/config.py) |
 
 Locally, `.env` is gitignored and [.env.example](.env.example) is the template.
+
+### Public API protection
+
+The Function URL has no auth, because reviewers must add, update and delete documents from the
+page without accounts ([ADR 0030](llm-wiki/adr/0030-read-only-seed-admin-token-daily-caps.md),
+[API contract](llm-wiki/04-api-contract.md#protection)):
+
+- the seed corpus (HotpotQA and the `acme-*` files) is read-only: `DELETE` is 403, and so is
+  an upload under an `acme-*` name. Your own uploads can be updated and deleted;
+- `POST /ask` is 429 after 150 Bedrock calls per UTC day (calls served from the LLM cache are
+  free and not counted), upload URLs after 50 per day; an upload is at most 5 MB (the size is
+  signed into the presigned URL);
+- a secret `x-admin-token` header (SSM SecureString) lifts both rules for the author.
 
 ### Persistence
 
@@ -301,11 +316,13 @@ billing. It has never been upgraded ([ADR 0011](llm-wiki/adr/0011-free-plan-aws-
 
 | Limit | Value | Effect |
 |---|---|---|
-| Aurora sleep | scales to 0 ACU after 300 s idle; resume ~15 s | the first request after idle is slow. If the resume outlasts `db.connect`'s retries the API answers 503 and the UI retries once after 15 s; a cold request can also hit the 90 s Lambda timeout (502) |
+| Aurora sleep | scales to 0 ACU after 300 s without connections (warm `api` instances keep one open); resume 15-25 s, median ~18.5 s | the first request after idle is slow. If the resume outlasts `db.connect`'s retries the API answers 503 and the UI retries once after 15 s; a cold request can also hit the 90 s Lambda timeout (502) |
 | Claude Haiku 4.5 | 10 requests/min per profile (`eu.*` and `global.*`) | an eval sweep of three answer runs takes ~50 min; requested increase not approved yet |
 | Cohere Embed V4 | 20 requests/min, 300k tokens/min, 16.2M tokens/day per profile pool | the bulk load and query embeddings share it; at most one full reload (~11M tokens) per day |
 | Qwen3-235B (judge), gpt-oss-120b | 100 requests/min | not paced |
-| `api` reserved concurrency | 4 | a fifth request at once gets 429 from Lambda; caps what the unauthenticated `POST /ask` can spend |
+| `api` reserved concurrency | 4 | a fifth request at once gets 429 from Lambda; caps how fast the unauthenticated `POST /ask` can spend |
+| Public `POST /ask` | 150 Bedrock calls per UTC day (~65 questions, ~$1; worst case ~$5) | then 429 until 00:00 UTC; the admin token is not capped |
+| Public uploads | 50 upload URLs per UTC day, 5 MB per file | then 429; a larger file is refused before upload |
 | `ingest` reserved concurrency | 2 | two workers fill the Cohere pool |
 | Lambda timeouts | `api` 90 s (agent deadline 80 s), `ingest` 15 min | long jobs go to CodeBuild |
 
@@ -322,6 +339,7 @@ Cost estimate (eu-north-1 prices from the AWS Pricing API, 2026-10-24; [PLAN.md]
 | CodeBuild | 100 min/month free, then ~$0.005/min | ~$1-2 | ~$0 |
 | S3, ECR | cents (ECR needs a lifecycle policy) | ~$0.1 | ~$0.2 |
 | CloudFormation, CodeConnections, SSM, CloudWatch Logs, IAM, KMS | free at this volume | $0 | $0 |
+| CloudWatch dashboard + 2 alarms, Logs Insights | free tier: 3 dashboards x 50 metrics (1 used, 35 metrics), 10 alarms, 5 GB Logs data incl. Insights scans | $0 | $0 |
 | **Total** | | **~$20-30** | **~$2-4** |
 
 Measured costs:
@@ -364,13 +382,32 @@ correctness 0.82, citation precision 0.94, abstention precision/recall 0.77/0.91
 precision/recall 1.00/0.67; the loop beats single-shot on multi-hop questions, 0.87 vs 0.52 with
 the same prompt; fixed/mmr retrieval Recall@10 0.89.
 
+Load test (`make load-test` in CodeBuild, same Region, 200 GETs per level over `/health`,
+`/documents` and `/documents/{id}`; details in
+[llm-wiki/07](llm-wiki/07-infrastructure.md#performance)):
+
+| Concurrent clients | Succeeded / 429 / other errors | p50 / p95 / p99 ms |
+|---|---|---|
+| 1 | 200 / 0 / 0 | 26 / 48 / 52 |
+| 5 | 104 / 96 / 0 | 24 / 77 / 1,556 (new instances starting) |
+| 10 | 97 / 103 / 0 | 27 / 60 / 74 |
+
+| What | Number |
+|---|---|
+| `api` cold start | init p50 1.29 s, p95 1.74 s (55 cold starts in the production logs) |
+| Aurora resume from 0 ACU | 15-25 s, median ~18.5 s (12 resumes in the production logs) |
+| One search from the Lambda (`/ask` rerun served by `llm_cache`) | 0.74 s end to end |
+| Search in Region (retrieval eval) | mmr p50 0.33 s, p95 0.73 s; hybrid SQL alone p50 0.13 s |
+
+What limits throughput: the `api` reserved concurrency of 4 (the 5th concurrent request gets 429,
+nothing else failed); for `POST /ask`, the Bedrock quotas (Haiku 10 requests/min per profile,
+Cohere 20/min) long before Lambda or Aurora (max 4 ACU, not moved by the test). Aurora does not
+pause while warm `api` instances hold their connection. Monitoring: one CloudWatch dashboard of
+built-in metrics and Logs Insights tables ([ADR 0033](llm-wiki/adr/0033-dashboard-built-in-metrics-logs-insights.md)).
+
 Not measured:
 
-- Search latency from the Lambda over the full corpus, and the cost of OR keyword queries on it.
-  The only numbers are from the laptop before the bulk load: dense 0.7 s, hybrid 1.0 s, mmr 1.1 s,
-  mostly network.
-- No load test: concurrent users were never simulated. The `api` concurrency cap is 4.
-- Cold start and Aurora resume are estimates (~1-2 s and ~15 s), not measured distributions.
+- `POST /ask` under concurrent load (deliberately: it spends Bedrock credits).
 - The judge's agreement with a human is not measured yet.
 
 ## Limitations and future work
@@ -382,15 +419,17 @@ Known gaps ([llm-wiki/14-known-gaps.md](llm-wiki/14-known-gaps.md) has the full 
   document, before `final_answer`.
 - **Short answers are loose**: EM 0.52 vs F1 0.73 vs judge 0.82; short answers carry extra words.
 - **Malformed `final_answer`**: 5 of 72 answers need a reprompt (Haiku sends `claims` as a string).
-- **No auth on the Function URL**: anyone with the URL can upload and delete documents. Planned:
-  a custom domain with a secret header.
+- **No auth on the Function URL**: the seed corpus is read-only and spend is capped per day, but
+  anyone can delete other visitors' uploads, and the caps are global: one abuser uses up the
+  day for everyone. Next step if that happens: per-visitor limits behind a custom domain.
 - **The database endpoint is public** (express configuration): IAM-only auth and TLS, no password.
 - **Fallback leaves the EU silently**: when `eu.*` fails, questions go to Haiku's `global.*` pool,
   then to gpt-oss-120b. The trace records the model per call.
 - **Cold requests**: a resuming database can push `POST /ask` past 90 s (502).
 - **Parsers**: a PDF page becomes one paragraph; DOCX tables, headers, footers and text boxes are
   not indexed; one bad line in a JSONL shard skips the whole shard.
-- **Operations**: failed ingest events wait in `IngestFailures` with no alarm; schema changes are
+- **Operations**: failed ingest events wait in `IngestFailures` (an alarm turns red on the
+  dashboard, nobody is notified); schema changes are
   additive only; the deploy concurrency limit is in code but not deployed, so merges go one at a
   time.
 - **Quotas**: Haiku 10 requests/min per profile until the increase is approved; query embeddings
@@ -406,11 +445,10 @@ Bonus items not done (PLAN.md section 1, "6. Bonus"), listed as future work:
 | More advanced re-ranking | partial: weighted RRF + MMR; no cross-encoder reranker, because Bedrock has no rerank model in eu-north-1 ([ADR 0032](llm-wiki/adr/0032-model-embedding-comparison-no-reranker.md)) |
 | Prompt-injection tests | not started: the prompt treats documents as data, nothing tests it |
 | Streaming answers | dropped: Python Lambda Function URLs do not stream |
-| Detailed monitoring and observability | partial: one JSON log line per request; no dashboards or tracing |
-| Performance testing on large data | partial: bulk load timed, eval latency p50/p95; no load test |
 
 Done bonus items: agentic RAG (own loop with tools), caching and performance work (`llm_cache`,
-prompt caching, 96 texts per embedding request, partial HNSW per strategy), and a comparison of
+prompt caching, 96 texts per embedding request, partial HNSW per strategy), monitoring (CloudWatch
+dashboard, ADR 0033), performance testing (load test over the 66k-document corpus, above) and a comparison of
 LLMs and embedding sizes ([EVALUATION.md](EVALUATION.md) section 8,
 [ADR 0032](llm-wiki/adr/0032-model-embedding-comparison-no-reranker.md)): gpt-oss-120b vs Haiku
 as the answering model (judge 0.89 vs 0.82, contradiction recall 0.92 vs 0.67, ~7x cheaper, but

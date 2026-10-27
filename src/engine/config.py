@@ -29,3 +29,7 @@ DB_USER = os.environ.get("DB_USER", "app")
 
 # Documents bucket: uploads/ (presigned browser PUTs) and bulk/ (JSONL shards) trigger ingest.
 BUCKET = os.environ.get("BUCKET", "")
+
+# Name (not value) of the SSM SecureString holding the admin token of the public API (ADR 0030).
+# Empty: no admin access at all.
+ADMIN_TOKEN_PARAM = os.environ.get("ADMIN_TOKEN_PARAM", "")

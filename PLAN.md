@@ -23,11 +23,15 @@ verdicts agree with the author, the judge is the stricter one), AI_USAGE.md; eva
 prompt-cache tokens (#37: `agent` ~$0.016 per question, ~3x single-shot). The UI was checked on
 the public URL on 10-26: upload, duplicate, update, delete, metadata, a question with its source.
 The short-answer fix was dropped: the traces show it could win at most 2 of 25 EM points.
+Monitoring and load test (#40, ADR 0033): CloudWatch dashboard from built-in metrics and Logs
+Insights; 200 GETs at 1/5/10 clients answer in ~26 ms p50, above 4 clients ~50% get 429 (the
+reserved concurrency); search latency from the Lambda measured (0.74 s).
 Model comparison bonus (#43, ADR 0032): embedding prefixes 1024/512/256 measured, 1024 kept;
 gpt-oss-120b vs Haiku: judge 0.89 vs 0.82, contradiction recall 0.92 vs 0.67, ~7x cheaper, but
 abstention recall 0.82 vs 0.91, Haiku kept; no Bedrock reranker in eu-north-1.
 **Behind:** nothing; the mandatory part is done except the author's sections of AI_USAGE.md.
-Next: protect the open Function URL (anyone can delete documents); optional fixes from
+Open Function URL protected (#39, ADR 0030; live after merge): seed corpus read-only, admin
+token in SSM, daily caps on `/ask` and uploads. Next: optional fixes from
 EVALUATION.md (repair malformed `claims` on the server, runner errors vs abstentions); defense
 rehearsal.
 
@@ -119,7 +123,7 @@ processing architecture and justify it)
 - [x] Working integration with the database and external APIs — Aurora (IAM tokens), Bedrock (Haiku, Cohere, gpt-oss, Qwen), S3
 - [x] Safe management of environment configuration — `config.py` the only env reader, `.env.example`, no secrets in code or env vars
 - [x] Technical documentation — README (#35), llm-wiki (system as it is) + 29 ADRs
-- [x] Understanding of performance and LLM costs — README (#35), EVALUATION.md (#36): ~$0.016 per question for `agent` vs ~$0.005 for `single-shot` (prompt-cache tokens priced since #37), p50/p95 10.3/45.6 s; bulk load of 66,555 documents ~65 min (llm-wiki/05; ~35-40 min was the estimate); search latency from the Lambda not measured (14 Known gaps)
+- [x] Understanding of performance and LLM costs — README (#35), EVALUATION.md (#36): ~$0.016 per question for `agent` vs ~$0.005 for `single-shot` (prompt-cache tokens priced since #37), p50/p95 10.3/45.6 s; bulk load of 66,555 documents ~65 min (llm-wiki/05; ~35-40 min was the estimate); one search from the Lambda 0.74 s, in Region mmr p50/p95 0.33/0.73 s, cold start p50 1.3 s, Aurora resume ~18.5 s (llm-wiki/07 Performance)
 
 ### 6. Bonus (does not replace the core)
 - [x] Compare several LLMs or embedding models — EVALUATION.md section 8 (#43, ADR 0032): gpt-oss-120b vs Haiku 4.5 as the answering model (`agent-gpt-oss`: judge 0.89 vs 0.82, contradiction recall 0.92 vs 0.67, abstention recall 0.82 vs 0.91, $0.0024 vs $0.016 per question; Haiku kept); Cohere V4 prefixes at 1024/512/256 dimensions (exact Recall@10 0.92/0.89/0.88, truncation checked against Cohere's own output, cosine >= 0.9996; 1024 kept)
@@ -128,8 +132,8 @@ processing architecture and justify it)
 - [ ] Prompt-injection tests — not started (the prompt treats documents as data, nothing tests it)
 - [x] Caching and performance optimization — `llm_cache` in Postgres, prompt caching, 96 texts per embedding request, partial HNSW per strategy (#20, #23, #24)
 - [ ] Streaming answers — dropped: Python Lambda Function URLs do not stream
-- [ ] Detailed monitoring and observability — partial: one JSON log line per request in CloudWatch Logs; no dashboards or tracing
-- [ ] Performance testing on large data — partial: bulk load of 66k documents timed, eval latency p50/p95; no load test
+- [ ] Detailed monitoring and observability — CloudWatch dashboard `investigation-engine`: 35 built-in metrics (Lambda, Function URL, Aurora ACU, SQS, Bedrock per model) + Logs Insights tables over the per-request log line, 2 alarms without actions; no custom metrics, no X-Ray (#40, ADR 0033). **Left:** deployed by the merge, then open the dashboard and check every widget has data
+- [x] Performance testing on large data — `scripts/load_test.py` in CodeBuild against the deployed system over the 66k-document corpus (#40): 200 GETs at 1/5/10 clients, p50 26 ms, no errors, ~50% 429 above 4 clients (reserved concurrency); cold start, Aurora resume and search latency from the Lambda measured (llm-wiki/07 Performance); bulk load timed, eval latency p50/p95
 
 ### 7. Deliverables
 - [x] GitHub repository with full code and history
@@ -164,9 +168,9 @@ Each decision has an ADR in [llm-wiki/adr/](llm-wiki/adr/) with context, cost an
 | IaC | AWS CDK (Python), stacks split by lifecycle like binadar: `Investigation-Data-prod` (the Aurora cluster: stateful, rarely changes), `Investigation-prod` (Lambdas, documents bucket, jobs project, schema: changes on every merge), `Investigation-Cicd-prod` (CodeBuild, deployed by hand); `make diff` / `make deploy` | Same tool and workflow as binadar; a code deploy can never replace the database. Lambdas share one container image (`DockerImageFunction`, x86_64), without any ML runtime. |
 | AWS access | AWS *project* (new AWS experience) on the Free plan: $100 credits, closes on expiry (2027-04-24) instead of billing. CLI via `aws login --profile investigation`; no long-lived keys | Free plan is a hard requirement. IAM Identity Center and Organizations are not available on it (enabling them upgraded the first account to Paid, which was abandoned). Isolated from binadar's account. |
 | CI/CD | GitHub Actions `make check` on PRs; CodeBuild (via CodeConnections) comments `cdk diff` on PRs and deploys `main` | GitHub OIDC is denied by the Free-plan SCP (`iam:*Provider*`); see llm-wiki ADR 0012. |
-| Observability | JSON log line per request (route, latency, tokens, LLM model, cache hit) in CloudWatch Logs; no custom metrics | Free tier; custom metrics cost $0.30 each (binadar's lesson). Logs Insights for analysis. |
+| Observability | JSON log line per request (route, latency, tokens, LLM model, cache hit) in CloudWatch Logs; one CloudWatch dashboard `investigation-engine` (35 built-in metrics + Logs Insights tables over those lines), two alarms without actions; no custom metrics, no X-Ray | Free tier (3 dashboards x 50 metrics, 10 alarms); custom metrics cost $0.30 each (binadar's lesson). ADR 0033. |
 | Tagging | `Project=investigation-engine` on the CDK app, activated as a cost allocation tag | Spend visible in Cost Explorer. |
-| Secrets | No database password (IAM auth tokens, ADR 0021); GitHub token in SSM Parameter Store `SecureString` | Not in code, not in the image, not in plain Lambda env vars. No LLM API keys at all (Bedrock uses IAM). |
+| Secrets | No database password (IAM auth tokens, ADR 0021); GitHub token and the public API's admin token (ADR 0030) in SSM Parameter Store `SecureString` | Not in code, not in the image, not in plain Lambda env vars. No LLM API keys at all (Bedrock uses IAM). |
 | Region | `eu-north-1` (Stockholm) | Fixed by the AWS project: all Regional resources must live there. |
 | Tooling | Python 3.12, uv, ruff, pytest, boto3, AWS CDK (Node); Docker only inside CodeBuild | The laptop needs git and `aws login`, nothing else. |
 
@@ -225,6 +229,7 @@ SSM: GitHub token   CloudWatch Logs: JSON line per request
 | CodeBuild | 100 min/month free, then ~$0.005/min | ~$1-2 | ~$0 |
 | S3, ECR | cents (ECR needs a lifecycle policy) | ~$0.1 | ~$0.2 |
 | CloudFormation, CodeConnections, SSM, CloudWatch Logs, IAM, KMS | free at this volume | $0 | $0 |
+| CloudWatch dashboard + 2 alarms, Logs Insights | free tier: 3 dashboards x 50 metrics (1 used, 35 metrics), 10 alarms, 5 GB Logs data incl. Insights scans; then $3 per dashboard-month | $0 | $0 |
 | **Total** | | **~$20-30** | **~$2-4** |
 
 ## 4. Evaluation design
@@ -329,6 +334,7 @@ worktree and branch, each ending in a PR that must pass CI. Rules:
 | 3 | **Done (#28):** Acme generator (spec -> Haiku -> 4 formats, every fact checked in the parsed file; ADR 0026) + `GROUND_TRUTH.md` + 42 Acme questions; corpus committed, `make acme-load` after merge | `scripts/gen_acme.py`, `data/acme/` | `llm.py`, jobs project | ground-truth check |
 | 3 | **Done (#26):** Eval runner + config sweep in the jobs project, HotpotQA questions (moved from wave 2: the runner defines their format): `make eval CONFIG=retrieval\|agent\|agent-fixed\|single-shot`, 30 questions, Qwen3 judge, Haiku pacing, memoized query embeddings (ADR 0027). Dry run on 3 questions done (10-26); full runs, trace in records, judge sees status and contradictions, search pacing (#31) | `eval/run.py`, `eval/questions.jsonl` | `agent.py`, dataset labels | dry run on 3 questions |
 | 4 | **Done (#34, #35, #36):** AI_USAGE.md, README, EVALUATION.md, one agent each; eval cost fix found on the way (#37) | `AI_USAGE.md`, `README.md`, `EVALUATION.md` | results | CI |
+| 5 | **Done (#40):** monitoring dashboard + alarms (ADR 0033), load test job, performance numbers | `cdk/app.py` (`_dashboard`), `scripts/load_test.py` | deployed system | unit tests + one job run |
 
 Wave 1 tasks are pure Python or infra and can all start immediately (Bedrock is not needed);
 wave 2 starts when infra is merged (Bedrock works since 2026-10-24, see ADR 0017 update).
@@ -364,13 +370,18 @@ prompt-injection tests (plant malicious text in a doc) and the 512 vs 1024 embed
   embeddings. A full load takes ~65 min (measured 10-25) and ~11M tokens. Mitigation: 96 texts per request,
   `ingest` capped at 2, adaptive retry, failed events kept in `IngestFailures` for a redrive;
   never run a load and an eval at once; `global.*` as a second pool.
-- **Aurora resume after a pause** (~15 s). Mitigation: connect retry in `db.py`, warm the database before a demo, document first-request latency.
+- **Aurora resume after a pause** (15-25 s, median ~18.5 s measured in the logs, llm-wiki/07 Performance). Mitigation: connect retry in `db.py`, warm the database before a demo.
 - **Aurora express configuration** (Free plan): public IAM-only endpoint, default engine version, ACU range set after creation. Mitigation: least-privilege `app` role, ADR 0021.
 - **HotpotQA chunking comparison is weak** (paragraphs already short). Compare chunkers on Acme, say so in the report.
 - **LLM-as-judge bias**. Judge from a different family (Qwen3 vs Claude), spot-check 10 answers by hand, report agreement.
 - **Defense without AI**. Keep code small and own; no framework magic you cannot rewrite on paper.
-- **Lambda cold start** (container pull, no model any more, ~1-2 s) plus Aurora resume. Document first-request latency. Provisioned concurrency costs money, not used.
+- **Lambda cold start** (container pull, no model any more; measured init p50 1.3 s, p95 1.7 s) plus Aurora resume. Provisioned concurrency costs money, not used.
 - **Credits and Free-plan expiry.** $100 total, the account closes on 2027-04-24 or when credits run out. Haiku in repeated eval sweeps is the main spend: cache everything, check spend in Billing.
+- **Public Function URL (auth `NONE`)**: anyone could delete the seed corpus or loop `POST /ask`
+  into the credits. Mitigation (#39, ADR 0030): seed documents read-only (403), admin token
+  `x-admin-token` from SSM, 150 uncached `/ask` LLM calls and 50 upload URLs per UTC day (429),
+  5 MB signed upload size, reserved concurrency 4. Left: the caps are global, one abuser blocks
+  the day for reviewers (the admin token still works).
 - **Infra ate day 1.** Streams start on day 2 with one day less of buffer.
 
 Closed on 2026-10-24: Bedrock blocked during account verification (quotas opened by themselves);
