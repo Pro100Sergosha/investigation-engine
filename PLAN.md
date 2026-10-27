@@ -30,7 +30,7 @@ rehearsal. Prompt-injection suite built (#42), its documents and eval run still 
 
 How status is kept (every PR that finishes or advances a task updates it in the same PR):
 - this section: date, current day and wave, what is behind, what is next;
-- the wave table in section 5: the row gets `**Done (#42):**`; the day table: `**Done:**` or
+- the wave table in section 5: the row gets `**Done (#PR):**`; the day table: `**Done:**` or
   `**In progress:**` with what is left;
 - the task checklist below: `[x]` only when the requirement works end to end on the deployed
   system; otherwise `[ ]` with the merged pieces (PR numbers) and a **Left:** note, and the
