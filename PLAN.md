@@ -62,7 +62,7 @@ processing architecture and justify it)
 - [x] Handle duplicate information — sha256 of normalized text (#4), HotpotQA deduplicated in the dataset job (#7), `index.upsert` skips same-hash documents (#22); checked 10-26: the same text under another file name logged `{"duplicate": 1}`, document count unchanged (the UI only times out after 2 min, 14 Known gaps)
 - [x] Add new documents, update and delete existing ones — `index.upsert/delete` (#22), API routes + `ingest` (#21); checked 10-26 through the UI: upload -> version 1, same name with new text -> version 2 (answers use the new text), delete -> document and its chunks 404
 - [x] Compare at least two chunking strategies — eval (#31): fixed vs structured Recall@10 0.89 vs 0.83, judge 0.74 vs 0.70 (llm-wiki/09)
-- [x] Choose and justify the processing architecture — S3 -> `ingest` Lambda -> Aurora, ADR 0018, 0022, 0024 (README summary is in section 7)
+- [x] Choose and justify the processing architecture — S3 -> `ingest` Lambda -> Aurora, ADR 0018, 0022, 0024 (README Architecture: Mermaid diagrams of the system, ingest and ask flows)
 
 **Vector database and search**
 - [x] Vector database or a database with vector search — Aurora PostgreSQL 17 + pgvector `halfvec(1024)` (#8, #10, ADR 0002, 0021)
@@ -111,8 +111,8 @@ processing architecture and justify it)
 - [x] Hosting and database integrated — `POST /ask` on the public URL searches Aurora (#27)
 - [x] Data persists after an application restart — the corpus loaded on 10-25 is served after every redeploy since (#27-#32, each merge redeploys the Lambdas); Aurora has deletion protection (#10, #13)
 - [x] API keys and other secrets protected — no LLM keys (IAM), no database password (IAM auth tokens, ADR 0021), GitHub token in SSM SecureString
-- [x] Describe the deployment architecture — README DEPLOYMENT (#35), section 3 here, llm-wiki/07
-- [x] Account for costs, resources and free-tier limits (sleep, request limits) — README (#35): Aurora resume, Haiku 10 requests/min, Cohere 20 requests/min, $100 credits, cost table, eval cost
+- [x] Describe the deployment architecture — README Deployment and cost + docs/deployment.md (#35, split out of the README in #44), section 3 here, llm-wiki/07
+- [x] Account for costs, resources and free-tier limits (sleep, request limits) — docs/deployment.md (#35, #44): Aurora resume, Haiku 10 requests/min, Cohere 20 requests/min, $100 credits, cost table, eval cost
 - [x] Possible without buying paid infrastructure — AWS Free plan project, $100 credits, never upgraded (ADR 0011)
 
 ### 5. Technical quality
@@ -123,7 +123,7 @@ processing architecture and justify it)
 - [x] Working integration with the database and external APIs — Aurora (IAM tokens), Bedrock (Haiku, Cohere, gpt-oss, Qwen), S3
 - [x] Safe management of environment configuration — `config.py` the only env reader, `.env.example`, no secrets in code or env vars
 - [x] Technical documentation — README (#35), llm-wiki (system as it is) + 32 ADRs
-- [x] Understanding of performance and LLM costs — README (#35), EVALUATION.md (#36): ~$0.016 per question for `agent` vs ~$0.005 for `single-shot` (prompt-cache tokens priced since #37), p50/p95 10.3/45.6 s; bulk load of 66,555 documents ~65 min (llm-wiki/05; ~35-40 min was the estimate); one search from the Lambda 0.74 s, in Region mmr p50/p95 0.33/0.73 s, cold start p50 1.3 s, Aurora resume ~18.5 s (llm-wiki/07 Performance)
+- [x] Understanding of performance and LLM costs — docs/performance.md (#35, #44), EVALUATION.md (#36): ~$0.016 per question for `agent` vs ~$0.005 for `single-shot` (prompt-cache tokens priced since #37), p50/p95 10.3/45.6 s; bulk load of 66,555 documents ~65 min (llm-wiki/05; ~35-40 min was the estimate); one search from the Lambda 0.74 s, in Region mmr p50/p95 0.33/0.73 s, cold start p50 1.3 s, Aurora resume ~18.5 s (llm-wiki/07 Performance)
 
 ### 6. Bonus (does not replace the core)
 - [x] Compare several LLMs or embedding models — EVALUATION.md section 8 (#43, ADR 0032): gpt-oss-120b vs Haiku 4.5 as the answering model (`agent-gpt-oss`: judge 0.89 vs 0.82, contradiction recall 0.92 vs 0.67, abstention recall 0.82 vs 0.91, $0.0024 vs $0.016 per question; Haiku kept); Cohere V4 prefixes at 1024/512/256 dimensions (exact Recall@10 0.92/0.89/0.88, truncation checked against Cohere's own output, cosine >= 0.9996; 1024 kept)
@@ -138,7 +138,7 @@ processing architecture and justify it)
 ### 7. Deliverables
 - [x] GitHub repository with full code and history
 - [x] Live demo link — the Function URL
-- [x] README: description, architecture, run instructions, justification of technical choices — README.md (#35)
+- [x] README: description, architecture, run instructions, justification of technical choices — README.md (#35; split into README + docs/ in #44)
 - [x] Evaluation Report: methodology, metrics, results, analysis — EVALUATION.md (#36)
 - [ ] AI Usage Report: which AI tools, what they helped with, what was changed by hand — AI_USAGE.md (#34). **Left:** the author confirms the tool list and writes "What I changed / decided myself" (TODOs)
 
