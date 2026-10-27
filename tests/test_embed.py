@@ -57,6 +57,11 @@ def test_query_uses_search_query(fake):
     ]
 
 
+def test_query_can_ask_for_fewer_dimensions(fake):
+    embed.embed_query("q", 512)
+    assert fake.bodies[0]["output_dimension"] == 512
+
+
 def test_query_is_embedded_once_per_text(fake):
     first = embed.embed_query("who founded acme")
     assert embed.embed_query("who founded acme") is first

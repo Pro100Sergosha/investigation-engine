@@ -135,9 +135,46 @@ def test_retrieval_retries_a_throttled_search(monkeypatch):
     waits = []
     monkeypatch.setattr(search, "search", fake_search)
     monkeypatch.setattr(run.time, "sleep", waits.append)
-    record = run._retrieve(GOOD[0], "fixed", "dense")
+    record = run._retrieve(GOOD[0], lambda: search.search("q", 10, "fixed", "dense"))
     assert "error" not in record and record["rr"] == 1.0
     assert waits == [run.SEARCH_RETRY_SECONDS]
+
+
+def test_embedding_sweep_cuts_one_query_vector_and_checks_cohere_truncation(monkeypatch):
+    # Cohere's own 512 vector equals the cut 1024 one (cosine 1); its 256 one is orthogonal.
+    full = [1.0, 0.0] * 512
+
+    def fake_embed(text, dimensions=1024):
+        return full[:dimensions] if dimensions != 256 else [0.0, 1.0] * 128
+
+    searched = []
+
+    def fake_prefix(vector, dims, k):
+        searched.append((len(vector), dims, k))
+        return [hit("hotpotqa:Ann")] if dims == 1024 else [hit("o"), hit("hotpotqa:X")]
+
+    monkeypatch.setattr(run.embed, "embed_query", fake_embed)
+    monkeypatch.setattr(search, "dense_prefix", fake_prefix)
+    records = run.run_embeddings(GOOD)
+
+    assert [r["id"] for r in records] == ["hp-1", "acme-1"]  # unanswerable skipped
+    assert searched[:3] == [(1024, 1024, 10), (1024, 512, 10), (1024, 256, 10)]
+    runs = records[0]["runs"]
+    assert runs["fixed/dense-exact@1024"]["rr"] == 1.0
+    assert "native_cosine" not in runs["fixed/dense-exact@1024"]
+    assert runs["fixed/dense-exact@512"]["native_cosine"] == 1.0
+    assert runs["fixed/dense-exact@256"]["native_cosine"] == 0.0
+    summary = run.summarize_embeddings(records)
+    assert summary["fixed/dense-exact@512"]["mrr"] == 0.25  # (0.5 + 0) / 2
+    assert summary["fixed/dense-exact@256"]["native_cosine_min"] == 0.0
+
+
+def test_gpt_oss_config_passes_the_model_and_is_not_its_own_fallback():
+    assert run.ANSWER_CONFIGS["agent-gpt-oss"]["model"] == llm.GPT_OSS
+    answer = Answer(status="insufficient", claims=[], trace=[llm_step(model=llm.GPT_OSS)])
+    record = run.answer_record(GOOD[1], answer, {}, 1.0, primary=llm.GPT_OSS)
+    assert record["fallback"] is False and record["uncached_haiku_calls"] == 0
+    assert run.answer_record(GOOD[1], answer, {}, 1.0)["fallback"] is True
 
 
 def llm_step(model=llm.HAIKU, cached=False, tokens_in=1000, tokens_out=100):

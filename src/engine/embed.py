@@ -46,13 +46,20 @@ def embed_documents(texts: list[str]) -> list[list[float]]:
 # and the agent may repeat a query; one request per distinct text saves the shared Cohere pool.
 # 256 vectors are ~8 MB. Every caller gets the same list object: read it, never mutate it.
 @functools.lru_cache(maxsize=256)
-def embed_query(text: str) -> list[float]:
-    """The vector of a search query (`search_query`), comparable with `embed_documents`."""
-    return _embed([text], "search_query", _query_bedrock)[0]
+def embed_query(text: str, dimensions: int = DIMENSIONS) -> list[float]:
+    """The vector of a search query (`search_query`), comparable with `embed_documents`.
+
+    Another `dimensions` (256, 512) is for the eval's embedding comparison only (ADR 0032): the
+    stored chunks have 1024.
+    """
+    return _embed([text], "search_query", _query_bedrock, dimensions)[0]
 
 
-def _embed(texts: list[str], input_type: str, client) -> list[list[float]]:
-    """1024 floats per text, unit length as returned by Cohere, so cosine is the dot product.
+def _embed(
+    texts: list[str], input_type: str, client, dimensions: int = DIMENSIONS
+) -> list[list[float]]:
+    """`dimensions` floats per text, unit length as returned by Cohere, so cosine is the dot
+    product.
 
     `truncate: RIGHT` cuts an over-long input instead of failing the whole batch.
     """
@@ -60,7 +67,7 @@ def _embed(texts: list[str], input_type: str, client) -> list[list[float]]:
         "texts": texts,
         "input_type": input_type,
         "embedding_types": ["float"],
-        "output_dimension": DIMENSIONS,
+        "output_dimension": dimensions,
         "truncate": "RIGHT",
     }
     response = client.invoke_model(modelId=config.EMBED_MODEL, body=json.dumps(body))
