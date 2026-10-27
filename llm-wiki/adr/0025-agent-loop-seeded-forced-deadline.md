@@ -174,4 +174,4 @@ changed without a measured failure. `grounding.build_answer` now also lists the 
 removed (`dropped_citations` in its trace entry), so the eval can see a model citing a chunk
 an injection named but the run never showed. The residual risk is a model that believes an
 injected sentence and cites the injected chunk for it: grounding cannot tell that apart from a
-real fact. The injection eval (8 questions) measures it; it has not run yet.
+real fact. The injection eval (8 questions, six overt injection styles, the injected chunk in the seed search of each) found nothing followed: 8/8 resisted, $0.09.

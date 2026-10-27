@@ -12,7 +12,7 @@ own small code instead.
 ## 0. Status
 
 **Updated 2026-10-26 (day 3 of 6).** Waves 0-4 merged (PRs #4-#37). Corpus: 66,619 documents
-(66,555 HotpotQA + 64 Acme, `make acme-load` done). Haiku falls back `eu.*` -> `global.*` (#29,
+(66,555 HotpotQA + 64 Acme, `make acme-load` done; + 6 injected Acme documents, #42). Haiku falls back `eu.*` -> `global.*` (#29,
 ADR 0028; `eu.*` answers `ServiceUnavailableException` since the morning of 10-26); search tuned
 (#30, ADR 0029). Full eval done (#31): `retrieval`, `agent`, `agent-structured`, `single-shot`,
 results in `eval/results/` and llm-wiki/09 Results; the loop beats single-shot on multi-hop
@@ -26,7 +26,7 @@ The short-answer fix was dropped: the traces show it could win at most 2 of 25 E
 **Behind:** nothing; the mandatory part is done except the author's sections of AI_USAGE.md.
 Next: protect the open Function URL (anyone can delete documents); optional fixes from
 EVALUATION.md (repair malformed `claims` on the server, runner errors vs abstentions); defense
-rehearsal. Prompt-injection suite built (#42), its documents and eval run still pending (AWS session).
+rehearsal. Prompt-injection tests done (#42): 8/8 injections resisted.
 
 How status is kept (every PR that finishes or advances a task updates it in the same PR):
 - this section: date, current day and wave, what is behind, what is next;
@@ -92,7 +92,7 @@ processing architecture and justify it)
 
 ### 3. Dataset
 - [x] Use the attached dataset (extra public or synthetic data allowed) — HotpotQA from the list + synthetic Acme corpus (ADR 0006)
-- [x] At least 50,000 documents or independent text records — 66,555 unique HotpotQA documents (#7, #24) + 64 Acme
+- [x] At least 50,000 documents or independent text records — 66,555 unique HotpotQA documents (#7, #24) + 70 Acme (6 of them injected, #42)
 - [x] Find linked information across documents — Acme documents reference each other by id (#28); HotpotQA bridge questions
 - [x] Keep and identify sources — `source`, title and document id on every chunk; `upload:` gold sources in the Acme questions (#28)
 - [x] Handle incomplete and contradictory information — 14 planted contradictions, 6 gaps (#28), measured (#31, #32)
@@ -122,7 +122,7 @@ processing architecture and justify it)
 - [ ] Compare several LLMs or embedding models — not done (Titan was replaced for throughput, not compared on quality); cheapest option: Cohere V4 512 vs 1024 dimensions
 - [x] Multi-agent or agentic RAG — own agent loop with tools (#27), beats single-shot on multi-hop (0.87 vs 0.52)
 - [ ] More advanced re-ranking — partial: weighted RRF + MMR (#5, #30); no cross-encoder reranker
-- [ ] Prompt-injection tests — partial (#42): 6 injected Acme documents in the spec, 8 `injection` questions, `metrics.injection_resisted` + canaries, `dropped_citations` in the grounding trace, audit in EVALUATION.md section 8 (fencing unchanged). **Left:** `TARGET=acme` from the branch, commit the 6 files, `TARGET=acme-load`, `TARGET=eval CONFIG=agent TYPE=injection`, results into EVALUATION.md section 8
+- [x] Prompt-injection tests — #42: 6 injected Acme documents loaded, 8 `injection` questions, `metrics.injection_resisted` + canaries, `dropped_citations` in the grounding trace; `agent` resisted 8/8, judge 7/7, $0.09 (EVALUATION.md section 8; fencing unchanged after the audit)
 - [x] Caching and performance optimization — `llm_cache` in Postgres, prompt caching, 96 texts per embedding request, partial HNSW per strategy (#20, #23, #24)
 - [ ] Streaming answers — dropped: Python Lambda Function URLs do not stream
 - [ ] Detailed monitoring and observability — partial: one JSON log line per request in CloudWatch Logs; no dashboards or tracing

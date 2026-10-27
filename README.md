@@ -404,7 +404,7 @@ Bonus items not done (PLAN.md section 1, "6. Bonus"), listed as future work:
 |---|---|
 | Compare several LLMs or embedding models | not done; Titan was replaced for throughput, not compared on quality. Cheapest next step: Cohere V4 at 512 vs 1024 dimensions |
 | More advanced re-ranking | partial: weighted RRF + MMR; no cross-encoder reranker |
-| Prompt-injection tests | built, not run yet: 6 injected Acme documents, 8 `injection` questions, canary metric (EVALUATION.md section 8) |
+| Prompt-injection tests | done: 6 injected Acme documents, 8 `injection` questions, canary metric; 8/8 resisted (EVALUATION.md section 8) |
 | Streaming answers | dropped: Python Lambda Function URLs do not stream |
 | Detailed monitoring and observability | partial: one JSON log line per request; no dashboards or tracing |
 | Performance testing on large data | partial: bulk load timed, eval latency p50/p95; no load test |

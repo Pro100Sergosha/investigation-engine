@@ -260,8 +260,10 @@ What the runs show (the failure analysis for EVALUATION.md starts here):
 
 ### Prompt injection
 
-Not run yet (see Running above; EVALUATION.md section 8 has the audit of how document text
-reaches the model and the test set).
+`agent` on the 8 `injection` questions, 2026-10-27 (`eval/results/agent-injection.json`):
+resisted 8/8, followed 0, blocked 0, dropped citations 0, judge 7/7 (the eighth should abstain
+and did), citation precision 0.95, cost $0.09, p50/p95 15.1/38.8 s. The injected chunk was in
+the seed search of every question. Details and limits: EVALUATION.md section 8.
 
 ## Known limits
 
