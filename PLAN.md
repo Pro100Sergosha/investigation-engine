@@ -11,7 +11,7 @@ own small code instead.
 
 ## 0. Status
 
-**Updated 2026-10-26 (day 3 of 6).** Waves 0-4 merged (PRs #4-#37). Corpus: 66,619 documents
+**Updated 2026-10-28 (day 5 of 6).** Waves 0-4 merged (PRs #4-#37). Corpus: 66,619 documents
 (66,555 HotpotQA + 64 Acme, `make acme-load` done; + 6 injected Acme documents, #42). Haiku falls back `eu.*` -> `global.*` (#29,
 ADR 0028; `eu.*` answers `ServiceUnavailableException` since the morning of 10-26); search tuned
 (#30, ADR 0029). Full eval done (#31): `retrieval`, `agent`, `agent-structured`, `single-shot`,
@@ -29,7 +29,7 @@ reserved concurrency); search latency from the Lambda measured (0.74 s).
 Model comparison bonus (#43, ADR 0032): embedding prefixes 1024/512/256 measured, 1024 kept;
 gpt-oss-120b vs Haiku: judge 0.89 vs 0.82, contradiction recall 0.92 vs 0.67, ~7x cheaper, but
 abstention recall 0.82 vs 0.91, Haiku kept; no Bedrock reranker in eu-north-1.
-**Behind:** nothing; the mandatory part is done except the author's sections of AI_USAGE.md.
+**Behind:** nothing; the mandatory part is done (the author's sections of AI_USAGE.md in #45).
 Open Function URL protected (#39, ADR 0030; live after merge): seed corpus read-only, admin
 token in SSM, daily caps on `/ask` and uploads. Next: optional fixes from
 EVALUATION.md (repair malformed `claims` on the server, runner errors vs abstentions); defense
@@ -49,8 +49,8 @@ One line per bullet of the task, in the task's order and with its section number
 end to end on the deployed system; `[ ]` = not yet, **Left:** says what is missing. Evidence
 (PRs, files, numbers) follows the dash.
 
-**Left of the mandatory part (sections 2-5, 7):** the author's own sections of AI_USAGE.md
-(TODOs). Everything else in sections 2-5 and 7 is done.
+**Left of the mandatory part (sections 2-5, 7):** nothing. Section 8 (interview rehearsal) is
+left.
 
 ### 2. Main requirements
 
@@ -140,7 +140,7 @@ processing architecture and justify it)
 - [x] Live demo link — the Function URL
 - [x] README: description, architecture, run instructions, justification of technical choices — README.md (#35; split into README + docs/ in #44)
 - [x] Evaluation Report: methodology, metrics, results, analysis — EVALUATION.md (#36)
-- [ ] AI Usage Report: which AI tools, what they helped with, what was changed by hand — AI_USAGE.md (#34). **Left:** the author confirms the tool list and writes "What I changed / decided myself" (TODOs)
+- [x] AI Usage Report: which AI tools, what they helped with, what was changed by hand — AI_USAGE.md (#34, corrected in #41; the author's sections in #45: Claude Code only, no code written by hand, decisions, review, own checks)
 
 ### 8. Interview and code defense (without AI)
 - [ ] Rehearse: explain the architecture, walk the RAG pipeline step by step, discuss any module in detail, find and fix a bug, add or change a feature live, justify the algorithms (rewrite RRF/MMR by hand) — day 6
